@@ -219,3 +219,11 @@ except Exception as exc:
     print('\nEXCEPTION:', exc)
 else:
     raise AssertionError("Did not raise!")
+
+print("\n\n### STEP 3.4: using the built-in method of Pbc property (correct). ###\n")
+
+structure.pbc.set_from_string(dimensionality="3D")
+print("magnetization: ",structure.magnetization)
+print("pbc: ",structure.pbc)
+print("valid: ",structure.get_valid_properties())
+print("defined: ",structure.get_defined_properties())
