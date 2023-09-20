@@ -51,7 +51,7 @@ docs = [
 
 [project.entry-points."aiida.data"]
 "atomistic" = "aiida_atomistic.data:DiffParameters"
-"atomistic.structure" = "aiida_atomistic.data.structure:StructureData"
+"atomistic.structure" = "aiida_atomistic.data.structure.structure:StructureData"
 
 [project.entry-points."aiida.calculations"]
 "atomistic" = "aiida_atomistic.calculations:DiffCalculation"
