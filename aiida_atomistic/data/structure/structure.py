@@ -780,8 +780,9 @@ class StructureData(HasPropertyMixin, Data, metaclass=StructureMeta):
         if not pname in self._valid_properties:
             raise NotImplementedError(f"Property '{pname}' is not yet supported. Use the 'get_valid_properties' method to see the available properties.")
         
-        print('Setting {} to {}'.format(pname, str(pvalue)))
-        return self._set_property(from_set_property=True, pname=pname, pvalue=pvalue)
+        #print('Setting {} to {}'.format(pname, str(pvalue)))
+        self._set_property(from_set_property=True, pname=pname, pvalue=pvalue)
+        return
 
     def get_dimensionality(self):
         """

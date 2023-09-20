@@ -31,3 +31,17 @@ print("  hubbard: ",structure.hubbard)
 print("valid: ",structure.get_valid_properties())
 print("defined: ",structure.get_defined_properties())
 
+print("\n\n### STEP 2: test for the built-in method 'append_hubbard_parameter' ###\n")
+
+structure.hubbard.append_hubbard_parameter(
+        atom_index= 1,
+        atom_manifold= '3d',
+        neighbour_index= 1,
+        neighbour_manifold= '3d',
+        value= 500,
+        translation= (0, 0, 0),
+        hubbard_type='V')
+print("  hubbard: ",structure.hubbard)
+print("valid: ",structure.get_valid_properties())
+print("defined: ",structure.get_defined_properties())
+

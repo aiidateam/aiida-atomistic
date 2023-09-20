@@ -86,7 +86,7 @@ class HasPropertyMixin(metaclass=PropertyMixinMetaclass):
                 parent=self,
                 **self.get_property_attribute(attr)
             )
-        except KeyError: #changing this by using type_hints(parent=self) we can initialise properties with the Default value. But I would prefer to set in _property attributes the default... actually it will happen only for PBC. 
+        except KeyError: #changing this by using type_hints(parent=self) we can initialise properties with the Default value. But I would prefer to set in the _property_attributes the default... actually it will happen only for PBC. 
             #return None
             return type_hint(
                 parent=self,
@@ -104,12 +104,17 @@ class HasPropertyMixin(metaclass=PropertyMixinMetaclass):
                 parent=self,
                 **pvalue
             )
-            property_attributes = self.base.attributes.get("_property_attributes").copy()
-            property_attributes[pname] = pvalue
-            self.base.attributes.set("_property_attributes",property_attributes)
+            
+            self._database_wise_setter(pname, pvalue)
             return
         except KeyError: 
             return None
+    
+    def _database_wise_setter(self, pname, pvalue):
+        property_attributes = self.base.attributes.get("_property_attributes").copy()
+        property_attributes[pname] = pvalue
+        self.base.attributes.set("_property_attributes",property_attributes)
+        return
         
     def get_valid_properties(self):
         # Get the implemented properties
