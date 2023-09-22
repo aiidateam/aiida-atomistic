@@ -161,9 +161,7 @@ class Hubbard(BaseProperty):
             * translation
             * hubbard_type
         """
-        print(parameters)
         parameters = [HubbardParameters.from_tuple(value) for value in parameters]
-        print(parameters)
         #return Hubbard(parameters=parameters, projectors=projectors, formulation=formulation)
         return self.parent.set_property(pname='hubbard', pvalue={'parameters':parameters, 'projectors':projectors, 'formulation':formulation})
     

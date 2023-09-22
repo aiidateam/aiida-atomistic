@@ -772,7 +772,6 @@ class StructureData(HasPropertyMixin, Data, metaclass=StructureMeta):
         self.base.attributes.set('_property_attributes',{})
     
     def get_property_attribute(self, key):
-    # In AiiDA this could be self.base.attrs['properties'][key] or similar
         return self.base.attributes.get("_property_attributes")[key]    
         
     def set_property(self, pname=None, pvalue=None):
