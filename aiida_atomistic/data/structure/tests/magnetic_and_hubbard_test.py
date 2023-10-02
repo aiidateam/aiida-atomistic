@@ -49,6 +49,7 @@ structure = StructureData(pymatgen=smag1)  #should parse also magmoms here in th
 structure.hubbard.from_list(parameters=parameters)
 structure.magnetization.set_from_components(magnetic_moment_per_site=magmom)
 
+structure.store()
 magnetic_card = MagneticUtils(structure).get_magnetic_card()
 hubbard_card = HubbardUtils(structure).get_hubbard_card()
 

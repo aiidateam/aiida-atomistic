@@ -7,6 +7,7 @@ import os
 from typing import List, Tuple, Union
 
 from aiida.plugins import DataFactory
+from aiida_atomistic.data.structure.hubbard import HubbardParameters
 
 
 __all__ = (
@@ -45,7 +46,7 @@ class HubbardUtils:
     def get_hubbard_card(self) -> str:
         """Return QuantumESPRESSO `HUBBARD` input card for `pw.x`."""
         hubbard = self.hubbard_structure.get_property_attribute("hubbard")
-        hubbard_parameters = hubbard["parameters"]
+        hubbard_parameters = [HubbardParameters.from_list(value) for value in hubbard["parameters"]]
         sites = self.hubbard_structure.sites
         natoms = len(sites)
 
@@ -144,8 +145,8 @@ class HubbardUtils:
 
     def get_hubbard_file(self) -> str:
         """Return QuantumESPRESSO ``parameters.in`` data for ``pw.x```."""
-        hubbard = self.hubbard_structure.get_property_attribute["hubbard"]
-        hubbard_parameters = hubbard["parameters"]
+        hubbard = self.hubbard_structure.get_property_attribute("hubbard")
+        hubbard_parameters = [HubbardParameters.from_list(value) for value in hubbard["parameters"]]
         sites = self.hubbard_structure.sites
         natoms = len(sites)
 
@@ -266,7 +267,7 @@ class HubbardUtils:
         # Dumb, but fairly safe, way to map all the hubbard parameters.
         # The idea is to map for each interaction in unitcell the
         # correspective one in supercell matching all the positions.
-        for param in hubbard["parameters"]:
+        for param in hubbard.parameters:
             # i -> atom_index | j -> neighbour_index
             uc_i_position = uc_positions[param.atom_index]
             uc_j_position = uc_positions[param.neighbour_index]
@@ -344,13 +345,15 @@ def get_index_and_translation(index: int, num_sites: int) -> Tuple[int, List[Tup
 
 def get_hubbard_indices(hubbard) -> List[int]:
     """Return the set list of Hubbard indices."""
-    atom_indices = {parameters.atom_index for parameters in hubbard["parameters"]}
-    neigh_indices = {parameters.neighbour_index for parameters in hubbard["parameters"]}
+    atom_indices = {parameters.atom_index for parameters in hubbard.parameters}
+    neigh_indices = {parameters.neighbour_index for parameters in hubbard.parameters}
     atom_indices.update(neigh_indices)
     return list(atom_indices)
 
 
 def is_intersite_hubbard(hubbard) -> bool:
     """Return whether `Hubbard` contains intersite interactions (+V)."""
-    couples = [(param.atom_index != param.neighbour_index) for param in hubbard["parameters"]]
+    hubbard_parameters = [HubbardParameters.from_list(value) for value in hubbard["parameters"]]
+    #couples = [(param.atom_index != param.neighbour_index) for param in hubbard.parameters]
+    couples = [(param.atom_index != param.neighbour_index) for param in hubbard_parameters]
     return any(couples)

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Utility class and functions for HubbardStructureData."""
 # pylint: disable=no-name-in-module, invalid-name
+import numpy as np
 from typing import List, Literal, Tuple
-
 from pydantic import BaseModel, conint, constr, validator, Field
 
 from aiida_atomistic.data.structure.property import * 
@@ -110,7 +110,15 @@ class HubbardParameters(BaseModel):
             'hubbard_type',
         ]
         return HubbardParameters(**dict(zip(keys, hubbard_parameters)))
-
+    
+    #this is introduced only beacuse for now we have the db base storage only, and each HP is stored as list...
+    @staticmethod
+    def from_list(hubbard_list = List):
+        h_dict = {}
+        for i in hubbard_list:
+            h_dict[i[0]] = i[1]
+        return HubbardParameters(**h_dict)   
+            
 
 class Hubbard(BaseProperty):
     """Class for complete description of Hubbard interactions."""
@@ -224,7 +232,7 @@ class Hubbard(BaseProperty):
 
     def clear_hubbard_parameters(self):
         """Clear all the Hubbard parameters."""
-        hubbard_parameters = self.parent.hubbard.parameters.copy()
+        #hubbard_parameters = self.parent.hubbard.parameters.copy()
         hubbard_parameters = []
         return self.parent.set_property(pname='hubbard', pvalue={
                 'parameters':hubbard_parameters, 
@@ -306,13 +314,13 @@ class Hubbard(BaseProperty):
 
     def _get_one_kind_index(self, kind_name: str) -> List[int]:
         """Return the first site index matching with `kind_name`."""
-        for i, site in enumerate(self.sites):
+        for i, site in enumerate(self.parent.sites):
             if site.kind_name == kind_name:
                 return [i]
 
     def _get_symbol_indices(self, symbol: str) -> List[int]:
         """Return one site index for each kind name matching symbol."""
         site_kindnames = self.parent.get_site_kindnames()
-        matching_kinds = [kind.name for kind in self.kinds if symbol in kind.symbol]
+        matching_kinds = [kind.name for kind in self.parent.kinds if symbol in kind.symbol]
 
         return [site_kindnames.index(kind) for kind in matching_kinds]
