@@ -102,13 +102,22 @@ def create_magnetic_configuration(
     rtol = 0  # Relative tolerance used in the ``numpy.is_close()`` calls.
 
     magnetic_configuration = {}
+    
+    symbols_set = structure.get_symbols_set()
+    sites_ = structure.sites
+    
+    """
+    Before, the clear sites and kinds was done inside the loop, but does not work.
+    """
+    structure.clear_sites()
+    structure.clear_kinds()
 
-    for element in structure.get_symbols_set():
+    for element in symbols_set:
 
         # Filter the sites and magnetic moments on the site element
         element_sites, element_magnetic_moments = zip(
             *[(site, magnetic_moment)
-              for site, magnetic_moment in zip(structure.sites, magnetic_moment_per_site)
+              for site, magnetic_moment in zip(sites_, magnetic_moment_per_site)
               if site.kind_name.rstrip(string.digits) == element]
         )
 
@@ -167,8 +176,7 @@ def create_magnetic_configuration(
 
         magnetic_configuration.update(kind_magnetic_moments)
 
-        structure.clear_sites()
-        structure.clear_kinds()
+
         for name, site in zip(kind_names, kind_sites):
             structure.append_atom(
                 name=name,
