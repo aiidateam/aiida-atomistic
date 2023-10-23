@@ -12,12 +12,12 @@ In principle, a user story should be as much informal as possible, i.e. describe
 
 ### Templates
 
-- As a __type of user__, I want __some goal__ so that __some reason__
-- As a __role__ I can __capability__, so that __receive benefit__
-- In order to __receive benefit__ as a __role__, I can __goal/desire__
-- As __who__ __when__ __where__, I want __what__ because __why__
+- As a <__type of user__>, I want <__some goal__>, so that <__some reason__>
+- As a <__role__> I can <__capability__>, so that <__receive benefit__>
+- In order to <__receive benefit__> as a <__role__>, I can <__goal/desire__>
+- As <__who__> <__when__> <__where__>, I want <__what__> because <__why__>
 
-There is also other templates, named "Evil User Story", more focused on improve security (maybe here is not so important). For example:
+There are also other templates, named "Evil User Story", more focused on improve security (maybe here is not so important). For example:
 
 - As a disgruntled employee, I want to wipe out the user database to hurt the company
 

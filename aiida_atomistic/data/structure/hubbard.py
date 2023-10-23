@@ -206,7 +206,10 @@ class Hubbard(BaseProperty):
 
         hp_tuple = (atom_index, atom_manifold, neighbour_index, neighbour_manifold, value, translation, hubbard_type)
         parameters = HubbardParameters.from_tuple(hp_tuple)
-        hubbard_parameters = self.parent.hubbard.parameters.copy()
+        if self.parent.hubbard.parameters:
+            hubbard_parameters = self.parent.hubbard.parameters.copy()
+        else:
+            hubbard_parameters = []
 
         if parameters not in hubbard_parameters:
             hubbard_parameters.append(parameters)
