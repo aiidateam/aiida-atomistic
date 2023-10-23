@@ -14,7 +14,8 @@ class Magnetization(BaseProperty):
        
     def set_from_components(
         self,
-        magnetic_moment_per_site: List[float], 
+        magnetic_moment_per_site: List[float] = None,
+        magnetic_moment_per_kind: Dict[str,float] = None, 
         coordinates: Literal["cartesian","spherical","collinear"] = "cartesian", 
         use_kinds: bool = True, 
         atol: float = 0.5, 
@@ -34,8 +35,23 @@ class Magnetization(BaseProperty):
         
         """
         
+        if not magnetic_moment_per_site and not magnetic_moment_per_kind:
+            raise ValueError('You have to provide one among "magnetic_moment_per_site" and "magnetic_moment_per_kind"')
+        if magnetic_moment_per_site and magnetic_moment_per_kind:
+            raise ValueError('You have to provide only one among "magnetic_moment_per_site" and "magnetic_moment_per_kind"')
+        
         moments = []
         collinear_kind_moments = []
+        
+        if magnetic_moment_per_kind:
+            magnetic_moment_per_site = []
+            coordinates = "collinear" #for now we support only collinear, i.e. list of floats.
+            for site in self.parent.sites:
+                if site.kind_name in magnetic_moment_per_kind:
+                    magnetic_moment_per_site.append(magnetic_moment_per_kind[site.kind_name])
+                else:
+                    magnetic_moment_per_site.append(0.0)
+        
         
         #consistency check
         if len(magnetic_moment_per_site)!=len(self.parent.sites):

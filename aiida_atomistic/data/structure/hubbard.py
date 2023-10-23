@@ -210,13 +210,24 @@ class Hubbard(BaseProperty):
             hubbard_parameters = self.parent.hubbard.parameters.copy()
         else:
             hubbard_parameters = []
+        
+        if not self.parent.hubbard.projectors:
+            projectors = 'ortho-atomic'
+        else:
+            projectors = self.parent.hubbard.projectors    
+            
+        if not self.parent.hubbard.formulation:
+            formulation = 'dudarev'
+        else:
+            formulation = self.parent.hubbard.formulation  
+           
 
         if parameters not in hubbard_parameters:
             hubbard_parameters.append(parameters)
             return self.parent.set_property(pname='hubbard', pvalue={
                 'parameters':hubbard_parameters, 
-                'projectors':self.parent.hubbard.projectors, 
-                'formulation':self.parent.hubbard.formulation
+                'projectors':projectors,
+                'formulation':formulation,
                 })
 
 

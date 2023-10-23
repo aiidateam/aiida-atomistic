@@ -31,7 +31,8 @@ There are also other templates, named "Evil User Story", more focused on improve
 6. I want __to access easily a property__ to check its value, so that I can write simple scripts to analyze a set of StructureData instances.
 7. I want __tab completion for properties and related methods__, so that I can interactively work with it in jupyter notebooks.
 8. I want to have __data validations__ at the property definition stage, so I can understand if I am doing something wrong and not submitting a calculation which is doomed to except.
-9.  I want to have a clear documentation.
+9. I do __not__ want interference between properties definitions, so that I can choose the order in which I define my properties without affecting the final result.
+10. I want to have a clear documentation.
 
 
 ### So...
