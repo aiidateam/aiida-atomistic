@@ -31,7 +31,7 @@ There is also other templates, named "Evil User Story", more focused on improve 
 6. I want __to access easily a property__ to check its value, so that I can write simple scripts to analyze a set of StructureData instances.
 7. I want __tab completion for properties and related methods__, so that I can interactively work with it in jupyter notebooks.
 8. I want to have __data validations__ at the property definition stage, so I can understand if I am doing something wrong and not submitting a calculation which is doomed to except.
-9.  I want to have a clear documentation with all the above cases, provided with examples.
+9.  I want to have a clear documentation.
 
 
 ### So...
@@ -45,21 +45,40 @@ There is also other templates, named "Evil User Story", more focused on improve 
 - [ ] Documentation on 
   - [ ] StructureData instance creation
   - [ ] how to set a property, example on simple property like PBC.
-  - [ ] all the supported properties, format, default values, methods. How to list and access them.
+  - [ ] description of all the supported properties, format, default values, methods. How to list and access them.
 
 ## As an advanced user...
 
 1. I want to have the possiblity to define __custom properties__, so that I can use the StructureData in advanced ad-hoc workflows and propagate novel properties needed for my own case.
-2. I want to have the possiblity __to easily query the properties__, so that I can quicly analyze large datasets (for example in high-throughput). I want __to know what are the queryable properties__ (i.e. what properties are in the db and what are in the repository).
-3. I want to be able __to skip some of the defined properties in my job__, so that I can use the same StructureData node for different purposes, e.g. magnetic and non-magnetic simulations. I would like to be able to define it in the plugin inputs.
-4. I want a __unified format for the definition in the StructureData node___, so that it is straightforward to use the same StructureData in multiple workchains belonging to different plugins.
+2. I want a clear __documentation on how to define these custom properties__, how these should be implemented and where they will be stored. I would like to have a __template__ to easily start with.
+3. I want to have the possiblity __to easily query the properties__, so that I can quicly analyze large datasets (for example in high-throughput). I want __to know what are the queryable properties__ (i.e. what properties are in the db and what are in the repository).
+4. I want a __unified format for the definition in the StructureData node___, so that it is straightforward to use the same StructureData in multiple workchains and plugins.
 5. I want, however, __multiple ways to set a property, i.e. different methods to store the property starting from different input data__, so I can easily interface with different outputs. For example, magnetization can be provided as list of floats, vectors...
-6. I do __not want to set directly a property__ (`structure.property.pbc = [1, 1, 1]`), so that I have always type/data validation enbaled.
+6. I want to be able __to skip some of the defined properties in my job__, so that I can use the same StructureData node for different purposes, e.g. magnetic and non-magnetic simulations. I would like to be able to define it in the plugin inputs.
+7. I do __not want to set directly a property__ (`structure.property.pbc = [1, 1, 1]`), so that I have always type/data validation enbaled.
+8. I want to be able to define new StructureData as output of my calculation starting from the initial input one, and set the changed properties in an easy way. This means that I would like to have an abstract method `from_structure` which provides a non-stored StructureData instance starting from another one.
+
+### So...
+
+- [ ] support for custom properties
+- [ ] do not allow direct modification of a property (only via built-in methods)
+- [ ] `from_structure` method
+- [ ] documentation on 
+  - [ ] template to define custom properties (also with respect to the queryable aspects)
+  - [ ] what properties are queryable and how
+  - [ ] unified format of the properties, and guidelines on how to skip properties in a plugin. 
 
 ## As a plugin developer...
 
 1. I want to have a clear documentation on __how properties are defined in the StructureData (units, data types...)__, in such a way to be used in my plugin to generate input files for the submission of my job.
-2. I want to be able to define new StructureData as output of my calculation starting from the initial input one, and set the changed properties in an easy way. This means that I would like to have an abstract method `from_structure` which provides a non-stored StructureData instance starting from another one.
+2. I want to have a documentation on how to skip properties in a simulation, so that I can use the same StructureData for different purposes (similar case of the advanced user).
+3. I want some documentation on how to deal with custom properties, so that I will not have any exception if a user define some custom feature but the plugin do not know how to use it. 
+
+### So...
+
+- [ ] Documentation on properties format
+- [ ] Documentation on how to deal with custom properties in a plugin
+- [ ] Documentation on how to skip properties in a simulation
 
 ## As an AiiDA developer...
 
