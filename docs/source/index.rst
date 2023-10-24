@@ -6,7 +6,7 @@ The aiida-atomistic plugin for `AiiDA`_
 
 .. toctree::
    :maxdepth: 2
-
+   :hidden: true
    user_guide/index
    developer_guide/index
    API documentation <apidoc/aiida_atomistic>
@@ -18,10 +18,12 @@ If you use this plugin for your research, please cite the following work:
 
 If you use AiiDA for your research, please cite the following work:
 
-.. highlights:: Giovanni Pizzi, Andrea Cepellotti, Riccardo Sabatini, Nicola Marzari,
-  and Boris Kozinsky, *AiiDA: automated interactive infrastructure and database
-  for computational science*, Comp. Mat. Sci 111, 218-230 (2016);
-  https://doi.org/10.1016/j.commatsci.2015.09.013; http://www.aiida.net.
+.. highlights:: Sebastiaan. P. Huber, Spyros Zoupanos, Martin Uhrin, Leopold Talirz, 
+  Leonid Kahle, Rico Häuselmann, Dominik Gresch, Tiziano Müller, Aliaksandr V. Yakutovich, 
+  Casper W. Andersen, Francisco F. Ramirez, Carl S. Adorf, Fernando Gargiulo, Snehal Kumbhar, 
+  Elsa Passaro, Conrad Johnston, Andrius Merkys, Andrea Cepellotti, Nicolas Mounet, Nicola Marzari, 
+  Boris Kozinsky, and Giovanni Pizzi, [*AiiDA 1.0, a scalable computational infrastructure for automated 
+  reproducible workflows and data provenance*](https://doi.org/10.1038/s41597-020-00638-4), Scientific Data **7**, 300 (2020)
 
 ``aiida-atomistic`` is released under the MIT license.
 
