@@ -115,7 +115,7 @@ Units of magnetization are Bohr magnetons.
 TOBE ADDED: See the corresponding page on `magnetization` to have a full description of the property.
 
 **Property definition**: in the constructor, each property is provided by means of standard python built-in data types, e.g. lists, tuples, int and so on. We allow only a unique way to define/provide a given property, e.g. magnetization must be always provided as a *list of 3D vectors*, one for each atom (even if the magnetization is zero somewhere). This will simplify types, units and consistency checks.
-Some property class will be provided with classmethods used to convert from other to the pre-defined format. For example, we can invoke `Magnetization.from_collinear([1,-1,...0],direction=[cos(a),cos(b),cos(c)])` to produce the required list of 3D vectors needed in our StructureData instance definition.
+Some property class will be provided with classmethods used to convert from other to the pre-defined format. For example, we can invoke `Magnetization.from_collinear([1,-1,...0],direction=[cos(a),cos(b),cos(c)])` to produce the required list of 3D vectors needed in our StructureData instance definition. We may also define a `to_collinear` methods, but this will not be useful in terms of the property definition inside the StructureData node. 
 
 ## The immutability of the `StructureData` instance and constructors
 
@@ -177,6 +177,9 @@ In [21]: StructureData.properties. + tab
 this will provide the tab completion for all supported/available properties, each of them initialized to have the `value` attribute equal to `None`. 
 However, other attributes like `units` will be provided.
 (TOBE DISCUSSED: ...these non-system dependent attributes are not stored in the database: they will be always defined as class attributes, as they are defined once for all) 
+
+If an unsupported property it defined during the StructureData instance generation, an error is raised. 
+However, there is the possibility to define custom properties in a specific way (see the corresponding section - TOBE ADDED).
 
 ### List of stored properties
 
