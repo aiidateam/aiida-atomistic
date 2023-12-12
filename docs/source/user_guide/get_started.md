@@ -42,8 +42,3 @@ If you have already set up your own aiida_atomistic code using
 
     atomistic-submit  # uses aiida_atomistic.cli
 ```
-
-## Available calculations
-
-.. aiida-calcjob:: DiffCalculation
-    :module: aiida_atomistic.calculations

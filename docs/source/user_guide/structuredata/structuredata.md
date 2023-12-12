@@ -14,20 +14,20 @@ Among them, we have:
 In principle, some of these properties are related to the single sites/atoms (e.g. hubbard U,V) and some are related to the whole system (e.g. PBC).
 
 <div style="border:2px solid #f7d117; padding: 10px; margin: 10px 0;">
-    <strong>Important:</strong> we dropped the kind-base definition of the structure: we only have sites, now. This simplifies the properties defintion and respect the philosophy of a code-agnostic representation of the structure.
+    <strong>Important:</strong> we deprecate the kind-based definition of the structure: properties will be site-based, now. This simplifies the properties defintion and respect more the philosophy of a code-agnostic representation of the structure.
 </div>
 
 The possibility to have user defined custom properties is discussed in this section (TOBE ADDED).
 
-To explore the available properties in detail, please go to the corresponding page (TOBE ADDED).
+To explore the available properties in detail, please go to the corresponding pages (TOBE ADDED).
 
 ## Creation of a StructureData instance
 
-In the following, different ways to create a StructureData instance are shown, starting from a property-free structure (only crystal structure), the simplest one.
+In the following, different ways to create a StructureData instance are shown, starting with the property-free structure (only crystal structure), the simplest one.
 
 ### Setting just the crystal structure
 
-As in the old StructureData, it is possible to define just the crystal structure, i.e. the unit cell and the atomic positions. Default unit of lenght is Angstrom.
+As in the old StructureData, it is possible to define just the crystal structure, i.e. the unit cell and the atomic positions. Default unit of length is Angstrom.
 
 ```python
 In [1]: StructureData = DataFactory('atomistic.structure')
@@ -56,9 +56,13 @@ In [8]: structure.properties.pbc
 Out[8]: Pbc(value=(True,True,True))
 ```
 
-Please note the difference with respect to the `orm.StructureData`: no `kind_name` is defined in the sites attribute. Moreover, the `pbc` property, is always initialized and set to describe a bulk system (i.e. PBC in all the three spatial directions).
+Please note the difference with respect to the `orm.StructureData`: no `kind_name` is defined by default in the sites attribute. Moreover, the `pbc` property, is always initialized and set to describe a bulk system (i.e. PBC in all the three spatial directions).
 
-The actual value of the property can be accessed via the value attribute: `structure.properties.pbc.value`.
+The actual value of the property can be accessed via the `value` attribute: `structure.properties.pbc.value`.
+
+<div style="border:2px solid #f7d117; padding: 10px; margin: 10px 0;">
+    <strong>Backward-compatibility:</strong> to still support backward compatibility, we will allow the user to define kinds and to access the `pbc.value` attribute directy via `structure.pbc`. 
+</div>
 
 ### Setting the crystal structure and properties
 
@@ -78,7 +82,7 @@ In [9]: data = {
 In [10]: structure = StructureData(**data)
 
 In [11]: structure.properties.pbc
-Out[11]: Pbc(value=((True,True,False))
+Out[11]: Pbc(value=(True,True,False))
 ```
 
 The `pbc` property is useful for example during the generation of the k-points mesh. Indeed, the sampling of the BZ along non-periodic directions will be performed only at Gamma.
@@ -103,12 +107,15 @@ In [12]: data = {
 In [13]: structure = StructureData(**data)
 
 In [14]: structure.properties.magnetization
-Out[14]: Magnetization(value=([0.0,0.0,0.5],[0.0,0.0,-0.5]))
+Out[14]: Magnetization(value=([0.0,0.0,0.5],[0.0,0.0,-0.5]), units="Bohr magneton")
 ```
 
 A consistency check is then performed with respect to the properties provided. Here, for example, a check on the number of magnetization vectors provided and the number of atoms is done.
 Units of magnetization are Bohr magnetons. 
 TOBE ADDED: See the corresponding page on `magnetization` to have a full description of the property.
+
+**Property definition**: in the constructor, each property is provided by means of standard python built-in data types, e.g. lists, tuples, int and so on. We allow only a unique way to define/provide a given property, e.g. magnetization must be always provided as a *list of 3D vectors*, one for each atom (even if the magnetization is zero somewhere). This will simplify types, units and consistency checks.
+Some property class will be provided with classmethods used to convert from other to the pre-defined format. For example, we can invoke `Magnetization.from_collinear([1,-1,...0],direction=[cos(a),cos(b),cos(c)])` to produce the required list of 3D vectors needed in our StructureData instance definition.
 
 ## The immutability of the `StructureData` instance and constructors
 
@@ -135,7 +142,7 @@ In [18]: new_structure.properties.pbc # this is updated with respect to the orig
 Out[18]: Pbc(value=(True,True,True))
 
 In [19]: new_structure.properties.magnetization # this is the same as the original structure 
-Out[19]: Magnetization(value=([0.0,0.0,0.5],[0.0,0.0,-0.5]))
+Out[19]: Magnetization(value=([0.0,0.0,0.5],[0.0,0.0,-0.5]), units="Bohr magneton")
 ```
 
 In practice, the new structure is generated starting from the attributes of the input one, enriched/updated
@@ -167,11 +174,14 @@ They can also be inspected using tab completion, even on just the class object (
 In [21]: StructureData.properties. + tab
 ```
 
-this will provide the tab completion for all supported/available properties, each of them initialized as *None/empty* in the class. 
+this will provide the tab completion for all supported/available properties, each of them initialized to have the `value` attribute equal to `None`. 
+However, other attributes like `units` will be provided.
+(TOBE DISCUSSED: ...these non-system dependent attributes are not stored in the database: they will be always defined as class attributes, as they are defined once for all) 
 
 ### List of stored properties
 
-Stored properties of a `StructureData` node can be accessed singularly via tab completion, as seen in the previous subsection, or can be also obtained invoking the `get_defined_properties` method. 
+Stored properties of a `StructureData` node can be accessed singularly via the corresponding attribute, as seen in the previous subsection.
+It is possible to have a list of all the stored properties via the `get_defined_properties` method. 
 
 ```python
 In [22]: structure.get_defined_properties()
@@ -180,11 +190,13 @@ Out[22]: {
     "magnetization": ([0.0,0.0,0.5],[0.0,0.0,-0.5])
 }
 
-In [23]: structure.get_defined_properties("magnetization")
-Out[23]: Magnetization(value=([0.0,0.0,0.5],[0.0,0.0,-0.5]))
+In [23]: structure.get_defined_properties()
+Out[23]: ["pbc","magnetization"]
 ```
 
 ## How to query StructureData nodes
+
+to be added 
 
 ## The `to_*` methods
 
@@ -193,5 +205,3 @@ Out[23]: Magnetization(value=([0.0,0.0,0.5],[0.0,0.0,-0.5]))
 - to_cif/xyz/mcif...
 
 These methods will also dump the defined properties, whenever it is possible (e.g., magnetization in mcif).
-
-## User defined custom properties
