@@ -123,7 +123,7 @@ A crucial aspect of the new `StructureData` is that it is immutable even if the 
 behaviour coming from a step-by-step defintion of the structure, e.g. incosistencies between properties definitions, which are then not cross-checked again.
 
 One has to define a new `StructureData` instance by scratch.
-To make user life simpler, we providied a `from_structuredata` method, to be used as follows:
+To make user life simpler, we provide a `from_structuredata` method, to be used as follows:
 
 ```python
 In [15]: data_overrides = {
