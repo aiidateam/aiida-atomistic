@@ -3,21 +3,21 @@
 Here we present the `StructureData` class and we explain the basics on how to interact with it, to
 be used as input and output of simulations. This is an extended version of the StructureData implemented in `aiida-core`.
 
-The main new feature of this new implementation is the possibility do define several properties, to be associated to the defined crystal structure.
+The main new feature of this new implementation is the possibility to define several properties, to be associated to the defined crystal structure.
 Among them, we have:
 
+- system dimensionality, i.e. periodic boundary conditions (PBC)
 - magnetization
 - electronic charge
-- system dimensionality, i.e. periodic boundary conditions (PBC)
-- hubbard U and V parameters
+- Hubbard U and V parameters
 
-In principle, some of these properties are related to the single sites/atoms (e.g. hubbard U,V) and some are related to the whole system (e.g. PBC).
+In principle, some of these properties are related to the single sites/atoms (e.g. Hubbard U,V) and some are related to the whole system (e.g. PBC).
 
 <div style="border:2px solid #f7d117; padding: 10px; margin: 10px 0;">
-    <strong>Important:</strong> we deprecate the kind-based definition of the structure: properties will be site-based, now. This simplifies the properties defintion and respect more the philosophy of a code-agnostic representation of the structure.
+    <strong>Important:</strong> we deprecate the kind-based definition of the structure: properties will be site-based, now. This simplifies multiple properties defintion and respect more the philosophy of a code-agnostic representation of the structure. The kinds determination is then left to the plugin developers.
 </div>
 
-The possibility to have user defined custom properties is discussed in this section (TOBE ADDED).
+The possibility to have user defined custom properties is discussed in this section (TOBE ADDED/DISCUSSED but essentially I think these should be not used in standard calcjobs, but only stored).
 
 To explore the available properties in detail, please go to the corresponding pages (TOBE ADDED).
 
@@ -67,7 +67,7 @@ The actual value of the property can be accessed via the `value` attribute: `str
 ### Setting the crystal structure and properties
 
 Let's suppose we have a 2D structure. In this case, we need to define the PBC consistently.
-We should then provide the following information during to the StructureData constructor:
+We should then provide the following information in the StructureData constructor:
 
 ```python
 In [9]: data = {
