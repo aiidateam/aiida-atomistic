@@ -1,7 +1,7 @@
 # The StructureData object
 
 Here we present the `StructureData` class and we explain the basics on how to interact with it, to
-be used as input and output of simulations. This is an extended implementation of the StructureData implemented in `aiida-core`.
+be used as input and output of simulations. This is an extended version of the StructureData implemented in `aiida-core`.
 
 The main new feature of this new implementation is the possibility do define several properties, to be associated to the defined crystal structure.
 Among them, we have:
