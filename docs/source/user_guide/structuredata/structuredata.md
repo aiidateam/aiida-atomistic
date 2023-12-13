@@ -61,7 +61,7 @@ Please note the difference with respect to the `orm.StructureData`: no `kind_nam
 The actual value of the property can be accessed via the `value` attribute: `structure.properties.pbc.value`.
 
 <div style="border:2px solid #f7d117; padding: 10px; margin: 10px 0;">
-    <strong>Backward-compatibility:</strong> to still support backward compatibility, we will allow the user to define kinds and to access the `pbc.value` attribute directy via `structure.pbc`. 
+    <strong>Backward-compatibility:</strong> to still support backward compatibility, we will allow the user to define kinds and to access the `pbc.value` attribute directly via `structure.pbc`. 
 </div>
 
 ### Setting the crystal structure and properties
