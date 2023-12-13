@@ -85,13 +85,13 @@ In [11]: structure.properties.pbc
 Out[11]: Pbc(value=(True,True,False))
 ```
 
-The `pbc` property is useful for example during the generation of the k-points mesh. Indeed, the sampling of the BZ along non-periodic directions will be performed only at Gamma.
+The `pbc` property is useful for the generation of the k-points mesh. Indeed, the sampling of the BZ along non-periodic directions will be performed only at Gamma.
 
 <div style="border:2px solid #f7d117; padding: 10px; margin: 10px 0;">
     <strong>Important:</strong> system properties have to be provided as key-value pair in a dictionary under the keyword `properties`.
 </div>
 
-What if have also the magnetization of each atom and I want my structure to have this information? A new instance of the StructureData has to be generated as follows:
+What if I have the magnetization of each atom and I want my structure to store this information? A new instance of the StructureData has to be generated, as follows:
 
 ```python
 In [12]: data = {
@@ -188,13 +188,7 @@ It is possible to have a list of all the stored properties via the `get_defined_
 
 ```python
 In [22]: structure.get_defined_properties()
-Out[22]: {
-    "pbc": (True,True,True),
-    "magnetization": ([0.0,0.0,0.5],[0.0,0.0,-0.5])
-}
-
-In [23]: structure.get_defined_properties()
-Out[23]: ["pbc","magnetization"]
+Out[22]: ["pbc","magnetization"]
 ```
 
 ## How to query StructureData nodes
