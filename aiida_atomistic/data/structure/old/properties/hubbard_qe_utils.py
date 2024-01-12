@@ -7,7 +7,7 @@ import os
 from typing import List, Tuple, Union
 
 from aiida.plugins import DataFactory
-from aiida_atomistic.data.structure.hubbard import HubbardParameters
+from aiida_atomistic.data.structure.properties.hubbard import HubbardParameters
 
 
 __all__ = (

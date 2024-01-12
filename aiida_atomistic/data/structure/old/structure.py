@@ -26,9 +26,10 @@ from aiida.common.exceptions import UnsupportedSpeciesError
 
 from aiida.orm.nodes.data.data import Data
 
-from aiida_atomistic.data.structure.property import * 
-from aiida_atomistic.data.structure.magnetic import Magnetization
-from aiida_atomistic.data.structure.hubbard import Hubbard
+"""from aiida_atomistic.data.structure.properties.property import * 
+from aiida_atomistic.data.structure.properties.magnetic import Magnetization
+from aiida_atomistic.data.structure.properties.hubbard import Hubbard"""
+
 
 __all__ = ('StructureData', 'Kind', 'Site')
 
@@ -715,9 +716,11 @@ class StructureData(HasPropertyMixin, Data, metaclass=StructureMeta):
     
     ## GP: For some reason however this is recognized by MyPy as a PropertyInfo and not as a Magnetization... one would need to check how pydantic does this
     ## MB: I Think it forces to be a PropertyInfo type as we do not provide inputs at least at the starting phase, in the cls initialization.
-    magnetization: Magnetization = Property()
-    #pbc: Pbc = Property()
-    hubbard: Hubbard = Property()
+    
+    #### Supported properties:
+    pbc: Pbc = Property() # <= we still also support structure.pbc, for backward compatibility.
+    #magnetization: Magnetization = Property()
+    #hubbard: Hubbard = Property()
 
     def __init__(
         self,

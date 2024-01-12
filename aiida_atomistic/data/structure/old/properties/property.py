@@ -26,16 +26,16 @@ class BaseProperty(BaseModel):
         #init_var=True   # Does not show when dumping the model (but I think it works only in pydantic 2)
         )
     class Config:
-        frozen = True
-        extra = 'forbid'
-        arbitrary_types_allowed = True # You can remove if also StructureData inherits from BaseModel
+        frozen = True                  # No changes allowed: immutability
+        extra = 'forbid'               # No extra arguments or attributes allowed.
+        arbitrary_types_allowed = True # You can remove if also StructureData inherits from BaseModel.
 
 class Pbc(BaseProperty):
     """
     For now this property is not included in the StructureData. 
     I have doubt on if we really need to move it in the properties. 
     """
-    value: List[bool] = Field(min_items=3, max_items=3, default=[False,False,False])
+    value: List[bool] = Field(min_items=3, max_items=3, default=[True,True,True])
     
     
     def set_from_string(self, dimensionality:str = "3D"):

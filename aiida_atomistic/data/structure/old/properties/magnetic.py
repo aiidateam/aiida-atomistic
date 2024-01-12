@@ -4,7 +4,7 @@ from pymatgen.electronic_structure.core import Magmom
 from pydantic import Field
 import numpy
 
-from aiida_atomistic.data.structure.property import * 
+from aiida_atomistic.data.structure.properties.property import * 
 
 class Magnetization(BaseProperty):
     moments: List[Tuple[float,float,float]] = Field(default=None) #should be validated against the number of sites.
