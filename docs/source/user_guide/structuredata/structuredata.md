@@ -14,7 +14,7 @@ Among them, we have:
 In principle, some of these properties are related to the single sites/atoms (e.g. Hubbard U,V) and some are related to the whole system (e.g. PBC).
 
 <div style="border:2px solid #f7d117; padding: 10px; margin: 10px 0;">
-    <strong>Important:</strong> we deprecate the kind-based definition of the structure: properties will be site-based, now. This simplifies multiple properties defintion and respect more the philosophy of a code-agnostic representation of the structure. The kinds determination is then left to the plugin developers. For now, however, we leave the kinds attribute where it is, to support backward-compatibility.
+    <strong>Important:</strong> we deprecate the kind-based definition of the structure: properties will be site-based, now. This simplifies multiple properties defintion and respect more the philosophy of a code-agnostic representation of the structure. The kinds determination is then left to the plugin developers.
 </div>
 
 The possibility to have user defined custom properties is discussed in this section (TOBE ADDED/DISCUSSED but essentially I think these should be not used in standard calcjobs, but only stored).
@@ -139,7 +139,7 @@ In [17]: new_structure.cell # this is updated with respect to the original struc
 Out[17]: [[3.5, 0.0, 0.0], [0.0, 3.5, 0.0], [0.0, 0.0, 3.5]]
 
 In [18]: new_structure.properties.pbc # this is updated with respect to the original structure
-Out[18]: Pbc(parent=<StructureData: uuid: f5532777-07f8-483f-ae3b-1a919baccc92 (unstored)>, value=[True,True,True])
+Out[18]: Pbc(value=(True,True,True))
 
 In [19]: new_structure.properties.magnetization # this is the same as the original structure 
 Out[19]: Magnetization(value=([0.0,0.0,0.5],[0.0,0.0,-0.5]), units="Bohr magneton")

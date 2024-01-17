@@ -18,8 +18,7 @@ In [2]: data = {
 In [3]: structure = StructureData(**data)
 
 In [4]: structure.properties.pbc
-Out[4]: Pbc(parent=<StructureData: uuid: f5532777-07f8-483f-ae3b-1a919baccc92 (unstored)>, value=[True,True,False])
-
+Out[4]: Pbc(value=(True,True,False))
 ```
 
 in the above example we are considering a 2D system, where the third direction in space is not periodic.

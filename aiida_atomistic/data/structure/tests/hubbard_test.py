@@ -5,7 +5,7 @@ from pymatgen.core import Structure
 from pymatgen.io.cif import CifParser
 
 from aiida_atomistic.data.structure.structure import StructureData
-from aiida_atomistic.data.structure.properties.hubbard_qe_utils import HubbardUtils
+from aiida_atomistic.data.structure.hubbard_qe_utils import HubbardUtils
 
 smag1 = Structure.from_file("./Fe_bcc.mcif", primitive=False) #used for formula and magmom
 

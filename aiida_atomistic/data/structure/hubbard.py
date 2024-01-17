@@ -5,7 +5,7 @@ import numpy as np
 from typing import List, Literal, Tuple
 from pydantic import BaseModel, conint, constr, validator, Field
 
-from aiida_atomistic.data.structure.properties.property import * 
+from aiida_atomistic.data.structure.property import * 
 
 
 __all__ = ('HubbardParameters', 'Hubbard')
