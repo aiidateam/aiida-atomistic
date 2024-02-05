@@ -1,7 +1,7 @@
 from typing import Any
 from pydantic import Field
 
-from aiida_atomistic.data.structure.property_utils import BaseProperty
+from aiida_atomistic.data.structure.properties.property_utils import BaseProperty
 
 ################################################## Start: Template Custom property:
 

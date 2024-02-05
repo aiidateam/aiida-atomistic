@@ -1,7 +1,7 @@
 from aiida import load_profile
 load_profile()
 
-from aiida_atomistic.data.structure.structure import StructureData, Magnetization
+from aiida_atomistic.data.structure.structure_inherit import StructureData, Magnetization
 
 #### INITIALIZATION
 print("\n## STEP 1: initialization ##")

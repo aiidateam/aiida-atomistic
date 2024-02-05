@@ -4,7 +4,7 @@ load_profile()
 from pymatgen.core import Structure
 from pymatgen.io.cif import CifParser
 
-from aiida_atomistic.data.structure.structure import StructureData
+from aiida_atomistic.data.structure.structure_inherit import StructureData
 from aiida_atomistic.data.structure.properties.magnetic_qe_utils import MagneticUtils
 from aiida_atomistic.data.structure.properties.hubbard_qe_utils import HubbardUtils
 

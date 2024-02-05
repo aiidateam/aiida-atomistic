@@ -102,13 +102,11 @@ class PropertyMixinMetaclass(ABCMeta):
                 func_get = lambda self, type_hint=type_hint, attr=attr: self._template_property(type_hint=type_hint, attr=attr)
                 
                 # We do not allow to set any property after the creation of the instance: 
-                #===> WE DEACTIVATE THE METHOD, using the `allow_no_calls_decorator`.
+                #===> WE CAN DEACTIVATE THE METHOD, using the `allow_no_calls_decorator`.
                 # Here below, we leave it there for now, in case it is needed in the future.
-                # I define also a setter, TOTEST if we stay immutable wrt other ways to change the property:
                 func_set = lambda self, pname=None, pvalue=None: self._set_property(pname, pvalue)
                 setattr(cls, attr, property(fget=func_get,fset=func_set))
 
-        
         return cls            
 
 class HasPropertyMixin(metaclass=PropertyMixinMetaclass):

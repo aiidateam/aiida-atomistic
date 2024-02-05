@@ -1,28 +1,44 @@
+import pytest
+
 from typing import Tuple
 
 from ase import Atoms
-from aiida_atomistic.data.structure.structure import StructureData
+from aiida_atomistic.data.structure.structure_inherit import StructureData
 
 unit_cell = [[3.5, 0.0, 0.0], [0.0, 3.5, 0.0], [0.0, 0.0, 3.5]]
-
-atoms = Atoms('LiLi', [[0.0, 0.0, 0.0],[1.5, 1.5, 1.5]], cell = [1,1,1])
-atoms.set_cell(unit_cell, scale_atoms=False)
-atoms.set_pbc([True,False,True])
+atomic_positions = [[0.0, 0.0, 0.0],[1.5, 1.5, 1.5]]
+symbol = "Li"
 
 
-def test_pbc_value(correct_value = (True,False,True)):
+
+def test_structure_bare_initialization():
     
     """
-    Testing that the pbc value is stored correctly.
+    Testing that the StructureData is initialized correctly when atomic positions, cell are provided.
     """
     
     structure = StructureData(
-        ase=atoms,
-        properties={
-                'pbc': {'value':correct_value},
-                },
+        cell=unit_cell,
+        atomic_positions={"positions":atomic_positions, "symbols":[symbol]*2},
         )
 
-    assert structure.properties.pbc.value == correct_value, f"value should be {correct_value}"
-    assert isinstance(structure.properties.pbc.value, type(correct_value)), "type of the value should be {type(correct_value)}"
-    assert structure.properties.pbc.value == structure.pbc, f"structure.properties.pbc.value={structure.properties.pbc.value}, structure.pbc={structure.pbc}"
+    assert isinstance(structure,StructureData)
+    
+    
+    
+def test_structure_ASE_initialization():
+    
+    """
+    Testing that the StructureData is initialized correctly when ASE Atoms object is provided.
+    """
+    
+    atoms = Atoms(symbol*2, atomic_positions, cell = [1,1,1])
+    atoms.set_cell(unit_cell, scale_atoms=False)
+    atoms.set_pbc([True,False,True])
+
+    structure = StructureData(
+        ase=atoms,
+        )
+
+    assert isinstance(structure,StructureData)
+    
