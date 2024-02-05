@@ -5,6 +5,10 @@ from aiida_atomistic.data.structure.properties.property_utils import *
 
 from aiida_atomistic.data.structure.properties.globals.cell import Cell
 from aiida_atomistic.data.structure.properties.globals.pbc import Pbc
+
+from aiida_atomistic.data.structure.properties.per_site.position import Positions
+from aiida_atomistic.data.structure.properties.per_site.symbols import Symbols
+
 from aiida_atomistic.data.structure.properties.custom import CustomProperty
 
 class PropertyCollector(HasPropertyMixin):
@@ -37,6 +41,8 @@ class PropertyCollector(HasPropertyMixin):
     # Supported properties below:
     pbc: Pbc = Property()
     cell: Cell = Property()
+    positions: Positions = Property()
+    symbols: Symbols = Property()
     custom: CustomProperty = Property()
         
     def __init__(
@@ -53,17 +59,17 @@ class PropertyCollector(HasPropertyMixin):
         # is an instance of the corresponding Property subclass value.
         super().__init__()
         
-        self._inspect_properties(properties)
-        
         self._property_attributes = properties
         # Store the properties in the StructureData node.
         #self._parent.base.attributes.set('_property_attributes',{})
         if not self._parent.is_stored:
             self._parent.base.attributes.set('_property_attributes',self._property_attributes)
+            
+        self._inspect_properties(properties)
     
     
     def get_valid_properties(self,):
-        return typing.get_type_hints(self.__class__).keys()
+        return list(typing.get_type_hints(self.__class__).keys())
     
     def get_property_attribute(self, key):
         # In AiiDA this could be self.base.attrs['properties'][key] or similar
@@ -85,5 +91,13 @@ class PropertyCollector(HasPropertyMixin):
                 raise ValueError(f"Property '{pname}' has not value provided.")
             elif len(pvalue)==0:
                 raise ValueError(f"Property '{pname}' is empty.")
-            #elif not isinstance(pvalue, dict):
-            #    raise ValueError(f"The '{pname}' value is not of the right type. Expected '{type(dict())}', received '{type(pvalue)}'.") 
+            elif not isinstance(pvalue, dict): # maybe to be changed
+                raise ValueError(f"The '{pname}' value is not of the right type. Expected '{type(dict())}', received '{type(pvalue)}'.") 
+            else:
+                """
+                This call is done as we want to initialise the properties, in such a way to have `pydantic` validation.
+                this happens because the get method will invoke the `_template_property` method as defined in the 
+                `HasPropertyMixin` class.
+                The fact is that the `PropertyMixinMetaclass` only define the fget and fset methods, without using them.
+                """
+                getattr(self,pname)

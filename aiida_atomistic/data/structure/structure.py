@@ -32,7 +32,7 @@ __all__ = ('StructureData', 'Kind', 'Site')
 
 # Threshold used to check if the mass of two different Site objects is the same.
 
-_MASS_THRESHOLD = 1.e-3
+# RM _MASS_THRESHOLD = 1.e-3
 # Threshold to check if the sum is one or not
 _SUM_THRESHOLD = 1.e-6
 
@@ -782,6 +782,13 @@ class StructureData(Data):
     def properties(self,value):
         raise AttributeError("After the initialization, `properties` is a read-only attribute")
     
+    
+    def to_dict(self):
+        """ 
+        Returns a dictionary with the properties defined.
+        Used to generate new StructureData with some changed/updated properties.
+        """
+        return self.base.attributes.get('_property_attributes')
     
     def get_dimensionality(self):
         """

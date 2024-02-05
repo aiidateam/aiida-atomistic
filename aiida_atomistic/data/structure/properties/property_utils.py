@@ -88,6 +88,10 @@ class PropertyMixinMetaclass(ABCMeta):
     If we use only a constructor for the creation of the StructureData
     together with the properties, we do not need it.
     
+    However, there is no validation of the inputs here: this means that if we do not
+    initialise the properties, by calling them or setting them, there is no pydantic validation.
+    This will happen has soon as we use the fget or fset methods.
+    
     We do not allow to set any property after the creation of the instance: 
     ===> we do not set the `fset` attribute.
     """
@@ -104,24 +108,27 @@ class PropertyMixinMetaclass(ABCMeta):
                 # We do not allow to set any property after the creation of the instance: 
                 #===> WE CAN DEACTIVATE THE METHOD, using the `allow_no_calls_decorator`.
                 # Here below, we leave it there for now, in case it is needed in the future.
+                #func_set = lambda self, type_hint=type_hint, attr=attr: self._template_property(type_hint=type_hint, attr=attr)
                 func_set = lambda self, pname=None, pvalue=None: self._set_property(pname, pvalue)
                 setattr(cls, attr, property(fget=func_get,fset=func_set))
 
-        return cls            
+        return cls  
+    
 
 class HasPropertyMixin(metaclass=PropertyMixinMetaclass):
     _valid_properties = set()
 
     def _template_property(self, type_hint, attr):
-        try:
+       
+        return type_hint(
+            parent=self._parent,
+            **self.get_property_attribute(attr)
+        )
+        '''except: 
+            # In case we initialise to
             return type_hint(
                 parent=self._parent,
-                **self.get_property_attribute(attr)
-            )
-        except: 
-            return type_hint(
-                parent=self._parent,
-            )
+            )'''
 
     # This function is never used:
     @allow_no_calls_decorator
@@ -140,6 +147,7 @@ class HasPropertyMixin(metaclass=PropertyMixinMetaclass):
         except KeyError: 
             return None
     
+    # Not used:
     def _database_wise_setter(self, pname, pvalue):
         property_attributes = self._parent.base.attributes.get("_property_attributes").copy()
         property_attributes[pname] = pvalue
