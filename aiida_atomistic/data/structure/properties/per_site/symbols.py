@@ -25,5 +25,7 @@ class Symbols(BaseProperty):
             raise ValueError("If you define symbols, you should define also the corresponding positions.")
         elif not len(value) == len(values["parent"].base.attributes.get("_property_attributes")["positions"]["value"]):
             raise ValueError("The number of provided symbols should match the number of positions.")
+            # what if we prefer to give a guess? like the following:
+            #return [value[0]]*len(values["parent"].base.attributes.get("_property_attributes")["positions"]["value"])
         return value
 ################################################## End: PBC property.

@@ -771,6 +771,8 @@ class StructureData(Data):
                 ## RM pbc = [True, True, True]
             ## RM self.set_pbc(pbc)
 
+    #### START new methods
+    
     @property
     def properties(self):
         """ 
@@ -789,6 +791,76 @@ class StructureData(Data):
         Used to generate new StructureData with some changed/updated properties.
         """
         return self.base.attributes.get('_property_attributes')
+    
+    
+    def get_kinds(self, use_kind_tag = False, use_kind_name = True):
+        """Get the list of kinds, taking into account all the properties.
+        
+        Algorithm:
+        it generated the kinds_list for each property separately in step 1, then
+        it creates the matrix k = k.T where the rows are the sites, the columns are the kind for a given property.
+        In step 2 it checks for the matrxi kwhich rows have the same numbers in the same order, i.e. recognize the different
+        kinds considering all the properties.
+
+        Args:
+            structure (_type_): _description_
+            use_kind_tag (bool, optional): If True, at the end of the kinds generation, it uses the 
+                                            structure.positions.kind_tags list to override some or all of 
+                                            them. Defaults to False. 
+            use_kind_names (bool, optional): if False, it returns only numbers for each different kinds. if True, returns
+                                            the kinds ready to be used in the plugins.
+            
+        Returns:
+            kinds_list: the list of kinds to be used in a plugin which requires it.
+        
+        *Missing:
+            - Give custom threshold and use kind_tags as defined in 
+              structure.properties.positions.kind_tags.
+            
+        Questions:
+        answered, but worth to leave it here for now: What is then the value of each property associated to each kind? an average? maybe yes.
+        This can be then generated in another function which takes the averages. Maybe in the property specific
+        to_kind methods. Maybe indeed the average point which is obtained during the space_grid generation.
+        """
+        import numpy as np
+        import copy
+        
+        symbols = self.properties.symbols.value
+        
+        # Step 1:
+        kind_properties = []
+        kinds_values = {}
+        for single_property in self.properties.get_defined_properties():
+            prop = getattr(self.properties,single_property)
+            if prop.domain == "per-site" and not single_property in ["symbols","positions"]:
+                kinds_per_property = prop.to_kinds()
+                kind_properties.append(kinds_per_property[0])
+                kinds_values[single_property] = kinds_per_property[1]
+                
+        k = np.array(kind_properties)
+        k = k.T
+        
+        # Step 2:
+        kinds = np.zeros(len(self.properties.positions.value),dtype=int) -1
+        kinds_names = copy.deepcopy(symbols)
+        for i in range(len(k)):
+            element = symbols[i]
+            print(element)
+            diff = k-k[i]
+            #print(ab)
+            diff_sum = np.sum(np.abs(diff),axis=1)
+            #print(diff_sum)
+            #print(np.where(diff_sum==0))
+            kinds[np.where(diff_sum == 0)[0]] = i
+            for where in np.where(diff_sum == 0)[0]:
+                kinds_names[where] = f"{element}{i}"
+            if len(np.where(kinds == -1)[0]) == 0 : 
+                #print(f"search ended at iteration {i}")
+                break
+        
+        return kinds.tolist(),kinds_names,kinds_values
+    
+    #### END new methods
     
     def get_dimensionality(self):
         """

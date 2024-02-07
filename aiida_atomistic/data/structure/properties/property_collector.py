@@ -8,6 +8,8 @@ from aiida_atomistic.data.structure.properties.globals.pbc import Pbc
 
 from aiida_atomistic.data.structure.properties.per_site.position import Positions
 from aiida_atomistic.data.structure.properties.per_site.symbols import Symbols
+from aiida_atomistic.data.structure.properties.per_site.mass import Mass
+from aiida_atomistic.data.structure.properties.per_site.charge import Charge
 
 from aiida_atomistic.data.structure.properties.custom import CustomProperty
 
@@ -43,6 +45,8 @@ class PropertyCollector(HasPropertyMixin):
     cell: Cell = Property()
     positions: Positions = Property()
     symbols: Symbols = Property()
+    mass: Mass = Property()
+    charge: Charge = Property()
     custom: CustomProperty = Property()
         
     def __init__(
@@ -95,8 +99,9 @@ class PropertyCollector(HasPropertyMixin):
                 raise ValueError(f"The '{pname}' value is not of the right type. Expected '{type(dict())}', received '{type(pvalue)}'.") 
             else:
                 """
-                This call is done as we want to initialise the properties, in such a way to have `pydantic` validation.
-                this happens because the get method will invoke the `_template_property` method as defined in the 
+                Using the pydantic validation:
+                the following `getattr` call is done as we want to initialise the properties, in such a way to have `pydantic` validation.
+                This is needed because the get method will invoke the `_template_property` method as defined in the 
                 `HasPropertyMixin` class.
                 The fact is that the `PropertyMixinMetaclass` only define the fget and fset methods, without using them.
                 """
