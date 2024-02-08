@@ -13,7 +13,7 @@ class Symbols(BaseProperty):
     """
     The symbols property, intended as the chemical symbols for each atom(site). 
     """
-    domain = "per-site"
+    domain = "intra-site"
     # units... maybe specify in the docs.
     value: List[Literal[_valid_symbols]]
     

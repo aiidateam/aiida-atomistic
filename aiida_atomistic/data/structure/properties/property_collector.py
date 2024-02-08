@@ -6,10 +6,10 @@ from aiida_atomistic.data.structure.properties.property_utils import *
 from aiida_atomistic.data.structure.properties.globals.cell import Cell
 from aiida_atomistic.data.structure.properties.globals.pbc import Pbc
 
-from aiida_atomistic.data.structure.properties.per_site.position import Positions
-from aiida_atomistic.data.structure.properties.per_site.symbols import Symbols
-from aiida_atomistic.data.structure.properties.per_site.mass import Mass
-from aiida_atomistic.data.structure.properties.per_site.charge import Charge
+from aiida_atomistic.data.structure.properties.intra_site.position import Positions
+from aiida_atomistic.data.structure.properties.intra_site.symbols import Symbols
+from aiida_atomistic.data.structure.properties.intra_site.mass import Mass
+from aiida_atomistic.data.structure.properties.intra_site.charge import Charge
 
 from aiida_atomistic.data.structure.properties.custom import CustomProperty
 
@@ -72,8 +72,9 @@ class PropertyCollector(HasPropertyMixin):
         self._inspect_properties(properties)
     
     
-    def get_valid_properties(self,):
+    """def get_supported_properties(self,):
         return list(typing.get_type_hints(self.__class__).keys())
+    """
     
     def get_property_attribute(self, key):
         # In AiiDA this could be self.base.attrs['properties'][key] or similar
@@ -86,11 +87,11 @@ class PropertyCollector(HasPropertyMixin):
         have a defined prefix.
         """
         for pname,pvalue in properties.items():
-            if pname not in self.get_valid_properties():
-                raise NotImplementedError(f"Property '{pname}' is not yet supported.\nSupported properties are: {self.get_valid_properties()}")
+            if pname not in self.get_supported_properties():
+                raise NotImplementedError(f"Property '{pname}' is not yet supported.\nSupported properties are: {self.get_supported_properties()}")
             # custom properties:
-            #elif pname in self.get_valid_properties():
-            #    raise NotImplementedError(f"Property '{pname}' is not yet supported.\nSupported properties are: {self.get_valid_properties()}")
+            #elif pname in self.get_supported_properties():
+            #    raise NotImplementedError(f"Property '{pname}' is not yet supported.\nSupported properties are: {self.get_supported_properties()}")
             elif not pvalue:
                 raise ValueError(f"Property '{pname}' has not value provided.")
             elif len(pvalue)==0:

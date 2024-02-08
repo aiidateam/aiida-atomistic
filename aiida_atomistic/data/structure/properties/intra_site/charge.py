@@ -12,7 +12,7 @@ class Charge(BaseProperty):
     """
     The charge property. 
     """
-    domain = "per-site"
+    domain = "intra-site"
     default_kind_threshold = 0.45
     # units... maybe specify in the docs.
     value: List[float] = Field(default=None)

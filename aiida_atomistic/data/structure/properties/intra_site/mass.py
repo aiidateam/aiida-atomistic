@@ -13,7 +13,7 @@ class Mass(BaseProperty):
     """
     The mass property. 
     """
-    domain = "per-site"
+    domain = "intra-site"
     default_kind_threshold = 1e-3
     # units... maybe specify in the docs.
     value: List[float] = Field(default=None)

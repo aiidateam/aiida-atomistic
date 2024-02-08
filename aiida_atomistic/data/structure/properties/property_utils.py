@@ -154,14 +154,14 @@ class HasPropertyMixin(metaclass=PropertyMixinMetaclass):
         self._parent.base.attributes.set("_property_attributes",property_attributes)
         return
         
-    def get_valid_properties(self):
+    def get_supported_properties(self):
         # Get the implemented properties
-        return self._valid_properties.copy()
+        return list(self._valid_properties.copy())
 
-    def get_defined_properties(self):
+    def get_stored_properties(self):
         # Get the properties that you already set
         property_attributes = self._parent.base.attributes.get("_property_attributes")
-        return list(set(self.get_valid_properties()).intersection(
+        return list(set(self.get_supported_properties()).intersection(
             property_attributes.keys()
         ))
         

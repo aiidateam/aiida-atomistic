@@ -783,14 +783,13 @@ class StructureData(Data):
     @properties.setter
     def properties(self,value):
         raise AttributeError("After the initialization, `properties` is a read-only attribute")
-    
-    
+             
     def to_dict(self):
         """ 
         Returns a dictionary with the properties defined.
         Used to generate new StructureData with some changed/updated properties.
         """
-        return self.base.attributes.get('_property_attributes')
+        return copy.deepcopy(self.base.attributes.get('_property_attributes'))
     
     
     def get_kinds(self, use_kind_tag = False, use_kind_name = True):
@@ -830,9 +829,9 @@ class StructureData(Data):
         # Step 1:
         kind_properties = []
         kinds_values = {}
-        for single_property in self.properties.get_defined_properties():
+        for single_property in self.properties.get_stored_properties():
             prop = getattr(self.properties,single_property)
-            if prop.domain == "per-site" and not single_property in ["symbols","positions"]:
+            if prop.domain == "intra-site" and not single_property in ["symbols","positions"]:
                 kinds_per_property = prop.to_kinds()
                 kind_properties.append(kinds_per_property[0])
                 kinds_values[single_property] = kinds_per_property[1]
