@@ -42,16 +42,18 @@ pre-commit = [
     "pylint~=2.15.10"
 ]
 docs = [
-    "sphinx",
-    "sphinxcontrib-contentui",
-    "sphinxcontrib-details-directive",
-    "furo",
-    "markupsafe<2.1"
+    'sphinx~=6.2.1',
+    'sphinx-copybutton~=0.5.2',
+    'sphinx-book-theme~=1.0.1',
+    'sphinx-click~=4.4.0',
+    'sphinx-design~=0.4.1',
+    'sphinxcontrib-details-directive~=0.1.0',
+    'sphinx-autoapi~=3.0.0',
+    'myst_parser~=1.0.0',
 ]
-
 [project.entry-points."aiida.data"]
 "atomistic" = "aiida_atomistic.data:DiffParameters"
-"atomistic.structure" = "aiida_atomistic.data.structure:StructureData"
+"atomistic.structure" = "aiida_atomistic.data.structure.structure:StructureData"
 
 [project.entry-points."aiida.calculations"]
 "atomistic" = "aiida_atomistic.calculations:DiffCalculation"

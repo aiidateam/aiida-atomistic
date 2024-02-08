@@ -1,0 +1,16 @@
+1. modified the hubbard property 
+    - to be stored in the database as list of lists, then when it is used for the hubbard cards it is loaded as list of HubbardParameters. This is just a temporary fix, the real
+implementation should support the pydantic repository loading.
+    - to support all the functionalities of the HubbardStructureData (for example: `initialize_onsites_hubbard` method)
+
+Missing still the support of the Full QE Hubbard utilities, like the hp.x output parsing.
+
+2. magnetic property implemented still with kinds: using the provided built-in methods, the kinds and the collinear magnetic configuration is generated. Magnetic QE support still in this package for now.
+
+TODO: update the docstring of all the methods.
+
+
+FIND MUON: 
+
+Find_muon check to support the hubbard U. Only in find muon because I do not understand if you want it also in Musconv... seems not actually, like the magmoms...
+So I have to understand if indeed these two parameters have to be ignored in musconv. Needed then the integration of a flag to avoid this...

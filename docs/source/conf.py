@@ -9,10 +9,8 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
-
-import os
-import sys
 import time
+import pathlib
 
 from aiida.manage.configuration import load_documentation_profile
 
@@ -33,31 +31,50 @@ load_documentation_profile()
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.mathjax",
-    "sphinx.ext.intersphinx",
-    "sphinx.ext.viewcode",
-    "sphinxcontrib.contentui",
-    "aiida.sphinxext",
+    'sphinx.ext.mathjax',
+    'sphinx.ext.intersphinx',
+    'sphinx.ext.viewcode',
+    'sphinx_copybutton',
+    'sphinx_click.ext',
+    'sphinx_design',
+    'myst_parser',
+    'aiida.sphinxext',
+    'autoapi.extension',
 ]
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "aiida": ("https://aiida.readthedocs.io/projects/aiida-core/en/latest", None),
+    'python': ('https://docs.python.org/3.8', None),
+    'aiida': ('https://aiida.readthedocs.io/en/latest/', None),
+    'aiida_pseudo': ('https://aiida-pseudo.readthedocs.io/en/latest/', None),
+    'matplotlib': ('https://matplotlib.org/stable/', None),
+    'aiida_quantumespresso': ('https://aiida-quantumespresso.readthedocs.io/en/latest/', None),
+    'sphinx': ('https://www.sphinx-doc.org/en/master', None),
 }
 
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ["_templates"]
+# Settings for the `autoapi.extenstion` automatically generating API docs
+filepath_docs = pathlib.Path(__file__).parent.parent
+filepath_src = filepath_docs.parent #/ 'src'
+autoapi_type = 'python'
+autoapi_dirs = [filepath_src]
+autoapi_ignore = [filepath_src / 'aiida_atomistic' / '*cli*']
+autoapi_root = str(filepath_docs / 'source' / 'reference' / 'api' / 'auto')
+autoapi_keep_files = True
+autoapi_add_toctree_entry = False
 
-# The suffix of source filenames.
-source_suffix = ".rst"
+# Settings for the `sphinx_copybutton` extension
+copybutton_selector = 'div:not(.no-copy)>div.highlight pre'
+copybutton_prompt_text = r'>>> |\.\.\. |(?:\(.*\) )?\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: '
+copybutton_prompt_is_regexp = True
+
+# Add any paths that contain templates here, relative to this directory.
+templates_path = ['_templates']
 
 # The encoding of source files.
 # source_encoding = 'utf-8-sig'
 
 # The master toctree document.
 # ~ master_doc = 'index'
-master_doc = "index"
+#master_doc = "index"
 
 # General information about the project.
 project = "aiida-atomistic"
@@ -99,6 +116,8 @@ language = "en"
 # directories to ignore when looking for source files.
 # exclude_patterns = ['doc.rst']
 # ~ exclude_patterns = ['index.rst']
+#exclude_patterns = ['**.ipynb_checkpoints', 'index.rst']
+
 
 # If true, sectionauthor and moduleauthor directives will be shown in the
 # output. They are ignored by default.
@@ -109,10 +128,25 @@ pygments_style = "sphinx"
 
 # -- Options for HTML output ----------------------------------------------
 
-html_theme = "furo"
+html_theme = 'sphinx_book_theme'
 html_logo = "images/AiiDA_transparent_logo.png"
 html_title = f"aiida-atomistic v{release}"
 html_theme_options = {}
+
+html_context = {
+    'github_user': 'aiidateam',
+    'github_version': 'main',
+    'doc_path': 'docs/source',
+    'default_mode': 'light',
+}
+html_sidebars = {
+    '**': ['navbar-logo.html', 'navbar-icon-links.html', 'search-field.html', 'sbt-sidebar-nav.html']
+}
+
+# The name of an image file (relative to this directory) to place at the top
+# of the sidebar.
+html_static_path = ['_static']
+html_css_files = ['aiida-custom.css']
 
 # Add any paths that contain custom themes here, relative to this directory.
 # ~ html_theme_path = ["."]
@@ -184,48 +218,3 @@ html_search_language = "en"
 nitpick_ignore = [
     ("py:class", "Logger"),
 ]
-
-
-def run_apidoc(_):
-    """Runs sphinx-apidoc when building the documentation.
-
-    Needs to be done in conf.py in order to include the APIdoc in the
-    build on readthedocs.
-
-    See also https://github.com/rtfd/readthedocs.org/issues/1139
-    """
-    source_dir = os.path.abspath(os.path.dirname(__file__))
-    apidoc_dir = os.path.join(source_dir, "apidoc")
-    package_dir = os.path.join(source_dir, os.pardir, os.pardir, "aiida_atomistic")
-
-    # In #1139, they suggest the route below, but this ended up
-    # calling sphinx-build, not sphinx-apidoc
-    # from sphinx.apidoc import main
-    # main([None, '-e', '-o', apidoc_dir, package_dir, '--force'])
-
-    import subprocess
-
-    cmd_path = "sphinx-apidoc"
-    if hasattr(sys, "real_prefix"):  # Check to see if we are in a virtualenv
-        # If we are, assemble the path manually
-        cmd_path = os.path.abspath(os.path.join(sys.prefix, "bin", "sphinx-apidoc"))
-
-    options = [
-        "-o",
-        apidoc_dir,
-        package_dir,
-        "--private",
-        "--force",
-        "--no-toc",
-    ]
-
-    # See https://stackoverflow.com/a/30144019
-    env = os.environ.copy()
-    env[
-        "SPHINX_APIDOC_OPTIONS"
-    ] = "members,special-members,private-members,undoc-members,show-inheritance"
-    subprocess.check_call([cmd_path] + options, env=env)
-
-
-def setup(app):
-    app.connect("builder-inited", run_apidoc)
