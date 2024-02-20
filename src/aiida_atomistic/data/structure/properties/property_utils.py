@@ -7,7 +7,7 @@ from aiida import orm
 
 """
 Here we collect utility functions and classes needed to 
-enable the properties in the atomistic StructureData type.
+enable the properties in the atomistic StructureData class.
 """
 
 ######################decorator to allow no calls outside the initialization step: actually, we do not need/use it. 

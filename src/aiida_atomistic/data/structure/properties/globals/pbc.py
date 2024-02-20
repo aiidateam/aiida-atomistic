@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List
 from pydantic import Field
 
 from aiida_atomistic.data.structure.properties.property_utils import BaseProperty
@@ -12,7 +12,7 @@ class Pbc(BaseProperty):
     """
     domain = "global"
     #kind_threshold: float = Field(default=1e-3)
-    value: Tuple[bool,bool,bool] = Field(default=[True,True,True])
+    value: List[bool] = Field(default=[True,True,True])
     
     @classmethod
     def from_string(cls, dimensionality:str = "3D"):

@@ -26,7 +26,7 @@ from aiida.orm import Data
 
 from typing import Dict, Any
 
-from aiida_atomistic.data.structure.properties.property_collector import PropertyCollector
+from aiida_atomistic.data.structure.properties import PropertyCollector
 
 __all__ = ('StructureData', 'Kind', 'Site')
 
@@ -798,7 +798,13 @@ class StructureData(Data):
         Algorithm:
         it generated the kinds_list for each property separately in step 1, then
         it creates the matrix k = k.T where the rows are the sites, the columns are the kind for a given property.
-        In step 2 it checks for the matrxi kwhich rows have the same numbers in the same order, i.e. recognize the different
+                  p1 p2 p3 
+        site1 = | 1  1  2 | = kind1
+        site2 = | 1  2  3 | = kind2
+        site3 = | 2  2  3 | = kind3
+        site4 = | 1  2  3 | = kind4
+        
+        In step 2 it checks for the matrix which rows have the same numbers in the same order, i.e. recognize the different
         kinds considering all the properties.
 
         Args:

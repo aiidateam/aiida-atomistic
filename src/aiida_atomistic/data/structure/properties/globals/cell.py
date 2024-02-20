@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List
 from pydantic import Field
 
 from aiida_atomistic.data.structure.properties.property_utils import BaseProperty
@@ -12,11 +12,7 @@ class Cell(BaseProperty):
     """
     domain = "global"
     #kind_threshold: float = Field(default=1e-3)
-    value: Tuple[
-        Tuple[float,float,float],
-        Tuple[float,float,float],
-        Tuple[float,float,float]
-        ] = Field(default=((0, 0, 0), (0, 0, 0), (0, 0, 0)))
+    value: List[List[float]] = Field(default=[[0, 0, 0], [0, 0, 0], [0, 0, 0]])
 
     
     def calc_cell_volume(self):

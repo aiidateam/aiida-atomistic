@@ -3,13 +3,13 @@ from pydantic import Field, validator
 
 from aiida.common.constants import elements
 
-from aiida_atomistic.data.structure.properties.property_utils import BaseProperty
+from aiida_atomistic.data.structure.properties.intra_site import IntraSiteProperty
 
 ################################################## Start: Symbols property:
 
 _valid_symbols = tuple(i['symbol'] for i in elements.values())
 
-class Symbols(BaseProperty):
+class Symbols(IntraSiteProperty):
     """
     The symbols property, intended as the chemical symbols for each atom(site). 
     """

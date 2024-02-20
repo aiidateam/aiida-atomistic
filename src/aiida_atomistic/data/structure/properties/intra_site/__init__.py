@@ -1,44 +1,16 @@
-from typing import List, Literal
-from pydantic import Field, validator, root_validator
-
-from aiida.common.constants import elements
-
 from aiida_atomistic.data.structure.properties.property_utils import BaseProperty
 
-
-################################################## Start: Charge property:
-
-class Charge(BaseProperty):
-    """
-    The charge property. 
+################################################## Start: IntraSiteProperty class:
+class IntraSiteProperty(BaseProperty):
+    
+    """Generic class for intra-site properties. 
+    Extends the BaseProperty class with specific methods for the properties which relates to only one site.
     """
     domain = "intra-site"
-    default_kind_threshold = 0.45
-    # units... maybe specify in the docs.
-    value: List[float] = Field(default=None)
-
-    # ToDo:
-    @validator("value", always=True)
-    def validate_charges(cls,value,values):
-        # I have to use the _property_attributes, as accessing directly parent.properties gives recursion error.
-        # Maybe it is possible to change how we get the properties? 
-        properties = values["parent"].base.attributes.get("_property_attributes")
-        if not "positions" in properties:
-            # this also validated that we have symbols.
-            raise ValueError("If you define charges, you should define also the corresponding positions.")
-        elif not len(properties["charge"]["value"]) == len(properties["positions"]["value"]):
-            """if len(properties["charge"]["value"]) == 0:
-                # assign default values of the charges.
-                symbols = values["parent"].base.attributes.get("_property_attributes")["symbols"]
-                properties["charge"]["value"] = [_atomic_charges[symbol] for symbol in symbols]
-            else:"""
-            raise ValueError("The number of provided charges should either be zero or match the number of positions.")
-        return value
-
     
-    def to_kinds(self, thr: float = default_kind_threshold, kind_names=False):
+    def to_kinds(self, thr: float = None, kind_names=False):
         import numpy as np
-        """Get the kinds for the charge property
+        """Get the kinds for a generic intra-site property
 
         ### Search algorithm:
 
@@ -54,8 +26,9 @@ class Charge(BaseProperty):
         Then, I should also consider the tags. 
         
         ## Missing:
-        - return the value fo the property, an average: the middle point of the space_grid, or better, 
-          the space_grid[i]
+        - recognise kind_tags and do not write the same kind; However, the tags should be 
+        assigned only in one place for the full structure. no matter the properties. e.g. in the positions.
+        - multi-D properties like vectors.
         
         Args:
             thr (float, optional): the threshold to consider two atoms of the same element to be the same kind. 
@@ -66,22 +39,54 @@ class Charge(BaseProperty):
         Returns:
             kinds: list of kinds associated to the charge property.
         """
+        if not thr: thr = self.default_kind_threshold
         symbols_array = np.array(self.parent.properties.symbols.value)
         prop_array = np.array(self.value)
         space_grid = np.arange(start= np.min(prop_array+thr/2), stop=np.max(prop_array+thr/2),step=thr)
+        unshifted_space_grid = np.round(np.arange(start= np.min(prop_array), stop=np.max(prop_array+thr/2),step=thr), countDecimal(thr))
 
         # list for the value of the property for each generated kind.
         kinds_values = [0]*len(symbols_array)
         
         kinds = list(symbols_array)
         for i in range(len(space_grid)):
-            # +thr/1e10 is needed because sometime the equal condition is not detected. 
+            # +thr/1e10 is needed because sometime the equality condition is not detected. 
             indexes = np.where(np.abs(space_grid[i]-prop_array)<=thr/2+thr/1e10)[0]
 
             if len(indexes) > 0:
                 for j in indexes:
                     kinds[j] = kinds[j]+f"{i}" if kind_names else i
-                    kinds_values[j] = space_grid[i]
+                    kinds_values[j] = unshifted_space_grid[i] # space_grid[i]
         
         
         return np.array(kinds), kinds_values
+
+
+################################################## End: IntraSiteProperty class.
+
+def countDecimal(thr):
+    import numpy as np
+    """This function counts the decimal digits of a given number.
+    Here is used to understand how to round a given property (intra-site domain) value, 
+    considering the number of digit of the threshold.
+    
+    Basically:
+    
+        log10(thr) = log10(x) + N;
+        
+        if thr=x*1eN and 1=<x<10:
+            N=<log10(thr)<N+1; 
+            
+        if N is negative: 
+            then int(-N) is the number of decimal,
+        elif N=>0: 
+            we have integers, so we do np.round(number,0)
+
+    Args:
+        thr (float, int): the threshold
+
+    Returns:
+        round (int): round value, or integer
+    """
+    round = np.ceil(np.log10(thr))
+    return int(-round) if round < 0 else 0
