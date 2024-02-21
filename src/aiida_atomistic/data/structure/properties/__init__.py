@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from pydantic import Extra
+import copy
 
 from aiida_atomistic.data.structure.properties.property_utils import *
 
@@ -57,13 +57,17 @@ class PropertyCollector(HasPropertyMixin):
         if not isinstance(properties, dict):
             raise ValueError(f"The `properties` input is not of the right type. Expected '{type(dict())}', received '{type(properties)}'.")
         
+        provided_properties = copy.deepcopy(properties)
+        if not "pbc" in provided_properties.keys(): provided_properties["pbc"] = {"value":[True,True,True]}
+        if not "cell" in provided_properties.keys(): provided_properties["cell"] = {"value":[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]}
+            
         self._parent = parent # Parent StructureData object
         
         # properties: Dictionary containing the properties. The key is the name of the property and the value                                                           
         # is an instance of the corresponding Property subclass value.
         super().__init__()
         
-        self._property_attributes = properties
+        self._property_attributes = provided_properties
         # Store the properties in the StructureData node.
         #self._parent.base.attributes.set('_property_attributes',{})
         if not self._parent.is_stored:

@@ -11,7 +11,6 @@ class Pbc(BaseProperty):
     It is different from the pbc attribute directly accessible from the StructureData object.
     """
     domain = "global"
-    #kind_threshold: float = Field(default=1e-3)
     value: List[bool] = Field(default=[True,True,True])
     
     @classmethod

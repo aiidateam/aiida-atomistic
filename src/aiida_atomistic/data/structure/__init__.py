@@ -792,78 +792,85 @@ class StructureData(Data):
         return copy.deepcopy(self.base.attributes.get('_property_attributes'))
     
     
-    def get_kinds(self, use_kind_tag = False, use_kind_name = True):
+    def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
         """Get the list of kinds, taking into account all the properties.
         
         Algorithm:
-        it generated the kinds_list for each property separately in step 1, then
-        it creates the matrix k = k.T where the rows are the sites, the columns are the kind for a given property.
+        it generated the kinds_list for each property separately in Step 1, then
+        it creates the matrix k = k.T where the rows are the sites, the columns are the properties and each element
+        is the corresponding kind for the given property and the given site:
+        
                   p1 p2 p3 
         site1 = | 1  1  2 | = kind1
         site2 = | 1  2  3 | = kind2
         site3 = | 2  2  3 | = kind3
         site4 = | 1  2  3 | = kind4
         
-        In step 2 it checks for the matrix which rows have the same numbers in the same order, i.e. recognize the different
-        kinds considering all the properties.
+        In Step 2 it checks for the matrix which rows have the same numbers in the same order, i.e. recognize the different
+        kinds considering all the properties. This is done by subtracting a row from the others and see if all the elements
+        are zero, meaning that we have the same combination of kinds.
+        
+        In Step 3 we override the kinds with the kind_tags.
 
         Args:
-            structure (_type_): _description_
-            use_kind_tag (bool, optional): If True, at the end of the kinds generation, it uses the 
-                                            structure.positions.kind_tags list to override some or all of 
-                                            them. Defaults to False. 
-            use_kind_names (bool, optional): if False, it returns only numbers for each different kinds. if True, returns
-                                            the kinds ready to be used in the plugins.
+            exclude (list, optional): list of properties to be excluded in the kind determination 
+            custom_thr (dict, options): dictionary with the custom threshold for given properties (key: property, value: thr).
+                                        if not provided, we fallback into the default threshold define in the property class.
             
         Returns:
-            kinds_list: the list of kinds to be used in a plugin which requires it.
+            kind_names: the list of kind-per-site to be used in a plugin which requires it. If kind tags are all decided, then we 
+                        do not compute anything and we return kind_tags and None. In this way, we know that we basically already defined 
+                        the kinds in our StructureData.
+            kind_values: the associated per-site (and per-kind) value of the property.
         
-        *Missing:
-            - Give custom threshold and use kind_tags as defined in 
-              structure.properties.positions.kind_tags.
-            
-        Questions:
-        answered, but worth to leave it here for now: What is then the value of each property associated to each kind? an average? maybe yes.
-        This can be then generated in another function which takes the averages. Maybe in the property specific
-        to_kind methods. Maybe indeed the average point which is obtained during the space_grid generation.
+        Implementation can and should be improved, but the functionalities are the desired ones.
         """
         import numpy as np
         import copy
         
-        symbols = self.properties.symbols.value
+        symbols = self.properties.symbols.value        
+        if len(kind_tags) == 0: 
+            kind_tags = [None]*len(symbols)
         
         # Step 1:
         kind_properties = []
-        kinds_values = {}
+        kind_values = {}
         for single_property in self.properties.get_stored_properties():
             prop = getattr(self.properties,single_property)
-            if prop.domain == "intra-site" and not single_property in ["symbols","positions"]:
-                kinds_per_property = prop.to_kinds()
+            if prop.domain == "intra-site" and not single_property in ["symbols","positions"]+exclude:
+                thr = custom_thr.get(single_property, None)
+                # for this if, refer to the description of the `to_kinds` method of the IntraSiteProperty class.
+                if not None in kind_tags:
+                    thr = 0
+                kinds_per_property = prop.to_kinds(thr=thr)
                 kind_properties.append(kinds_per_property[0])
-                kinds_values[single_property] = kinds_per_property[1]
+                kind_values[single_property] = kinds_per_property[1]
                 
         k = np.array(kind_properties)
         k = k.T
         
         # Step 2:
         kinds = np.zeros(len(self.properties.positions.value),dtype=int) -1
-        kinds_names = copy.deepcopy(symbols)
+        kind_names = copy.deepcopy(symbols)
         for i in range(len(k)):
             element = symbols[i]
-            print(element)
             diff = k-k[i]
-            #print(ab)
             diff_sum = np.sum(np.abs(diff),axis=1)
-            #print(diff_sum)
-            #print(np.where(diff_sum==0))
+
             kinds[np.where(diff_sum == 0)[0]] = i
             for where in np.where(diff_sum == 0)[0]:
-                kinds_names[where] = f"{element}{i}"
+                if f"{element}{i}" in kind_tags:
+                    kind_names[where] = f"{element}{i+len(k)}"
+                else:
+                    kind_names[where] = f"{element}{i}"
             if len(np.where(kinds == -1)[0]) == 0 : 
                 #print(f"search ended at iteration {i}")
                 break
         
-        return kinds.tolist(),kinds_names,kinds_values
+        # Step 3:
+        kind_names = [kind_names[i] if not kind_tags[i] else kind_tags[i] for i in range(len(kind_tags))]
+        
+        return kind_names,kind_values
     
     #### END new methods
     

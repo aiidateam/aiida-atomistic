@@ -8,85 +8,58 @@ class IntraSiteProperty(BaseProperty):
     """
     domain = "intra-site"
     
-    def to_kinds(self, thr: float = None, kind_names=False):
+    def to_kinds(self, thr: float = None):
         import numpy as np
-        """Get the kinds for a generic intra-site property
+        """Get the kinds for a generic intra-site property. Can also be overridden in the specific property.
 
         ### Search algorithm:
 
-        Basically I generate the space grid, using min+thr/2, max+thr/2 and thr. 
-        Then, for each point of the space (the max+thr/2 is excluded), 
-        I select the sites which are at a distance lower or equal than the thr from the 
-        points (which are the middle points of the space [min:max:thr]). 
-        In this way I can assign the indexes for each region.
-
-        Then I should provide a renaming of the kinds, 
-        but this can be done at the end of the procedure,
-        which should be done for every property which requires a kind. 
-        Then, I should also consider the tags. 
+        Basically we compute the indexes array which locates each point in regions centered on our values, considering
+        min(values) as reference and each region being of width=thr:
         
-        ## Missing:
-        - recognise kind_tags and do not write the same kind; However, the tags should be 
-        assigned only in one place for the full structure. no matter the properties. e.g. in the positions.
-        - multi-D properties like vectors.
+            indexes = np.array((prop_array-np.min(prop_array))/thr,dtype=int)
+        
+        To understand this, try to draw the problem considering prop_array=[1,2,3,4] and thr=0.5.
+        This methods allows to efficiently clusterize the point using the defined threshold.
+        
+        At the end, we reorder the kinds from zero (to have ordered list like Li0, Li1...).
+        Basically we define the set of unordered kinds, and the range(len(set(kinds))) being the group of orderd kinds.
+        Then we basically do a mapping with the np.where().
         
         Args:
             thr (float, optional): the threshold to consider two atoms of the same element to be the same kind. 
-                Defaults to structure.properties.charge.default_kind_threshold.
-            kinds_names (bool, optional): if the kinds shoulb be printed also with their element name. When we defined the kinds
-                with respect all the properties of the structure, we just use numbers.
+                Defaults to structure.properties.<property>.default_kind_threshold.
+                If thr==0, we just return different kind for each site with the original property value. This is 
+                needed when we have tags for each site, in the get_kind method of StructureData.
             
         Returns:
-            kinds: list of kinds associated to the charge property.
-        """
-        if not thr: thr = self.default_kind_threshold
+            kinds_labels: array of kinds (as integers) associated to the charge property. they are integers so that in the `get_kinds()` method
+                             can be used in the matrix representation (the k.T).
+            kinds_values: list of the associated property value to each kind detected.
+        """ 
         symbols_array = np.array(self.parent.properties.symbols.value)
         prop_array = np.array(self.value)
-        space_grid = np.arange(start= np.min(prop_array+thr/2), stop=np.max(prop_array+thr/2),step=thr)
-        unshifted_space_grid = np.round(np.arange(start= np.min(prop_array), stop=np.max(prop_array+thr/2),step=thr), countDecimal(thr))
-
+        
+        if not thr: 
+            thr = self.default_kind_threshold
+        elif thr == 0:
+            return np.array(range(len(prop_array))), prop_array
+        
         # list for the value of the property for each generated kind.
-        kinds_values = [0]*len(symbols_array)
+        kinds_values = np.zeros(len(symbols_array))
+        indexes = np.array((prop_array-np.min(prop_array))/thr,dtype=int)
         
-        kinds = list(symbols_array)
-        for i in range(len(space_grid)):
-            # +thr/1e10 is needed because sometime the equality condition is not detected. 
-            indexes = np.where(np.abs(space_grid[i]-prop_array)<=thr/2+thr/1e10)[0]
-
-            if len(indexes) > 0:
-                for j in indexes:
-                    kinds[j] = kinds[j]+f"{i}" if kind_names else i
-                    kinds_values[j] = unshifted_space_grid[i] # space_grid[i]
+        # Here we select the closest value present in the property values
+        set_indexes = set(indexes)
+        for index in set_indexes:
+            where_index_in_indexes = np.where(indexes == index)[0]
+            kinds_values[where_index_in_indexes] = np.min(prop_array[where_index_in_indexes])
         
+        # here we reorder from zero the kinds.
+        list_set_indexes = list(set_indexes)
+        kinds_labels = np.zeros(len(symbols_array),dtype=int)
+        for i in range(len(list_set_indexes)):
+            kinds_labels[np.where(indexes==list_set_indexes[i])[0]] = i
         
-        return np.array(kinds), kinds_values
-
-
+        return kinds_labels, kinds_values
 ################################################## End: IntraSiteProperty class.
-
-def countDecimal(thr):
-    import numpy as np
-    """This function counts the decimal digits of a given number.
-    Here is used to understand how to round a given property (intra-site domain) value, 
-    considering the number of digit of the threshold.
-    
-    Basically:
-    
-        log10(thr) = log10(x) + N;
-        
-        if thr=x*1eN and 1=<x<10:
-            N=<log10(thr)<N+1; 
-            
-        if N is negative: 
-            then int(-N) is the number of decimal,
-        elif N=>0: 
-            we have integers, so we do np.round(number,0)
-
-    Args:
-        thr (float, int): the threshold
-
-    Returns:
-        round (int): round value, or integer
-    """
-    round = np.ceil(np.log10(thr))
-    return int(-round) if round < 0 else 0

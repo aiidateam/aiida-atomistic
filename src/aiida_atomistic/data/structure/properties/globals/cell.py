@@ -11,10 +11,8 @@ class Cell(BaseProperty):
     It is different from the cell attribute directly accessible from the StructureData object.
     """
     domain = "global"
-    #kind_threshold: float = Field(default=1e-3)
     value: List[List[float]] = Field(default=[[0, 0, 0], [0, 0, 0], [0, 0, 0]])
 
-    
     def calc_cell_volume(self):
         """
         Compute the three-dimensional cell volume in Angstrom^3.
