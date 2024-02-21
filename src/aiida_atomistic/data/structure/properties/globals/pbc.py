@@ -14,7 +14,7 @@ class Pbc(BaseProperty):
     value: List[bool] = Field(default=[True,True,True])
     
     @classmethod
-    def from_string(cls, dimensionality:str = "3D"):
+    def from_string(cls, dimensionality: str = "3D"):
         """Returns the PBC value base on the inputs dimensionality string.
 
         Args:

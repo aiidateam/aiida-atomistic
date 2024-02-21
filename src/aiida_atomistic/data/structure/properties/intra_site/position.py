@@ -11,5 +11,7 @@ class Positions(IntraSiteProperty):
     """
     value: List[List[float]] = Field(default=None)
     #kind_tags: List[str] = Field(default=None)
+    
+    #add validation for atoms in the same positions.
 
 ################################################## End: PBC property.

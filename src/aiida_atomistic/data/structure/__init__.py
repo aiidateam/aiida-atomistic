@@ -844,7 +844,7 @@ class StructureData(Data):
                     thr = 0
                 kinds_per_property = prop.to_kinds(thr=thr)
                 kind_properties.append(kinds_per_property[0])
-                kind_values[single_property] = kinds_per_property[1]
+                kind_values[single_property] = kinds_per_property[1].tolist()
                 
         k = np.array(kind_properties)
         k = k.T
