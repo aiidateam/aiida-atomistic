@@ -1,5 +1,5 @@
 from typing import List
-from pydantic import Field
+from pydantic import Field, validator
 
 from aiida_atomistic.data.structure.properties.property_utils import BaseProperty
 
@@ -11,7 +11,18 @@ class Pbc(BaseProperty):
     It is different from the pbc attribute directly accessible from the StructureData object.
     """
     domain = "global"
-    value: List[bool] = Field(default=[True,True,True])
+    value: List[bool] = Field(default=None, min_items=3,max_items=3)
+    
+    @validator("value", always=True)
+    def validate_pbc(cls,value,values):
+        # Here we set the default.
+        properties = values["parent"].base.attributes.get("_property_attributes")
+        if not value:
+            properties = values["parent"].base.attributes.get("_property_attributes")
+            properties["pbc"]["value"] = [True,True,True]
+            return properties["pbc"]["value"]
+                
+        return value
     
     @classmethod
     def from_string(cls, dimensionality: str = "3D"):

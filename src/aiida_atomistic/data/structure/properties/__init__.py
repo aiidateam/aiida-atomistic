@@ -38,17 +38,32 @@ class PropertyCollector(HasPropertyMixin):
     The properties are stored exactly as they are provided in the construction of the class instance: in 
     this way, we do not have ambiguities when the properties are used or loaded from the database/repository.
     To facilitate this, we may provided some `translation methods` from and to the format allowed in the property.
+    
+    The supported properties are listed below. 
+    The order does matter here, It is needed for the consistency check among properties.
     """
     
-    # Supported properties below:
+    # Global
     pbc: Pbc = Property()
     cell: Cell = Property()
+    
+    # Intra-site
     positions: Positions = Property()
     symbols: Symbols = Property()
     mass: Mass = Property()
     charge: Charge = Property()
+    
+    # Custom
     custom: CustomProperty = Property()
-        
+    
+    # Here a list of required properties, which will be set by default via the `_inspect_properties` method.
+    # In this way, we enforce the user to provide this information in inputs. 
+    required_properties = ['cell','positions','symbols']
+    
+    # Derived properties: properties which, if not set, they will be set automatically, as they are mandatory to have in the 
+    # StructureData but can also be initialised with defaults if not explicitely provided
+    derived_properties = ['pbc','mass'] #['kinds', 'mass']
+    
     def __init__(
         self, 
         parent, 
@@ -57,9 +72,18 @@ class PropertyCollector(HasPropertyMixin):
         if not isinstance(properties, dict):
             raise ValueError(f"The `properties` input is not of the right type. Expected '{type(dict())}', received '{type(properties)}'.")
         
+        # Checking minimal inputs
+        if False in [required in properties.keys() for required in self.required_properties]:
+            raise KeyError(f"You need to provide at least the following properties: {self.required_properties}")
+        
         provided_properties = copy.deepcopy(properties)
-        if not "pbc" in provided_properties.keys(): provided_properties["pbc"] = {"value":[True,True,True]}
-        if not "cell" in provided_properties.keys(): provided_properties["cell"] = {"value":[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]}
+        
+        # Checking if derived inputs are provided; we set to None, and then in the `_inspect_properties` method
+        # we call it, meaning that we are actually setting to its default value, needed.
+        # each default value is set in the validator method of the property. Instead, in its pydantic field `value`, the default will be none.
+        for derived in self.derived_properties:
+            if not derived in properties.keys():
+                provided_properties[derived] = {"value": None}
             
         self._parent = parent # Parent StructureData object
         
@@ -89,8 +113,13 @@ class PropertyCollector(HasPropertyMixin):
         Method used to understand if we are defining supported/unsupported properties. 
         Here there should be also the detection of custom properties, which 
         have a defined prefix.
+        
+        NB: At the end of the method, we try to call such properties, in this way we trigger the validation and 
+        the completion of the properties dictionary, which will be stored in the database. 
         """
+        
         for pname,pvalue in properties.items():
+            
             if pname not in self.get_supported_properties():
                 raise NotImplementedError(f"Property '{pname}' is not yet supported.\nSupported properties are: {self.get_supported_properties()}")
             # custom properties:

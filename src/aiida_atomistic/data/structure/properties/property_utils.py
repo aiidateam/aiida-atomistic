@@ -53,11 +53,6 @@ class BaseProperty(BaseModel):
         #init_var=True   # Does not show when dumping the model (but I think it works only in pydantic 2)
         )
     
-    """
-    parent: Data = Field(  #Data is ok if we do not redefine the aiida-core Data class.
-        #init_var=True   # Does not show when dumping the model (but I think it works only in pydantic 2)
-        )
-    """
     class Config:
         frozen = True                  # No changes allowed: immutability
         extra = 'forbid'               # No extra arguments or attributes allowed.
@@ -85,9 +80,15 @@ class PropertyMixinMetaclass(ABCMeta):
     This class attach the setter and getter method for a property, 
     as defined in the HasPropertyMixin class, respectively with the
     _set_property and _template_property methods. 
-    If we use only a constructor for the creation of the StructureData
-    together with the properties, we do not need it.
+
+    (1) Explanation of how it works:
+    As `_template_property` is defined, it will use the `self.get_property_attribute` (of the PropertyCollector) 
+    to recover the value as provided in the `properties` dictionary of the StructureData. So each time we access a property,
+    this is called. And if have not the key of the corresponding property in the `self._property_attributes` of the 
+    StructureData, this will give a KeyError.
+    To conclude: the fget method is set for each supported property, but then only works for stored ones. 
     
+    (2) A consideration on validation:
     However, there is no validation of the inputs here: this means that if we do not
     initialise the properties, by calling them or setting them, there is no pydantic validation.
     This will happen has soon as we use the fget or fset methods.

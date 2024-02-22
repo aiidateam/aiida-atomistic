@@ -26,10 +26,5 @@ class Charge(IntraSiteProperty):
             # this also validated that we have symbols.
             raise ValueError("If you define charges, you should define also the corresponding positions.")
         elif not len(properties["charge"]["value"]) == len(properties["positions"]["value"]):
-            """if len(properties["charge"]["value"]) == 0:
-                # assign default values of the charges.
-                symbols = values["parent"].base.attributes.get("_property_attributes")["symbols"]
-                properties["charge"]["value"] = [_atomic_charges[symbol] for symbol in symbols]
-            else:"""
             raise ValueError("The number of provided charges should either be zero or match the number of positions.")
         return value
