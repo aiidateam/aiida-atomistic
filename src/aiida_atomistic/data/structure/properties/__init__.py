@@ -6,7 +6,8 @@ from aiida_atomistic.data.structure.properties.property_utils import *
 from aiida_atomistic.data.structure.properties.globals.cell import Cell
 from aiida_atomistic.data.structure.properties.globals.pbc import Pbc
 
-from aiida_atomistic.data.structure.properties.intra_site.position import Positions
+from aiida_atomistic.data.structure.properties.intra_site.positions import Positions
+from aiida_atomistic.data.structure.properties.intra_site.kinds import Kinds
 from aiida_atomistic.data.structure.properties.intra_site.symbols import Symbols
 from aiida_atomistic.data.structure.properties.intra_site.mass import Mass
 from aiida_atomistic.data.structure.properties.intra_site.charge import Charge
@@ -53,6 +54,8 @@ class PropertyCollector(HasPropertyMixin):
     mass: Mass = Property()
     charge: Charge = Property()
     
+    kinds: Kinds = Property() # optional; if not there but required, use the get_kinds to generate automatically.
+
     # Custom
     custom: CustomProperty = Property()
     
@@ -62,7 +65,7 @@ class PropertyCollector(HasPropertyMixin):
     
     # Derived properties: properties which, if not set, they will be set automatically, as they are mandatory to have in the 
     # StructureData but can also be initialised with defaults if not explicitely provided
-    derived_properties = ['pbc','mass'] #['kinds', 'mass']
+    derived_properties = ['pbc','mass'] # for now we exclude kinds.
     
     def __init__(
         self, 
@@ -91,18 +94,14 @@ class PropertyCollector(HasPropertyMixin):
         # is an instance of the corresponding Property subclass value.
         super().__init__()
         
+        # inspect and then store the properties in the `_property_attributes` attribute.
         self._property_attributes = provided_properties
+        
         # Store the properties in the StructureData node.
-        #self._parent.base.attributes.set('_property_attributes',{})
         if not self._parent.is_stored:
             self._parent.base.attributes.set('_property_attributes',self._property_attributes)
             
-        self._inspect_properties(properties)
-    
-    
-    """def get_supported_properties(self,):
-        return list(typing.get_type_hints(self.__class__).keys())
-    """
+        self._inspect_properties(self._property_attributes)
     
     def get_property_attribute(self, key):
         # In AiiDA this could be self.base.attrs['properties'][key] or similar

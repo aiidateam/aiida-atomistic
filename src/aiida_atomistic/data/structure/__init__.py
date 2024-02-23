@@ -757,10 +757,19 @@ class StructureData(Data):
 
             if pymatgen_molecule is not None:
                 self.set_pymatgen_molecule(pymatgen_molecule)
-
+        
+        # We initialize the PropertyCollector to have the validation of the properties.
+        elif not properties: 
+            # dummy to have the StructureData().properties.get_supported_properties()
+            properties = {
+                'positions':{'value':[[0,0,0]]},
+                'cell':{'value':[[0,0,0]]*3},
+                'symbols':{'value':['H']}
+                }
+            self._properties = PropertyCollector(parent=self, properties=properties)
         else:
             # Private property attribute
-            self._property_attribute = PropertyCollector(parent=self, properties=properties)
+            self._properties = PropertyCollector(parent=self, properties=properties)
 
         ## RM else:
             ## RM if cell is None:
@@ -784,13 +793,28 @@ class StructureData(Data):
     def properties(self,value):
         raise AttributeError("After the initialization, `properties` is a read-only attribute")
              
-    def to_dict(self):
+    def to_dict(self, generate_kinds: bool = False, kinds_thresholds: dict = {}, kinds_exclude: list = []):
         """ 
-        Returns a dictionary with the properties defined.
-        Used to generate new StructureData with some changed/updated properties.
+        Args:
+            generate_kinds (bool, optional): includes also the kinds in the properties, using the automatically generated ones via the `get_kinds` method.  
+            kinds_thresholds (dict, optional): dictionary with the custom threshold for given properties (key: property, value: thr).
+                                        if not provided, we fallback into the default threshold define in the property class.
+            kinds_exclude (list, optional): list of properties to be excluded in the kind determination.
+            
+        Returns:
+            structure_dictionary: a dictionary with the properties defined. Used to generate new StructureData with some changed/updated properties.
         """
-        return copy.deepcopy(self.base.attributes.get('_property_attributes'))
-    
+        
+        structure_dictionary = copy.deepcopy(self.base.attributes.get('_property_attributes'))
+        
+        if generate_kinds:
+            kinds, new_properties_value = self.get_kinds(exclude=kinds_exclude, custom_thr=kinds_thresholds)
+            
+            structure_dictionary['kinds'] = {'value':kinds}
+            for key, new_value in new_properties_value.items(): # can also use recursive_merge here, to check if cyclic import problems
+                structure_dictionary[key]['value'] = new_value['value']
+        
+        return structure_dictionary
     
     def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
         """Get the list of kinds, taking into account all the properties.
@@ -828,7 +852,12 @@ class StructureData(Data):
         import numpy as np
         import copy
         
-        symbols = self.properties.symbols.value        
+        # cannot do properties.symbols.value due to recursion problem if called in Kinds:
+        # if I call properties, this will again reinitialize the properties attribute and so on.
+        # should be this:
+        # symbols = self.base.attributes.get("_property_attributes")['symbols']['value'] 
+        # However, for now I do not let the kinds to be automatically generated when we initialise the structure:
+        symbols = self.properties.symbols.value
         if len(kind_tags) == 0: 
             kind_tags = [None]*len(symbols)
         
@@ -839,12 +868,14 @@ class StructureData(Data):
             prop = getattr(self.properties,single_property)
             if prop.domain == "intra-site" and not single_property in ["symbols","positions"]+exclude:
                 thr = custom_thr.get(single_property, None)
+                kind_values[single_property] = {}
                 # for this if, refer to the description of the `to_kinds` method of the IntraSiteProperty class.
                 if not None in kind_tags:
                     thr = 0
                 kinds_per_property = prop.to_kinds(thr=thr)
                 kind_properties.append(kinds_per_property[0])
-                kind_values[single_property] = kinds_per_property[1].tolist()
+                # I prefer to store again under the key 'value', may be useful in the future
+                kind_values[single_property]['value'] = kinds_per_property[1].tolist()
                 
         k = np.array(kind_properties)
         k = k.T

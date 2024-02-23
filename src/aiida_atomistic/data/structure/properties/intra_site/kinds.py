@@ -1,4 +1,4 @@
-from typing import List, Literal
+from typing import List
 from pydantic import Field, validator
 
 from aiida.common.constants import elements
@@ -11,18 +11,23 @@ _valid_symbols = tuple(i['symbol'] for i in elements.values())
 
 class Kinds(IntraSiteProperty):
     """
-    The kinds property, intended as the chemical symbols for each atom(site). 
+    The kinds property, for each atom(site). 
     """
     domain = "intra-site"
-    value: List[Literal[None]]
+    value: List[str]
     
     @validator("value", always=True)
     def validate_kinds(cls,value,values):
-        # I have to use the _property_attributes, as accessing directly parent.properties gives recursion error.
-        # Maybe it is possible to change how we get the properties? 
-        if not "positions" in values["parent"].base.attributes.get("_property_attributes"):
-            raise ValueError("If you define symbols, you should define also the corresponding positions.")
-        elif not len(value) == len(values["parent"].base.attributes.get("_property_attributes")["positions"]["value"]):
-            raise ValueError("The number of provided symbols should match the number of positions.")
+ 
+        properties = values["parent"].base.attributes.get("_property_attributes")
+              
+        if not "symbols" in properties.keys():
+            raise ValueError("If you define kinds, you should define also the corresponding symbols.")
+        elif not len(value) == len(properties["symbols"]["value"]):
+            raise ValueError("The number of provided kinds should match the number of symbols.")
+        
+        # Check that the properties are not inconsistent with respect to the defined kinds: i.e. 
+        # same kinds should have same properties.
+        
         return value
 ################################################## End: PBC property.

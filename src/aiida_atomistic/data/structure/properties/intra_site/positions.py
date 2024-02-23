@@ -1,5 +1,5 @@
 from typing import List
-from pydantic import Field
+from pydantic import Field, validator
 
 from aiida_atomistic.data.structure.properties.intra_site import IntraSiteProperty
 
@@ -22,5 +22,8 @@ class Positions(IntraSiteProperty):
                 return ValueError("Each position should be represented by an array of length three (x,y,z)")
             
         # (2) check that all positions are unique:
+        # However, this is not checked in the orm.StructureData, so we will implement later.
+        
+        return value
         
 ################################################## End: Positions property.
