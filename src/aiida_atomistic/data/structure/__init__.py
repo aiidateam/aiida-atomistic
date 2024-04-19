@@ -27,6 +27,7 @@ from aiida.orm import Data
 from typing import Dict, Any
 
 from aiida_atomistic.data.structure.properties import PropertyCollector
+from weas_widget import WeasWidget
 
 __all__ = ('StructureData', 'Kind', 'Site')
 
@@ -770,6 +771,8 @@ class StructureData(Data):
         else:
             # Private property attribute
             self._properties = PropertyCollector(parent=self, properties=properties)
+
+        self.weas_widget = WeasWidget()
 
         ## RM else:
             ## RM if cell is None:
@@ -2050,6 +2053,20 @@ class StructureData(Data):
         positions = [list(site.position) for site in self.sites]
         return Molecule(species, positions)
 
+    def _repr_mimebundle_(self, *args, **kwargs):
+        data = self.to_dict()
+        atoms = {
+            "cell": data["cell"]["value"],
+            "pbc": data["pbc"]["value"],
+            "positions": data["positions"]["value"],
+            "symbols": data["symbols"]["value"],
+            "attributes": {"atom": {}, "species": {}},
+        }
+        self.weas_widget._widget.atoms = atoms
+        if hasattr(self.weas_widget, "_repr_mimebundle_"):
+            return self.weas_widget._repr_mimebundle_(*args, **kwargs)
+        else:
+            return self.weas_widget._ipython_display_(*args, **kwargs)
 
 class Kind:
     """
