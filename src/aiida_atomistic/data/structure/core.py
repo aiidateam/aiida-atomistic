@@ -703,8 +703,8 @@ class StructureDataCore:
         ]
         
         kinds_dictionary["index"] = kind_numeration
-        kinds_dictionary["symbol"] = symbols
-        kinds_dictionary["position"] = self.get_site_property("position")
+        kinds_dictionary["symbol"] = symbols.tolist()
+        kinds_dictionary["position"] = self.get_site_property("position").tolist()
 
         # Step 4: check on the kind_tags consistency with the properties value.
         if check_kinds and not np.array_equal(check_array, array_tags):
@@ -717,8 +717,10 @@ class StructureDataCore:
             for index_kind in kinds_dictionary["index"]:
                 dict_site = {}
                 for k,v in kinds_dictionary.items():
-                    if k != "index": 
+                    if k not in ["symbol","position","index"]: 
                         dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
+                for value in ["symbol","position"]:
+                    dict_site[value] = kinds_dictionary[value].pop()
                 new_sites.append(dict_site)
             return new_sites
             
@@ -1410,7 +1412,9 @@ class StructureDataCore:
         # for then easy query
         global_prop_dict = {}
         for prop in self.get_property_names(domain="site"):
-            global_prop_dict[prop+'s'] = self.get_site_property(prop)
+            name = prop + "s"
+            name = name.replace("sss", "sses")
+            global_prop_dict[name] = self.get_site_property(prop)
             #setattr(self, prop+'s', property(lambda self: getattr(self, prop)))
             
         global_prop_dict['volume'] = self.get_cell_volume()

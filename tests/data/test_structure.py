@@ -67,6 +67,9 @@ def test_to_dict_method(example_structure_dict):
 
         returned_dict = structure.to_dict()
 
+        for derived_property in structure.get_global_properties().keys():
+            returned_dict.pop(derived_property, None)
+        
         assert (
             returned_dict == example_structure_dict
         ), f"The dictionary returned by the method, {returned_dict}, \
@@ -133,7 +136,12 @@ def test_to_be_factorized():
     # check StructureData and StructureDataMutable give the same properties.
     # in this way I check that it works well.
     m.set_pbc([True, True, True])
-    assert s.to_dict() == m.to_dict()
+    
+    returned_dict = s.to_dict()
+    for derived_property in s.get_global_properties().keys():
+            returned_dict.pop(derived_property, None)
+            
+    assert returned_dict == m.to_dict()
 
     # check append_atom works properly
     m.add_atom(
