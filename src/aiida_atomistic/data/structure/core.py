@@ -1444,11 +1444,11 @@ class StructureData(Data, StructureDataCore):
             self.base.attributes.set(prop, value)
             
         global_properties = self.get_global_properties()
-        #for prop, value in global_properties.items():
-        #    self.base.attributes.set(prop, value)
+        for prop, value in global_properties.items():
+            self.base.attributes.set(prop, value)
 
         
-    def to_immutable(self):
+    def to_mutable(self):
         from .mutable import StructureDataMutable
 
         return StructureDataMutable(**self.to_dict())

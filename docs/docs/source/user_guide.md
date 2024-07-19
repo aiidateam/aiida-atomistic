@@ -5,7 +5,8 @@
 Two main rules: (i) immutability, and (ii) site-based. This means that our node will be just a container of the crystal structure + properties, and it cannot really be modified in any way.
 We will only provide `from_*`, `get_*` and `to_*` methods. Each site property will be defined as site-based and not kind-based, at variance with the old `orm.StructureData`. Kinds now can be defined as a property of each site (`kind_name`).
 
-The idea is to provide another python class which is just the mutable version of the `atomistic.StructureData` used to build, manipulate the crystal structure before the effective AiiDA node initialization. For now, let's call this class `StructureDataMutable`. This two classes have the same data structure, i.e. the same `properties` and the same `from_*`, `get_*` and `to_*` methods. The only difference is that the `atomistic.StructureDataMutable` has also `set_*` methods which can be used to mutate the properties. **Rule**: no property can be modified directly (i.e. accessing it); this is useful to avoid the introduction of inconsistencies in the structure instance.
+The idea is to provide another python class which is just the mutable version of the `atomistic.StructureData` used to build, manipulate the crystal structure before the effective AiiDA node initialization. For now, let's call this class `StructureDataMutable`. This two classes have the same data structure, i.e. the same `properties` and the same `from_*`, `get_*` and `to_*` methods. The only difference is that the `atomistic.StructureDataMutable` has also `set_*` methods which can be used to mutate the properties. 
+TODO: properties can also be modified directly, and then the validation will happen only if we initialise the immutable `StructureData`.
 
 
 ## How to initialize the `StructureData`(s)
@@ -186,12 +187,12 @@ from aiida import orm
 structure = orm.load_node(<StructureData pk>)
 
 
-mutable_structure = structure.to_mutable()
+mutable_structure = structure.to_immutable()
 mutable_structure.set_charges([1, 0])
 
 mutable_structure.set_kind_names(['Si2','Si1'])
 
-new_structure = mutable_structure.to_immutable()
+new_structure = mutable_structure.to_mutable()
 ```
 
 Other available methods are `add_atom`, `pop_atom`, `update_site` and so on.
