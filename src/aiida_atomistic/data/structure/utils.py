@@ -838,10 +838,10 @@ def check_is_alloy(data):
 @calcfunction
 def generate_striped_structure(structure: StructureData, to_be_striped: List) -> StructureData:
     """Return a stripped version of the input structure."""
-    mutable = structure.to_mutable()
+    mutable = structure.get_value()
     for key in to_be_striped:
         mutable = mutable.clear_property(key)
-    return mutable.to_immutable(detect_kinds=True)
+    return StructureData.from_mutable(mutable, detect_kinds=True)
 
 
 def order_k(k):

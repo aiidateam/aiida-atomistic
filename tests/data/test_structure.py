@@ -102,7 +102,7 @@ def test_structure_Pymatgen_initialization():
         assert structure.properties.charges == [1, 0]
         assert structure.properties.magmoms == [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
-def test_mutability():
+def test_immutability():
     atoms = bulk("Cu", "fcc", a=3.6)
     # test StructureData
     s = StructureData.from_ase(atoms)
@@ -117,8 +117,11 @@ def test_mutability():
     with pytest.raises(ValueError):
         s.properties.pbc[0] = False
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError):
         s.properties.pbc = [True, False, True]
+
+    with pytest.raises(ValueError):
+        s.properties.sites[0].symbols = "Cu"
 
     # test StructureDataMutable
     m = StructureDataMutable.from_ase(atoms)
@@ -223,8 +226,14 @@ def kinds_properties():
             "value": atomic_positions,
         },
         "symbols": {"value": symbols},
-        "mass": {
-            "value": mass,
+        "masses": {
+            "value": # In the provided code, the `mass` property is used to define the mass of each
+            # atom in the structure. It is a property of the `StructureData` and
+            # `StructureDataMutable` classes that represents the mass of each atom in the
+            # structure. The `mass` property is used to store the mass of each atom in the
+            # structure, which can be important for various calculations and simulations
+            # involving the structure.
+            mass,
         },
         "charge": {"value": charge},
     }

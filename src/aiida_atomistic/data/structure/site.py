@@ -69,7 +69,9 @@ class FrozenList(list):
     """
 
     def __setitem__(self, index, value):
-        raise ValueError("This list is immutable")
+        raise ValueError("This list is immutable. Site properties cannot be modified. \
+            Please modify them using the `update_site` method of the `StructureDataMutable` object. \
+                If your object is the AiiDA immutable `StructureData` object, you can create a mutable copy of it using its `get_value` method.")
 
 class SiteCore(BaseModel):
     """This class contains the core information about a given site of the system.
@@ -265,8 +267,8 @@ class SiteCore(BaseModel):
         # we should put a small routine to do tags. or instead of kinds, provide the tag (or tag mapping).
         tag = None
         atom_dict = self.model_dump()
-        atom_dict["symbol"] = atom_dict.pop("symbols", None)
-        atom_dict["position"] = atom_dict.pop("positions", None)
+        atom_dict["symbols"] = atom_dict.pop("symbols", None)
+        atom_dict["positions"] = atom_dict.pop("positions", None)
         atom_dict["magmom"] = atom_dict.pop("magmoms", None)
         atom_dict["charge"] = atom_dict.pop("charges", None)
         atom_dict["mass"] = atom_dict.pop("masses", None)

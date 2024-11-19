@@ -287,7 +287,7 @@ class GetterMixin(HubbardGetterMixin):
         structure = cls(**inputs)
 
         if detect_kinds:
-            inputs = structure.get_kinds()
+            inputs_kinds = structure.get_kinds()
             inputs_kinds = structure.get_kinds()
             inputs.pop('sites', None)
             inputs.update(inputs_kinds)
@@ -594,7 +594,7 @@ class GetterMixin(HubbardGetterMixin):
         k = k.T
 
         # Step 2:
-        # kinds = np.zeros(len(self.get_site_property("symbol")), dtype=int) - 1
+        # kinds = np.zeros(len(self.get_site_property("symbols")), dtype=int) - 1
         check_array = np.zeros(len(self.get_site_property("positions")), dtype=int) -1
         kind_names = symbols.tolist()
         kind_numeration = np.zeros_like(check_array, dtype=int)
@@ -836,9 +836,9 @@ class GetterMixin(HubbardGetterMixin):
                 atoms_json.append(
                     {
                         "l": kind_string,
-                        "x": base_site["position"][0] + shift[0],
-                        "y": base_site["position"][1] + shift[1],
-                        "z": base_site["position"][2] + shift[2],
+                        "x": base_site["positions"][0] + shift[0],
+                        "y": base_site["positions"][1] + shift[1],
+                        "z": base_site["positions"][2] + shift[2],
                         "atomic_elements_html": atom_kinds_to_html(kind_string),
                     }
                 )
@@ -920,7 +920,7 @@ class GetterMixin(HubbardGetterMixin):
         self.properties.pbc = (False, False, False)
 
         for sym, position in atoms:
-            self.add_atom(atom_info={'symbol':sym, 'position':position})
+            self.add_atom(atom_info={'symbols':sym, 'position':position})
 
     def _adjust_default_cell(
         self, vacuum_factor=1.0, vacuum_addition=10.0, pbc=(False, False, False)
@@ -944,7 +944,7 @@ class GetterMixin(HubbardGetterMixin):
         # amount to (0,0,0)
         positions -= position_min
         for index, site in enumerate(self.base.attributes.get("sites")):
-            site["position"] = list(positions[index])
+            site["positions"] = list(positions[index])
 
         # The orthorhombic cell that (just) accomodates the whole structure is now given by the
         # extremas of position in each dimension:

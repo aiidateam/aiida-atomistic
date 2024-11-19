@@ -128,20 +128,20 @@ def example_wrong_structure_dict():
         "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
         "sites": [
             {
-                "symbol": "Cu",
+                "symbols": "Cu",
                 "kinds": "Cu2",
-                "position": [0.0, 0.0, 0.0],
-                "mass": 63.546,
-                "charge": 1.0,
-                "magmom": [0,0,0],
+                "positions": [0.0, 0.0, 0.0],
+                "masses": 63.546,
+                "charges": 1.0,
+                "magmoms": [0,0,0],
             },
             {
-                "symbol": "Cu",
+                "symbols": "Cu",
                 "kinds": "Cu2",
-                "position": [0.0, 0.0, 0.0],
-                "mass": 63.546,
-                "charge": 1.0,
-                "magmom": [0,0,0],
+                "positions": [0.0, 0.0, 0.0],
+                "masses": 63.546,
+                "charges": 1.0,
+                "magmoms": [0,0,0],
             }
         ],
     }

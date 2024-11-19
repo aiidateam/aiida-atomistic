@@ -12,11 +12,11 @@ structure_dict = {
     'pbc': [True,True,True],
     'sites':[
         {
-            'symbol':'Si',
+            'symbols':'Si',
             'position':[3/4, 3/4, 3/4],
         },
         {
-            'symbol':'Si',
+            'symbols':'Si',
             'position':[1/2, 1/2, 1/2],
         },
     ],
@@ -94,8 +94,8 @@ mutable_structure.to_dict()
 #
 
 # %%
-mutable_structure.to_immutable() # returns an instance of StructureData
-structure.to_mutable() # returns an instance of StructureDataMutable
+StructureData.from_mutable(mutable_structure) # returns an instance of StructureData
+structure.get_value() # returns an instance of StructureDataMutable
 
 # %% [markdown]
 #
@@ -107,12 +107,12 @@ structure.to_mutable() # returns an instance of StructureDataMutable
 # `StructureDataMutable` properties can be modified directly, but also the class contains several `set_` methods and more, needed to update a structure. Let's suppose we start from an immutable `StructureData` and we want to update the charges (and the corresponding kinds):
 
 # %%
-mutable_structure = structure.to_mutable()
+mutable_structure = structure.get_value()
 
 mutable_structure.set_charges([1, 0])
 mutable_structure.set_kind_names(['Si2','Si1'])
 
-new_structure = mutable_structure.to_immutable()
+new_structure = StructureData.from_mutable(mutable_structure)
 
 print(f"new charges, kinds:\n{new_structure.properties.charges}, {new_structure.properties.kinds}")
 
@@ -129,14 +129,14 @@ print(f"new charges, kinds:\n{new_structure.properties.charges}, {new_structure.
 mutable_structure = StructureDataMutable()
 mutable_structure.set_cell([[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]])
 mutable_structure.add_atom({
-            'symbol':'Si',
+            'symbols':'Si',
             'position':[3/4, 3/4, 3/4],
             'charge': 1,
             'kind_name': 'Si2'
         })
 
 mutable_structure.add_atom({
-            'symbol':'Si',
+            'symbols':'Si',
             'position':[1/2, 1/2, 1/2],
             'charge': 0,
             'kind_name': 'Si1'
@@ -167,13 +167,13 @@ Fe_BCC_dictionary = {'pbc': (True, True, True),
         'cell': [[2.8403, 0.0, 1.7391821518091137e-16],
         [-1.7391821518091137e-16, 2.8403, 1.7391821518091137e-16],
         [0.0, 0.0, 2.8403]],
-        'sites': [{'symbol': 'Fe',
+        'sites': [{'symbols': 'Fe',
         'mass': 55.845,
         'position': [0.0, 0.0, 0.0],
         'charge': 0.0,
         'magmom': [2.5, 0.1, 0.1],
         'kind_name': 'Fe'},
-        {'symbol': 'Fe',
+        {'symbols': 'Fe',
         'mass': 55.845,
         'position': [1.42015, 1.42015, 1.4201500000000002],
         'charge': 0.0,
@@ -203,7 +203,7 @@ mutable_structure.to_dict()
 # %%
 from aiida.orm import QueryBuilder
 
-stored = new_mutable_structure.to_immutable().store()
+stored = new_StructureData.from_mutable(mutable_structure).store()
 print(stored.pk)
 
 qb = QueryBuilder()
@@ -221,7 +221,7 @@ print(qb.all()[-1])
 # %%
 structure  = StructureDataMutable(**{'pbc': [True, True, True],
  'cell': [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
- 'sites': [{'symbol': 'CuAl',
+ 'sites': [{'symbols': 'CuAl',
    'position': [0.0, 0.0, 0.0],
    'weights': (0.5,0.5)
    }],})
@@ -243,7 +243,7 @@ print(structure.has_vacancies)
 # %%
 structure  = StructureData(**{'pbc': [True, True, True],
  'cell': [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
- 'sites': [{'symbol': 'Cu',
+ 'sites': [{'symbols': 'Cu',
    'position': [0.0, 0.0, 0.0],
    }],
  'custom': {

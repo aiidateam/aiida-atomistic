@@ -326,17 +326,33 @@ class StructureBaseModel(BaseModel):
 
     @staticmethod
     def transform_sites_list(sites = [], return_undefined=False):
+        """
+        Transforms a list of site dictionaries into a dictionary of lists, where each key corresponds to a field
+        and the values are lists of the field values from each site. This is mainly used to provide the possibility
+        to define the list of sites in the StructureData constructor, as alternative way to do it. So, using this method
+        we build the list of properties as meant to be stored in the database.
+
+        Args:
+            sites (list): A list of dictionaries, where each dictionary represents a site with various fields.
+            return_undefined (bool): If True, returns a set of fields that were not defined in any of the site dictionaries.
+
+        Returns:
+            dict or set: If return_undefined is False, returns a dictionary where keys are field names and values are lists
+                         of field values from each site. If return_undefined is True, returns a set of field names that were
+                         not defined in any of the site dictionaries. This is due to the fact that we cannot know a priori the default
+                         set of properties just looking at the lists like `charges` , `magmoms`... because the default cannot be established,
+                         they need to be computed wrt the number of sites (which cannot be predicted).
+        """
         fields_list = SiteImmutable.model_fields
         fields_set = set()
         transformed_dict = {k: [] for k in fields_list.keys()}
         for item in sites:
             for key in fields_list.keys():
                 transformed_dict[key].append(item[key] if key in item else _DEFAULT_VALUES[key])
-                if key not in item and return_undefined:
+                if key in item.keys():
                     fields_set.add(key)
 
-
-        return transformed_dict if not return_undefined else fields_set
+        return transformed_dict if not return_undefined else set(fields_list).difference(fields_set)
 
     @classmethod
     def from_sites_specs(cls, **kwargs):
@@ -383,3 +399,9 @@ class ImmutableStructureModel(StructureBaseModel):
         from_attributes = True
         frozen = True
         arbitrary_types_allowed = True
+
+    def __setattr__(self, key, value):
+        # Customizing the exception message when trying to mutate attributes
+        if key in self.__fields__:
+            raise ValueError("The AiiDA `StructureData` is immutable. You can create a mutable copy of it using its `get_value` method.")
+        super().__setattr__(key, value)
