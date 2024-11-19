@@ -209,7 +209,7 @@ class StructureBaseModel(BaseModel):
         else:
             if len(data["kinds"]) != len(data['symbols']):
                 raise ValueError("Length of kinds does not match the number of symbols")
-        if not data.get("masses"):
+        if "masses" not in data.keys():
             data["masses"] = [_atomic_masses[s] if s in _atomic_masses.keys() else _DEFAULT_VALUES["masses"]
                               for s in data["symbols"]]
         else:

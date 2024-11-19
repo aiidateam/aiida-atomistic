@@ -842,3 +842,25 @@ def generate_striped_structure(structure: StructureData, to_be_striped: List) ->
     for key in to_be_striped:
         mutable = mutable.clear_property(key)
     return mutable.to_immutable(detect_kinds=True)
+
+
+def order_k(k):
+    """
+    Adjusts the order of elements in the array `k` by ensuring that there are no gaps in the sequence.
+
+    If the minimum value in `k` is 0, it increments all elements by 1. Then, it iterates from the maximum value
+    in `k` down to the minimum value, checking if each value minus one is not in `k`. If a value minus one is not
+    found, it decrements all elements in `k` that are greater than or equal to the current value.
+
+    Parameters:
+    k (numpy.ndarray): An array of integers to be reordered.
+
+    Returns:
+    numpy.ndarray: The reordered array `k`.
+    """
+    if min(k) == 0:
+        k = k + 1
+    for i in range(max(k),min(1,min(k)),-1):
+        if  i-1 not in k:
+            k[np.where(k >=i )] -= 1
+    return k

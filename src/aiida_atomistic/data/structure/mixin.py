@@ -63,6 +63,12 @@ _default_values = {
     "magmoms": [0, 0, 0],
 }
 
+_DEFAULT_THRESHOLDS = {
+            "charges": 0.1,
+            "masses": 1e-4,
+            "magmoms": 1e-4, # _MAGMOM_THRESHOLD
+        }
+
 class GetterMixin(HubbardGetterMixin):
 
     @property
@@ -108,7 +114,9 @@ class GetterMixin(HubbardGetterMixin):
         structure = cls(**data)
 
         if detect_kinds:
-            data["sites"] = structure.get_kinds(ready_to_use=True)
+            data_kinds = structure.get_kinds()
+            data.pop('sites', None)
+            data.update(data_kinds)
 
         structure = cls(**data)
 
@@ -279,10 +287,10 @@ class GetterMixin(HubbardGetterMixin):
         structure = cls(**inputs)
 
         if detect_kinds:
-            inputs["sites"] = structure.get_kinds(ready_to_use=True)
-            inputs["kinds"] = [
-                site["kinds"] for site in inputs["sites"]
-            ]
+            inputs = structure.get_kinds()
+            inputs_kinds = structure.get_kinds()
+            inputs.pop('sites', None)
+            inputs.update(inputs_kinds)
 
         structure = cls(**inputs)
 
@@ -303,11 +311,9 @@ class GetterMixin(HubbardGetterMixin):
             dict_repr = copy.deepcopy(self.properties.model_dump())
 
             if detect_kinds:
-                dict_repr["sites"] = self.get_kinds(ready_to_use=True)
-                dict_repr["kinds"] = [
-                    site["kinds"] for site in dict_repr["sites"]
-                ]
-
+                dict_repr_kinds = self.get_kinds()
+                dict_repr.pop('sites', None)
+                dict_repr.update(dict_repr_kinds)
             # dict_repr = get_serialized_data(dict_repr)
 
             return dict_repr
@@ -343,19 +349,19 @@ class GetterMixin(HubbardGetterMixin):
         return defined_properties.difference(plugin_properties)
 
     def get_charges(self,):
-        return self.get_site_property("charge")
+        return self.get_site_property("charges")
 
     def get_magmoms(self,):
-        return self.get_site_property("magmom")
+        return self.get_site_property("magmoms")
 
     def get_kind_names(self,):
         return self.get_site_property("kinds")
 
     def get_positions(self,):
-        return self.get_site_property("position")
+        return self.get_site_property("positions")
 
     def get_symbols(self,):
-        return self.get_site_property("symbol")
+        return self.get_site_property("symbols")
 
     def get_cell_volume(self):
         """Returns the three-dimensional cell volume in Angstrom^3.
@@ -486,12 +492,16 @@ class GetterMixin(HubbardGetterMixin):
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=["weights"], custom_thr={}, ready_to_use=False):
+    def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
         """
         Get the list of kinds, taking into account all the properties.
         If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
         by computing the kinds with threshold=0 for each property.
 
+        NB: for now, we exclude the `weights` property. TOBE implemented.
+        NB: can be improved, of course.
+
+        TODO: remove kind_tags and use only exclude and custom_thr.
 
         Algorithm:
         it generated the kinds_list for each property separately in Step 1, then
@@ -509,8 +519,10 @@ class GetterMixin(HubbardGetterMixin):
         In Step 2 it checks for the matrix which rows have the same numbers in the same order, i.e. recognize the different
         kinds considering all the properties. This is done by subtracting a row from the others and see if all the elements
         are zero, meaning that we have the same combination of kinds.
-
-        In Step 3 we override the kinds with the kind_tags.
+        In Step 2.2 it reorders the kind_numeration to start from 1 for each element.
+        In Step 2.3 it defines the new kind names.
+        In Step 3 it creates the dictionary with the new kinds.
+        In Step 4 it checks the consistency of the provided kind_tags with the properties values.
 
         Args:
             kind_tags (list, optional): list of kind names as user defined: in principle this input trigger a check in the kind
@@ -533,6 +545,7 @@ class GetterMixin(HubbardGetterMixin):
         - Implementation can and should be improved, but the functionalities are the desired ones.
         - Moreover, the method should be accessible to run on a given properties dictionary, so to predict the kinds before the StructureData instance generation.
         """
+        from aiida_atomistic.data.structure.utils import order_k
 
         # cannot do properties.symbols.value due to recursion problem if called in Kinds:
         # if I call properties, this will again reinitialize the properties attribute and so on.
@@ -540,11 +553,10 @@ class GetterMixin(HubbardGetterMixin):
         # symbols = self.base.attributes.get("_property_attributes")['symbols']['value']
         # However, for now I do not let the kinds to be automatically generated when we initialise the structure:
         symbols = self.get_site_property("symbols")
-        default_thresholds = {
-            "charges": 0.1,
-            "masses": 1e-4,
-            "magmoms": 1e-4, # _MAGMOM_THRESHOLD
-        }
+
+        # TOBE implemented: weights support
+        if "weights" not in exclude:
+            exclude.append("weights")
 
         list_tags = []
         if len(kind_tags) == 0:
@@ -566,12 +578,12 @@ class GetterMixin(HubbardGetterMixin):
             if single_property not in ["symbols", "positions", "kinds",] + exclude:
                 #prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
-                    single_property, default_thresholds.get(single_property)
+                    single_property, _DEFAULT_THRESHOLDS.get(single_property)
                 )
                 kinds_dictionary[single_property] = {}
 
                 kinds_per_property = self._to_kinds(
-                    property_name=single_property, symbols=symbols, thr=thr
+                    property_name=single_property, thr=thr
                 )
 
                 kind_properties.append(kinds_per_property[0])
@@ -587,13 +599,18 @@ class GetterMixin(HubbardGetterMixin):
         kind_names = symbols.tolist()
         kind_numeration = np.zeros_like(check_array, dtype=int)
         for i in range(len(k)):
-            # Goes from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
-            element = symbols[i]
+            #print('iteration ' , i)
+            # This starts from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
+            # This will be fixed in step 2.3.
+
             diff = k - k[i]
             diff_sum = np.sum(np.abs(diff), axis=1)
 
-            # kinds[np.where(diff_sum == 0)[0]] = i
+            # checking the same kinds
+            #print('where is, ', np.where(diff_sum == 0)[0])
             for where in np.where(diff_sum == 0)[0]:
+                element = symbols[where]
+                #print('where iteration ', where)
                 if not check_array[where] == -1:
                     continue
                 if (
@@ -603,22 +620,27 @@ class GetterMixin(HubbardGetterMixin):
                 else:
                     kind_numeration[where] = i
 
-                kind_names[where] = f"{element}{kind_numeration[where]}"
-
-                check_array[where] = i
-                #print(f"site {where} is {element}{kind_numeration[-1]}")
-
             if len(np.where(check_array == -1)[0]) == 0:
                 #print(f"search ended at iteration {i}")
                 break
 
-        # Step 3:
-        kinds_dictionary["kinds"] = [
-            kind_names[i]  if not kind_tags[i] else kind_tags[i]
-            for i in range(len(kind_tags))
-        ]
+        # Step 2.2 Define the new kind names
+        # Step 2.2.1 Re-order kind_numeration (to start from 1, not from 0, for each new element).
+        for element in set(symbols):
+            element_wise_k = kind_numeration[np.where(symbols== element)[0]]
+            kk = order_k(element_wise_k)
+            kind_numeration[np.where(symbols == element)[0]] = kk
 
-        kinds_dictionary["index"] = kind_numeration
+        # Step 2.3: Define the new kind names
+        #print(symbols,kind_numeration)
+        for ind, (element, kind_number) in enumerate(zip(symbols, kind_numeration)):
+            kind_names[ind] = f"{element}{kind_number}"
+
+
+        # Step 3:
+        kinds_dictionary["kinds"] =kind_names
+
+        kinds_dictionary["index"] = kind_numeration - 1 # kinds_numeration starts from 1, here we want to start from 0
         kinds_dictionary["symbols"] = symbols.tolist()
         kinds_dictionary["positions"] = self.get_site_property("positions").tolist()
 
@@ -628,30 +650,8 @@ class GetterMixin(HubbardGetterMixin):
                 "The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want."
             )
 
-        '''if ready_to_use:
-            new_sites = []
-            for index_kind in kinds_dictionary["index"]:
-                dict_site = {}
-                for k,v in kinds_dictionary.items():
-                    if k not in ["symbol","position","index"]:
-                        dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
-                for value in ["symbol","position"]:
-                    dict_site[value] = kinds_dictionary[value][index_kind]
-                new_sites.append(dict_site)
-            return new_sites
-        '''
-        if ready_to_use:
-            new_sites = []
-            for index_global, index_kind in enumerate(kinds_dictionary["index"]):
-                dict_site = {}
-                for k,v in kinds_dictionary.items():
-                    if k not in ["symbols","positions","index"]:
-                        dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
-                for value in ["symbols","positions"]:
-                    # even for same kind, the position should be different
-                    dict_site[value] = kinds_dictionary[value][index_global]
-                new_sites.append(dict_site)
-            return new_sites
+        # we delete the index key, as it is not a property
+        kinds_dictionary.pop("index", None)
 
         return kinds_dictionary
 
@@ -1216,7 +1216,7 @@ class GetterMixin(HubbardGetterMixin):
 
         return
 
-    def _to_kinds(self, property_name, symbols, thr: float = 0):
+    def _to_kinds(self, property_name, thr: float = 0):
         """Called by the `get_kinds` function.
         Get the kinds for a generic site property. Can also be overridden in the specific property.
 
@@ -1227,11 +1227,11 @@ class GetterMixin(HubbardGetterMixin):
 
             indexes = np.array((prop_array-np.min(prop_array))/thr,dtype=int)
 
-        To understand this, try to draw the problem considering prop_array=[1,2,3,4] and thr=0.5.
+        To understand this, try to draw the problem considering prop_array=[1.6,2,3.2,4] and thr=0.5.
         This methods allows to efficiently clusterize the point using the defined threshold.
 
         At the end, we reorder the kinds from zero (to have ordered list like Li0, Li1...).
-        Basically we define the set of unordered kinds, and the range(len(set(kinds))) being the group of orderd kinds.
+        Basically we define the set of unordered kinds, and the range(len(set(kinds))) being the group of ordered kinds.
         Then we basically do a mapping with the np.where().
 
         Args:
@@ -1245,7 +1245,7 @@ class GetterMixin(HubbardGetterMixin):
                                 can be used in the matrix representation (the k.T).
             kinds_values: list of the associated property value to each kind detected.
         """
-        symbols_array = np.array(symbols)
+        symbols_array = np.array(self.properties.symbols)
 
         if isinstance(self.get_site_property(property_name)[0], list) or isinstance(self.get_site_property(property_name)[0], np.ndarray):
             #reference_array = np.array(self.get_site_property(property_name)[0]) # I take the difference to detect also the case [1,0,0] != [-1,0,0]
@@ -1283,7 +1283,11 @@ class GetterMixin(HubbardGetterMixin):
         for i in range(len(list_set_indexes)):
             kinds_labels[np.where(indexes == list_set_indexes[i])[0]] = i
 
-        return kinds_labels, kinds_values
+        # now we truncate the kinds_values considering the threshold magnitude
+        truncation_order = int(np.log10(thr)*np.sign(np.log10(thr)))
+        truncated_kinds_values = np.round(kinds_values, truncation_order)
+
+        return kinds_labels, truncated_kinds_values
 
     def __getitem__(self, index):
         "ENABLE SLICING. Return a sliced StructureData."
@@ -1384,6 +1388,18 @@ class SetterMixin(HubbardSetterMixin):
         else:
             for site_index in range(len(value)):
                 self.update_site(site_index, kinds=value[site_index])
+
+    def set_automatic_kinds(self, exclude=[],custom_thr={}):
+
+        new_structure_with_kinds = self.get_kinds(
+            exclude=exclude,
+            custom_thr=custom_thr,
+            )
+        # update the properties:
+        new_structure_dict = self.to_dict()
+        new_structure_dict.update(new_structure_with_kinds)
+        new_structure_dict.pop("sites",None)
+        self.__init__(**new_structure_dict)
 
     def set_site_property(self, name: str, values: t.List):
         """

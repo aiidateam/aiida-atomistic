@@ -23,12 +23,12 @@ def supported_properties():
     return [
         "cell",
         "pbc",
-        "position",
-        "symbol",
-        "mass",
-        "charge",
-        "magmom",
-        "kind_name",
+        "positions",
+        "symbols",
+        "masses",
+        "charges",
+        "magmoms",
+        "kinds",
         "weights",
     ]
 
@@ -43,18 +43,58 @@ def example_structure_dict():
         "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
         "sites": [
             {
-                "symbol": "Cu",
-                "kind_name": "Cu2",
-                "position": [0.0, 0.0, 0.0],
-                "mass": 63.546,
-                "charge": 1.0,
-                "magmom": [0.0,0.0,0.0],
+                "symbols": "Cu",
+                "kinds": "Cu2",
+                "positions": [0.0, 0.0, 0.0],
+                "masses": 63.546,
+                "charges": 1.0,
+                "magmoms": [0.0,0.0,0.0],
                 "weights": (1,)
             }
         ],
     }
 
     return structure_dict
+
+@pytest.fixture
+def example_dumped_structure_dict():
+
+    # the dumped structure is the same as the example_structure_dict, but with additional computed fields and default ones.
+
+    dumped_dict = {
+        'pbc': [True, True, True],
+        'cell': [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
+        'custom': None,
+        'symbols': ['Cu'],
+        'positions': [[0.0, 0.0, 0.0]],
+        'kinds': ['Cu2'],
+        'weights': [(1.0,)],
+        'masses': [63.546],
+        'charges': [1.0],
+        'magmoms': [[0.0, 0.0, 0.0]],
+        'hubbard': {
+            'parameters': [],
+            'projectors': 'ortho-atomic',
+            'formulation': 'dudarev'
+        },
+        'cell_volume': 11.664000000000001,
+        'dimensionality': {
+            'dim': 3,
+            'label': 'volume',
+            'value': 11.664000000000001
+        },
+        'sites': [{
+            'symbols': 'Cu',
+            'kinds': 'Cu2',
+            'positions': [0.0, 0.0, 0.0],
+            'masses': 63.546,
+            'charges': 1.0,
+            'magmoms': [0.0, 0.0, 0.0],
+            'weights': (1.0,)
+        }],
+        'formula': 'Cu'
+    }
+    return dumped_dict
 
 @pytest.fixture
 def example_nomass_structure_dict():
@@ -66,12 +106,12 @@ def example_nomass_structure_dict():
         "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
         "sites": [
             {
-                "symbol": "Cu",
-                "kind_name": "Cu2",
-                "position": [0.0, 0.0, 0.0],
+                "symbols": "Cu",
+                "kinds": "Cu2",
+                "positions": [0.0, 0.0, 0.0],
                 #"mass": 63.546,
-                "charge": 1.0,
-                "magmom": [0,0,0],
+                "charges": 1.0,
+                "magmoms": [0,0,0],
             }
         ],
     }
@@ -89,7 +129,7 @@ def example_wrong_structure_dict():
         "sites": [
             {
                 "symbol": "Cu",
-                "kind_name": "Cu2",
+                "kinds": "Cu2",
                 "position": [0.0, 0.0, 0.0],
                 "mass": 63.546,
                 "charge": 1.0,
@@ -97,7 +137,7 @@ def example_wrong_structure_dict():
             },
             {
                 "symbol": "Cu",
-                "kind_name": "Cu2",
+                "kinds": "Cu2",
                 "position": [0.0, 0.0, 0.0],
                 "mass": 63.546,
                 "charge": 1.0,
@@ -117,18 +157,18 @@ def example_structure_dict_for_kinds():
         'cell': [[2.8403, 0.0, 1.7391821518091137e-16],
         [-1.7391821518091137e-16, 2.8403, 1.7391821518091137e-16],
         [0.0, 0.0, 2.8403]],
-        'sites': [{'symbol': 'Fe',
-        'mass': 55.845,
-        'position': [0.0, 0.0, 0.0],
-        'charge': 0.0,
-        'magmom': [2.5, 0.1, 0.1],
-        'kind_name': 'Fe'},
-        {'symbol': 'Fe',
-        'mass': 55.845,
-        'position': [1.42015, 1.42015, 1.4201500000000002],
-        'charge': 0.0,
-        'magmom': [2.4, 0.1, 0.1],
-        'kind_name': 'Fe'}]}
+        'sites': [{'symbols': 'Fe',
+        'masses': 55.845,
+        'positions': [0.0, 0.0, 0.0],
+        'charges': 0.0,
+        'magmoms': [2.5, 0.1, 0.1],
+        'kinds': 'Fe'},
+        {'symbols': 'Fe',
+        'masses': 55.845,
+        'positions': [1.42015, 1.42015, 1.4201500000000002],
+        'charges': 0.0,
+        'magmoms': [2.4, 0.1, 0.1],
+        'kinds': 'Fe'}]}
 
     return structure_dict
 
@@ -152,8 +192,8 @@ def example_structure_dict_alloy():
     structure_dict ={
         'pbc': [True, True, True],
         'cell': [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
-        'sites': [{'symbol': 'CuAl',
-        'position': [0.0, 0.0, 0.0],
+        'sites': [{'symbols': 'CuAl',
+        'positions': [0.0, 0.0, 0.0],
         'weights': (0.5,0.5)
         }],}
 

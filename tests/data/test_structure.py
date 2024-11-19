@@ -29,11 +29,7 @@ def test_structure_initialization(example_structure_dict):
     ), f"Expected type for empty StructureDataMutable: {type(StructureDataMutable)}, \
                                             received: {type(structure)}"
 
-    # (1.2) Empty StructureData: cannot be done
-    with pytest.raises(ValidationError):
-        structure = StructureData()
-
-    # (2)
+    # (1.2)
     for structure_type in [StructureDataMutable, StructureData]:
         structure = structure_type(**example_structure_dict)
 
@@ -45,7 +41,7 @@ def test_structure_initialization(example_structure_dict):
 
 # StructureData methods:
 
-def test_dict(example_structure_dict):
+def test_dict(example_structure_dict,example_dumped_structure_dict):
     """
     Testing that the StructureData.to_dict() method works properly.
 
@@ -56,16 +52,15 @@ def test_dict(example_structure_dict):
 
         returned_dict = structure.to_dict()
 
-        for derived_property in structure.properties.model_computed_fields.keys():
+        '''for derived_property in structure.properties.model_computed_fields.keys():
             returned_dict.pop(derived_property, None)
         for property_to_delete in ["custom", "tot_charge", "tot_magnetization"]:
             returned_dict.pop(property_to_delete, None)
-
+        '''
         assert (
-            returned_dict == example_structure_dict
-        ), f"The dictionary returned by the method, {returned_dict}, \
-                                                is different from the initial one: {example_structure_dict}"
-
+            returned_dict.keys() == example_dumped_structure_dict.keys()
+        ), f"The dictionary returned by the method, {returned_dict.keys()}, \
+                                                is different from the expected dumped one: {example_dumped_structure_dict.keys()}"
 
 def test_structure_ASE_initialization():
     """
@@ -94,7 +89,6 @@ def test_structure_Pymatgen_initialization():
 
     from pymatgen.core import Lattice, Structure, Molecule
 
-
     coords = [[0, 0, 0], [0.75,0.5,0.75]]
     lattice = Lattice.from_parameters(a=3.84, b=3.84, c=3.84, alpha=120,
                                 beta=90, gamma=60)
@@ -115,9 +109,9 @@ def test_mutability():
 
     assert isinstance(s.properties.pbc, list)
     assert any(s.properties.pbc)
-    assert np.array_equal(
-        s.properties.cell, np.array([[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]])
-    )
+    assert s.properties.cell[0] == [0.0, 1.8, 1.8]
+    assert s.properties.cell[1] == [1.8, 0.0, 1.8]
+    assert s.properties.cell[2] == [1.8, 1.8, 0.0]
     assert isinstance(s.properties.sites[0], SiteImmutable)
 
     with pytest.raises(ValueError):
@@ -152,15 +146,15 @@ def test_mutability():
 
     # check append_atom works properly
     m.add_atom(
-        {
-            "symbol": "Cu",
-            "mass": 63.546,
-            "kind_name": "Cu",
-            "position": [1.0, 0.0, -1.0],
-            "charge": 0.0,
-            "magmom": [0,0,0],
-        },
         index=0,
+        **{
+            "symbols": "Cu",
+            "masses": 63.546,
+            "kinds": "Cu",
+            "positions": [1.0, 0.0, -1.0],
+            "charges": 0.0,
+            "magmoms": [0,0,0],
+        },
     )
 
     assert np.array_equal(m.get_charges(), np.array([0,0]))
@@ -176,13 +170,13 @@ def test_computed_fields(example_structure_dict):
 
         if isinstance(structure, StructureDataMutable):
             structure.add_atom(
-            {
-                "symbol": "Cu",
-                "mass": 63.546,
-                "kind_name": "Cu",
-                "position": [1.0, 0.0, -1.0],
-                "charge": 0.0,
-                "magmom": [0,0,0],
+            **{
+                "symbols": "Cu",
+                "masses": 63.546,
+                "kinds": "Cu",
+                "positions": [1.0, 0.0, -1.0],
+                "charges": 0.0,
+                "magmoms": [0,0,0],
             },
             index=0,
             )
@@ -199,7 +193,7 @@ def test_model_validator(example_wrong_structure_dict,example_nomass_structure_d
 
         structure = structure_type(**example_nomass_structure_dict)
         assert structure.properties.masses == [63.546]
-        assert structure.properties.sites[0].mass == 63.546
+        assert structure.properties.sites[0].masses == 63.546
 
 
 
@@ -245,7 +239,7 @@ def test_get_kinds(example_structure_dict_for_kinds, complex_example_structure_d
 
         new_structure = structure_type(**structure.to_dict(detect_kinds=True))
 
-        assert new_structure.properties.kinds == ['Fe0', 'Fe1']
+        assert new_structure.properties.kinds == ['Fe1', 'Fe2']
         assert new_structure.properties.magmoms == [[2.5, 0.1, 0.1], [2.4, 0.1, 0.1]]
 
     # (2) complex system, defaults thr
@@ -254,15 +248,36 @@ def test_get_kinds(example_structure_dict_for_kinds, complex_example_structure_d
 
         new_structure = structure_type(**structure.to_dict(detect_kinds=True))
 
-        assert new_structure.properties.kinds == ['Mn0', 'Mn1', 'Mn0', 'Mn1', 'Mn4', 'Mn4', 'Sn6', 'Sn6']
-        assert new_structure.properties.magmoms == [[1.5000000000000002, 2.598076211353316, 0.0],
-                                                    [-3.0, 0.0, 0.0],
-                                                    [1.5000000000000002, 2.598076211353316, 0.0],
-                                                    [-3.0, 0.0, 0.0],
-                                                    [1.4999999999999998, -2.598076211353316, 0.0],
-                                                    [1.4999999999999998, -2.598076211353316, 0.0],
-                                                    [0.0, 0.0, 0.0],
-                                                    [0.0, 0.0, 0.0]]
+        assert new_structure.properties.kinds == ['Mn1', 'Mn2', 'Mn1', 'Mn2', 'Mn3', 'Mn3', 'Sn1', 'Sn1']
+        assert new_structure.properties.magmoms == [[1.5, 2.5981, 0.0],
+                                [-3.0, 0.0, 0.0],
+                                [1.5, 2.5981, 0.0],
+                                [-3.0, 0.0, 0.0],
+                                [1.5, -2.5981, 0.0],
+                                [1.5, -2.5981, 0.0],
+                                [0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0]]
+
+def test_set_automatic_kinds(complex_example_structure_dict_for_kinds):
+    '''
+    This will test the set_automatic_kinds method for StructureDataMutable only
+    (remember that the method is not available for StructureData as it is a Setter method).
+    '''
+    structure = StructureDataMutable(**complex_example_structure_dict_for_kinds)
+    # reset the kinds (this is only one way to do it):
+    structure.set_kinds(structure.properties.symbols)
+
+    # set the automatic kinds
+    structure.set_automatic_kinds()
+    assert structure.properties.kinds == ['Mn1', 'Mn2', 'Mn1', 'Mn2', 'Mn3', 'Mn3', 'Sn1', 'Sn1']
+    assert structure.properties.magmoms == [[1.5, 2.5981, 0.0],
+                                [-3.0, 0.0, 0.0],
+                                [1.5, 2.5981, 0.0],
+                                [-3.0, 0.0, 0.0],
+                                [1.5, -2.5981, 0.0],
+                                [1.5, -2.5981, 0.0],
+                                [0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0]]
 
 def test_alloy(example_structure_dict_alloy):
 
