@@ -37,7 +37,7 @@ except ImportError:
     PYMATGEN_MOLECULE = t.Any
     PYMATGEN_STRUCTURE = t.Any
 
-
+# should be moved in the init.
 _MASS_THRESHOLD = 1.0e-3
 # Threshold to check if the sum is one or not
 _SUM_THRESHOLD = 1.0e-6
@@ -78,7 +78,7 @@ class StructureBaseModel(BaseModel):
     weights: t.List[t.Tuple[float, ...]] = Field(default=None)
     masses: t.List[float] = Field(default=None)
 
-    charges: t.List[float] = Field(default=None)
+    charges: t.Optional[t.List[float]] = Field(default=None)
     magmoms: t.List[t.List[float]] = Field(default=None)
 
     hubbard: t.Optional[Hubbard] = Field(default=Hubbard(parameters=[]))
@@ -218,7 +218,7 @@ class StructureBaseModel(BaseModel):
 
         for prop in ['positions','charges', 'magmoms', 'weights']:
             if data.get(prop) is None:
-                data[prop] = [_DEFAULT_VALUES[prop]] * len(data['symbols'])
+                pass #data[prop] = [_DEFAULT_VALUES[prop]] * len(data['symbols'])
             else:
                 if len(data[prop]) != len(data['symbols']):
                     raise ValueError(f"Length of {prop} does not match the number of symbols")
@@ -226,7 +226,8 @@ class StructureBaseModel(BaseModel):
         # trying to detect alloys
         if any(mass == 0 for mass in data["masses"]):
             from aiida_atomistic.data.structure.utils import check_is_alloy
-            for idx, (symbol, mass, weight) in enumerate(zip(data["symbols"], data["masses"], data["weights"])):
+            weights = data.get("weights", [(1,)*len(data["symbols"])])
+            for idx, (symbol, mass, weight) in enumerate(zip(data["symbols"], data["masses"], weights)):
                 if mass == 0:
                     new_data = check_is_alloy(
                         {
@@ -298,7 +299,7 @@ class StructureBaseModel(BaseModel):
             FrozenList[SiteImmutable]: The sites in the structure.
         """
         md = self.model_dump(
-            exclude=["pbc","cell","custom"]+list(self.model_computed_fields.keys())
+            exclude=["pbc","cell","custom","hubbard"]+list(self.model_computed_fields.keys())
             )
 
         def from_dict_to_list(md):
@@ -362,9 +363,22 @@ class StructureBaseModel(BaseModel):
         new_dict = copy.deepcopy(kwargs)
         new_dict.pop("sites")
         transformed_dict = cls.transform_sites_list(kwargs["sites"])
-        new_dict.update(transformed_dict)
-
-        return cls(**new_dict)
+        # here I check that for each site I do not have the default value for a property, otherwise I remove it.
+        # the reason is that in the site list, single sites will have all the properties defined, using default values;
+        # however, in the list of properties of the structure object, we will not find them (not stored in the db): we don't need to store
+        # default values in the db, we can access them from the sites instances.
+        new_transformed_dict = copy.deepcopy(transformed_dict)
+        for key, value in transformed_dict.items():
+            if key not in ["cell", "pbc", "custom", "hubbard"]:
+                # these are properties which will be always there!
+                # I would like to skip the masses as actually, if default, can be 1-to-1 mapped from the symbols
+                # but for now let's always keep them.
+                new_dict.pop(key, None)
+                continue
+            if all(np.all(v == _DEFAULT_VALUES[key]) for v in value):
+                new_transformed_dict.pop(key, None)
+        new_transformed_dict.update(new_dict)
+        return cls(**new_transformed_dict)
 
 class MutableStructureModel(StructureBaseModel):
     """

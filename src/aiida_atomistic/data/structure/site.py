@@ -165,17 +165,24 @@ class SiteCore(BaseModel):
                     "append_atom, you cannot pass any further"
                     "parameter"
                 )
-            positions = aseatom.position.tolist()
-            symbols = aseatom.symbol
-            kinds = symbols + str(aseatom.tag)
-            charges = aseatom.charge
+            properties_from_Atom = {
+                "symbols": aseatom.symbol,
+                "kinds": aseatom.symbol + str(aseatom.tag),
+                "positions": aseatom.position.tolist(),
+                "masses": aseatom.mass,
+                "charges": aseatom.charge,
+                "magmoms": None,
+            }
+            if not aseatom.charge:
+                properties_from_Atom.pop('charges')
             if aseatom.magmom is None:
-                magmoms = _default_values["magmom"]
+                properties_from_Atom.pop('magmoms')
             elif isinstance(aseatom.magmom, (int, float)):
-                magmoms = [aseatom.magmom, 0, 0]
+                properties_from_Atom['magmoms'] = [aseatom.magmom, 0, 0]
             else:
-                magmoms = aseatom.magmom
-            masses = aseatom.mass
+                properties_from_Atom['magmoms'] = aseatom.magmom
+
+            new_site = cls(**properties_from_Atom)
         else:
             if positions is None:
                 raise ValueError("You have to specify the position of the new atom")
@@ -188,14 +195,14 @@ class SiteCore(BaseModel):
             masses = _atomic_masses[symbols] if masses is None else masses
             weights = _default_values["weights"] if weights is None else weights
 
-        new_site = cls(
-            symbols=symbols,
-            kinds=kinds,
-            positions=positions.tolist() if isinstance(positions, np.ndarray) else positions,
-            masses=masses,
-            charges=charges,
-            magmoms=magmoms.tolist() if isinstance(magmoms, np.ndarray) else magmoms
-        )
+            new_site = cls(
+                symbols=symbols,
+                kinds=kinds,
+                positions=positions.tolist() if isinstance(positions, np.ndarray) else positions,
+                masses=masses,
+                charges=charges,
+                magmoms=magmoms.tolist() if isinstance(magmoms, np.ndarray) else magmoms
+            )
 
         return new_site
 

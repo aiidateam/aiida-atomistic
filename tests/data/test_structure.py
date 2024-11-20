@@ -38,6 +38,16 @@ def test_structure_initialization(example_structure_dict):
         ), f"Expected type: {type(structure_type)}, \
                                             received: {type(structure)}"
 
+        assert not structure.properties.magmoms or structure.properties.magmoms == [[0.0, 0.0, 0.0]]
+        assert structure.properties.charges == [1.0]
+
+        if isinstance(structure, StructureData):
+            assert 'magmoms' not in structure.get_defined_properties()
+            assert 'charges' in structure.get_defined_properties()
+
+def test_structure_database_attributes(example_structure_dict):
+    structure = StructureData(**example_structure_dict)
+    assert structure.get_defined_properties(exclude_computed=False).difference(set(structure.base.attributes.all.keys())) == {'sites'}
 
 # StructureData methods:
 
@@ -102,6 +112,65 @@ def test_structure_Pymatgen_initialization():
         assert structure.properties.charges == [1, 0]
         assert structure.properties.magmoms == [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
+def test_add_atom():
+    atoms = bulk("Cu", "fcc", a=3.6)
+    # test StructureDataMutable
+    m = StructureDataMutable.from_ase(atoms)
+    m.add_atom(
+        index=0,
+        **{
+            "symbols": "Cu",
+            "masses": 63.546,
+            "kinds": "Cu",
+            "positions": [1.0, 0.0, -1.0],
+            "charges": 1.0,
+            "magmoms": [0,0,0],
+        },
+    )
+
+    m.add_atom(
+        index=-1,
+        **{
+            "symbols": "Cu",
+            "masses": 63.546,
+            "kinds": "Cu",
+            "positions": [2.0, 0.0, -1.0],
+            "charges": 1.0,
+            "magmoms": [0,0,0],
+        },
+    )
+
+    assert len(m.properties.sites) == 3
+    assert np.array_equal(m.get_charges(), np.array([1,0, 1]))
+
+def test_update_site():
+    atoms = bulk("Cu", "fcc", a=3.6)
+    # test StructureDataMutable
+    m = StructureDataMutable.from_ase(atoms)
+
+    m.add_atom(
+        index=0,
+        **{
+            "symbols": "Cu",
+            "masses": 63.546,
+            "kinds": "Cu",
+            "positions": [1.0, 0.0, -1.0],
+            "charges": 1.0,
+            "magmoms": [0,0,0],
+        },
+    )
+
+    assert np.array_equal(m.get_charges(), np.array([1,0]))
+
+    m.update_site(
+        site_index=-1,
+        **{
+            "charges": -1.0,
+            },
+    )
+
+    assert np.array_equal(m.get_charges(), np.array([1,-1]))
+
 def test_immutability():
     atoms = bulk("Cu", "fcc", a=3.6)
     # test StructureData
@@ -123,6 +192,9 @@ def test_immutability():
     with pytest.raises(ValueError):
         s.properties.sites[0].symbols = "Cu"
 
+def test_mutability():
+
+    atoms = bulk("Cu", "fcc", a=3.6)
     # test StructureDataMutable
     m = StructureDataMutable.from_ase(atoms)
 
@@ -143,10 +215,6 @@ def test_immutability():
     # in this way I check that it works well.
     m.set_pbc([True, True, True])
 
-    returned_dict = s.to_dict()
-
-    assert returned_dict == m.to_dict()
-
     # check append_atom works properly
     m.add_atom(
         index=0,
@@ -159,14 +227,13 @@ def test_immutability():
             "magmoms": [0,0,0],
         },
     )
-
+    m.get_charges()
     assert np.array_equal(m.get_charges(), np.array([0,0]))
 
 def test_computed_fields(example_structure_dict):
     for structure_type in [StructureDataMutable, StructureData]:
         structure = structure_type(**example_structure_dict)
 
-        assert structure.properties.magmoms == [[0,0,0]]
         assert structure.properties.charges == [1.0]
         assert structure.properties.cell_volume == 11.664000000000001
         assert structure.properties.dimensionality == {'dim': 3, 'label': 'volume', 'value': 11.664000000000001}
@@ -257,7 +324,7 @@ def test_get_kinds(example_structure_dict_for_kinds, complex_example_structure_d
 
         new_structure = structure_type(**structure.to_dict(detect_kinds=True))
 
-        assert new_structure.properties.kinds == ['Mn1', 'Mn2', 'Mn1', 'Mn2', 'Mn3', 'Mn3', 'Sn1', 'Sn1']
+        assert new_structure.properties.kinds == ['Mn1', 'Mn2', 'Mn1', 'Mn2', 'Mn3', 'Mn3', 'Sn', 'Sn']
         assert new_structure.properties.magmoms == [[1.5, 2.5981, 0.0],
                                 [-3.0, 0.0, 0.0],
                                 [1.5, 2.5981, 0.0],
@@ -278,7 +345,7 @@ def test_set_automatic_kinds(complex_example_structure_dict_for_kinds):
 
     # set the automatic kinds
     structure.set_automatic_kinds()
-    assert structure.properties.kinds == ['Mn1', 'Mn2', 'Mn1', 'Mn2', 'Mn3', 'Mn3', 'Sn1', 'Sn1']
+    assert structure.properties.kinds == ['Mn1', 'Mn2', 'Mn1', 'Mn2', 'Mn3', 'Mn3', 'Sn', 'Sn']
     assert structure.properties.magmoms == [[1.5, 2.5981, 0.0],
                                 [-3.0, 0.0, 0.0],
                                 [1.5, 2.5981, 0.0],

@@ -46,11 +46,6 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
-_default_values = {
-    "charges": 0,
-    "magmoms": [0, 0, 0],
-}
-
 class StructureData(Data, GetterMixin):
 
     _mutable = False
@@ -91,6 +86,7 @@ class StructureDataMutable(GetterMixin, SetterMixin):
     def __init__(self, **kwargs):
 
         if "sites" in kwargs:
+            print('Initializing from sites list, so considering them and the additional global properties like pbc, cell, custom, Hubbard...')
             self._properties = MutableStructureModel.from_sites_specs(**kwargs)
         else:
             self._properties = MutableStructureModel(**kwargs)

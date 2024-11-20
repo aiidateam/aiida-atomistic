@@ -58,9 +58,12 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
-_default_values = {
+_DEFAULT_VALUES = {
+    "masses": 0,
     "charges": 0,
     "magmoms": [0, 0, 0],
+    "hubbard": None,
+    "weights": (1,)
 }
 
 _DEFAULT_THRESHOLDS = {
@@ -630,11 +633,13 @@ class GetterMixin(HubbardGetterMixin):
             element_wise_k = kind_numeration[np.where(symbols== element)[0]]
             kk = order_k(element_wise_k)
             kind_numeration[np.where(symbols == element)[0]] = kk
+            if len(set(kk)) == 1:
+                kind_numeration[np.where(symbols == element)[0]] = 0
 
         # Step 2.3: Define the new kind names
         #print(symbols,kind_numeration)
         for ind, (element, kind_number) in enumerate(zip(symbols, kind_numeration)):
-            kind_names[ind] = f"{element}{kind_number}"
+            kind_names[ind] = f"{element}{kind_number if kind_number > 0 else ''}"
 
 
         # Step 3:
@@ -1307,16 +1312,18 @@ class GetterMixin(HubbardGetterMixin):
     ):
         return len(self.properties.sites)
 
-    def get_defined_properties(self, exclude_defaults=True):
+    def get_defined_properties(self, exclude_computed = True, exclude_defaults=True):
         """
             Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
 
             Args:
+                exclude_computed (bool): If False, all properties will be returned, including those computed after the initialization (the pydantic computed fields).
                 exclude_defaults (bool): If True, properties with default values will be excluded from the result.
         """
+        computed_fields = set(self.properties.model_computed_fields.keys()) if exclude_computed else set()
         return set(self.properties.model_dump(exclude_defaults=True).keys()).difference(self.properties.transform_sites_list(
             self.properties.model_dump(exclude_defaults=True)["sites"],
-            return_undefined=True)).difference(self.properties.model_computed_fields.keys())
+            return_undefined=True)).difference(computed_fields)
 
 class SetterMixin(HubbardSetterMixin):
 
@@ -1350,12 +1357,15 @@ class SetterMixin(HubbardSetterMixin):
         raise NotImplementedError("This method is not implemented yet")
 
     def update_site(self, site_index, **kwargs):
-        """Update the site at the given index."""
+        """
+        Update the site at the given index.
+        """
         for key, value in kwargs.items():
+            # we grab the whole list of values for the given property, for all sites.
             _value = getattr(self.properties, key, None)
             if not _value:
                 if key in self.get_supported_properties():
-                    setattr(self.properties, key, [])
+                    setattr(self.properties, key, [_DEFAULT_VALUES[key]] * len(self.properties.sites))
                     _value = getattr(self.properties, key, None)
                 else:
                     raise ValueError(f"Invalid key '{key}' for site properties.")
@@ -1448,12 +1458,31 @@ class SetterMixin(HubbardSetterMixin):
         if len(self.properties.sites) < index:
             raise IndexError("insert_atom index out of range")
         else:
+            sites = self.to_dict()["sites"]
+            structure = self.properties.model_dump(
+                exclude_defaults=True,
+                exclude=list(self.properties.model_computed_fields.keys()),
+                )
+            self.clear_sites()
+            if index > -1:
+                sites.insert(index, new_site.model_dump())
+            else:
+                sites.append(new_site.model_dump())
+            structure["sites"] = sites
+            self.__init__(**structure)
+        '''else:
             """Update the site at the given index."""
-            for key, value in new_site.model_dump().items():
+            for key, value in new_site.model_dump(exclude_defaults=True).items():
                 _value = getattr(self.properties, key, None)
+                print(len(self.properties.sites))
+                print(key, _value)
                 if not _value:
+                    print(len(self.properties.sites))
                     if key in self.get_supported_properties():
-                        setattr(self.properties, key, [])
+                        print(len(self.properties.sites))
+                        # first, we need to populate a list, so we can insert/append the new value
+                        print([_DEFAULT_VALUES[key]],(len(self.properties.sites)))
+                        setattr(self.properties, key, [_DEFAULT_VALUES[key]]*(len(self.properties.sites)))
                         _value = getattr(self.properties, key, None)
                     else:
                         raise ValueError(f"Invalid key '{key}' for site properties.")
@@ -1461,6 +1490,7 @@ class SetterMixin(HubbardSetterMixin):
                     _value.insert(index, value)
                 else:
                     _value.append(value)
+                print(key, _value)'''
         return
 
     def pop_atom(self, index=-1):
