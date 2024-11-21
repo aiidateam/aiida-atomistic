@@ -14,28 +14,15 @@ try:
 except ImportError:
     pass
 
-from aiida.common.constants import elements
 from plumpy.utils import AttributesFrozendict
 
-
-_MASS_THRESHOLD = 1.0e-3
-_MAGMOM_THRESHOLD = 1.0e-4
-# Threshold to check if the sum is one or not
-_SUM_THRESHOLD = 1.0e-6
-# Default cell
-_DEFAULT_CELL = ((0, 0, 0), (0, 0, 0), (0, 0, 0))
-
-_valid_symbols = tuple(i["symbol"] for i in elements.values())
-_atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
-_atomic_numbers = {atom["symbol"]: num for num, atom in elements.items()}
-
-_default_values = {
-    "masses": _atomic_masses,
-    "charges": 0,
-    "magmoms": [0, 0, 0],
-    "hubbard": None,
-    "weights": (1,)
-}
+from . import (
+    _atomic_masses,
+    _MAGMOM_THRESHOLD,
+    _SUM_THRESHOLD,
+    _DEFAULT_VALUES,
+    _valid_symbols,
+)
 
 def freeze_nested(obj):
     """
@@ -85,9 +72,9 @@ class SiteCore(BaseModel):
     kinds: t.Optional[str]
     positions: t.List[float] = Field(min_length=3, max_length=3)
     masses: t.Optional[float] = Field(gt=0)
-    charges: t.Optional[float] = Field(default=_default_values["charges"])
-    magmoms: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=_default_values["magmoms"])
-    weights: t.Optional[t.Tuple[float, ...]] = Field(default=_default_values["weights"])
+    charges: t.Optional[float] = Field(default=_DEFAULT_VALUES["charges"])
+    magmoms: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=_DEFAULT_VALUES["magmoms"])
+    weights: t.Optional[t.Tuple[float, ...]] = Field(default=_DEFAULT_VALUES["weights"])
 
     @field_validator('positions','magmoms')
     def validate_list(cls, v: t.List[float]) -> t.Any:
@@ -152,9 +139,9 @@ class SiteCore(BaseModel):
         symbols: t.Optional[t.Literal[_valid_symbols]] = None,
         kinds: t.Optional[str] = None,
         masses: t.Optional[float] = None,
-        charges: t.Optional[float] = _default_values["charges"],
-        magmoms: t.Optional[t.List[float]] = _default_values["magmoms"],
-        weights: t.Optional[t.Tuple[float, ...]] = _default_values["weights"],
+        charges: t.Optional[float] = _DEFAULT_VALUES["charges"],
+        magmoms: t.Optional[t.List[float]] = _DEFAULT_VALUES["magmoms"],
+        weights: t.Optional[t.Tuple[float, ...]] = _DEFAULT_VALUES["weights"],
         ) -> dict:
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
 
@@ -165,17 +152,24 @@ class SiteCore(BaseModel):
                     "append_atom, you cannot pass any further"
                     "parameter"
                 )
-            positions = aseatom.position.tolist()
-            symbols = aseatom.symbol
-            kinds = symbols + str(aseatom.tag)
-            charges = aseatom.charge
+            properties_from_Atom = {
+                "symbols": aseatom.symbol,
+                "kinds": aseatom.symbol + str(aseatom.tag),
+                "positions": aseatom.position.tolist(),
+                "masses": aseatom.mass,
+                "charges": aseatom.charge,
+                "magmoms": None,
+            }
+            if not aseatom.charge:
+                properties_from_Atom.pop('charges')
             if aseatom.magmom is None:
-                magmoms = _default_values["magmom"]
+                properties_from_Atom.pop('magmoms')
             elif isinstance(aseatom.magmom, (int, float)):
-                magmoms = [aseatom.magmom, 0, 0]
+                properties_from_Atom['magmoms'] = [aseatom.magmom, 0, 0]
             else:
-                magmoms = aseatom.magmom
-            masses = aseatom.mass
+                properties_from_Atom['magmoms'] = aseatom.magmom
+
+            new_site = cls(**properties_from_Atom)
         else:
             if positions is None:
                 raise ValueError("You have to specify the position of the new atom")
@@ -186,16 +180,16 @@ class SiteCore(BaseModel):
             # all remaining parameters
             kinds = symbols if kinds is None else kinds
             masses = _atomic_masses[symbols] if masses is None else masses
-            weights = _default_values["weights"] if weights is None else weights
+            weights = _DEFAULT_VALUES["weights"] if weights is None else weights
 
-        new_site = cls(
-            symbols=symbols,
-            kinds=kinds,
-            positions=positions.tolist() if isinstance(positions, np.ndarray) else positions,
-            masses=masses,
-            charges=charges,
-            magmoms=magmoms.tolist() if isinstance(magmoms, np.ndarray) else magmoms
-        )
+            new_site = cls(
+                symbols=symbols,
+                kinds=kinds,
+                positions=positions.tolist() if isinstance(positions, np.ndarray) else positions,
+                masses=masses,
+                charges=charges,
+                magmoms=magmoms.tolist() if isinstance(magmoms, np.ndarray) else magmoms
+            )
 
         return new_site
 
