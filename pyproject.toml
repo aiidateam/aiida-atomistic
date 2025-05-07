@@ -40,7 +40,9 @@ testing = [
     "pytest~=6.0",
     "pytest-cov",
     "six",
-    "aiida-quantumespresso~=4.6.0",
+    "aiida-core @ git+https://github.com/mikibonacci/aiida-core.git@support/atomistic",
+    "aiida-quantumespresso @ git+https://github.com/mikibonacci/aiida-quantumespresso.git@support/atomistic",
+    "aiida-pseudo==1.5.0",
 ]
 pre-commit = [
     "pre-commit~=2.2",
