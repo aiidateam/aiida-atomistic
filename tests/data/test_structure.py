@@ -29,6 +29,11 @@ def test_structure_initialization(example_structure_dict):
     ), f"Expected type for empty StructureDataMutable: {type(StructureDataMutable)}, \
                                             received: {type(structure)}"
 
+    # (1.1.1) Empty StructureDataMutable apart cell
+    structure = StructureDataMutable()
+    structure.set_cell([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]])
+    assert structure.properties.cell == [[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]]
+
     # (1.2)
     for structure_type in [StructureDataMutable, StructureData]:
         structure = structure_type(**example_structure_dict)
@@ -48,6 +53,33 @@ def test_structure_initialization(example_structure_dict):
 def test_structure_database_attributes(example_structure_dict):
     structure = StructureData(**example_structure_dict)
     assert structure.get_defined_properties(exclude_computed=False).difference(set(structure.base.attributes.all.keys())) == {'sites'}
+
+# Test the redundant methods for the StructureData class.
+def test_redundant(example_structure_dict):
+    for structure_type in [StructureDataMutable, StructureData]:
+        structure = structure_type(**example_structure_dict)
+
+        assert structure.properties.pbc == structure.pbc
+        assert structure.properties.cell == structure.cell
+        assert structure.properties.sites[0].kinds == structure.sites[0].kind_name
+        assert structure.properties.sites[0].positions == structure.sites[0].position
+
+def test_RedundantKind(example_structure_dict):
+    
+    from aiida_atomistic.data.structure.mixin import RedundantKind
+    for structure_type in [StructureDataMutable, StructureData]:
+        structure = structure_type(**example_structure_dict)
+
+        assert any([isinstance(kind, RedundantKind) for kind in structure.kinds])
+        assert structure.properties.sites[0].kinds == structure.sites[0].kind_name
+        assert structure.properties.sites[0].positions == structure.sites[0].position
+        
+        for kind, site in zip(structure.kinds, structure.properties.sites):
+            kind.mass = site.masses
+            kind.symbol = site.symbols
+            kind.weights = site.weights
+            kind.name = site.kinds
+    
 
 # StructureData methods:
 

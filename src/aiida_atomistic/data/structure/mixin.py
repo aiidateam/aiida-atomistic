@@ -72,7 +72,42 @@ _DEFAULT_THRESHOLDS = {
             "magmoms": 1e-4, # _MAGMOM_THRESHOLD
         }
 
+class RedundantKind:
+    """
+    A class to resemble the Kind class as we find in aiida-core.
+    This is done in order to help a lot the plugin migration, as structure.kinds
+    is used really often.
+    """
+    def __init__(self, site_instance):
+        self.mass = site_instance.masses
+        self.symbol = site_instance.symbols
+        self.weights = site_instance.weights
+        self.name = site_instance.kinds
+        self.has_vacancies = site_instance.has_vacancies
+        self.is_alloy = site_instance.is_alloy
+
+
 class GetterMixin(HubbardGetterMixin):
+
+    # Start redundant properties: This is mainly for make easier migrations
+    @property
+    def cell(self):
+        return self.properties.cell
+
+    @property
+    def pbc(self):
+        return self.properties.pbc
+
+    @property
+    def sites(self):
+        return self.properties.sites
+
+    @property
+    def kinds(self):
+        # This helps in plugin migration,
+        # a lot of them use kinds as defined in orm.StructureData
+        return [RedundantKind(site) for site in self.properties.sites]
+    # End redundant properties.
 
     @property
     def is_alloy(self):
@@ -376,6 +411,15 @@ class GetterMixin(HubbardGetterMixin):
         from aiida_atomistic.data.structure.utils import calc_cell_volume
         return calc_cell_volume(self.properties.cell)
 
+    def get_symbols_set(self):
+        """Return a set containing the names of all elements involved in
+        this structure (i.e., for it joins the list of symbols for each
+        kind k in the structure).
+
+        :returns: a set of strings of element names.
+        """
+        return set(itertools.chain.from_iterable(site.kinds for site in self.sites))
+
     def get_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.
 
@@ -452,7 +496,7 @@ class GetterMixin(HubbardGetterMixin):
             used to group and/or order the symbols in the formula
         """
         from aiida_atomistic.data.structure.utils import get_formula
-        symbol_list = [s.symbol for s in self.properties.sites]
+        symbol_list = [s.symbols for s in self.properties.sites]
 
         return get_formula(symbol_list, mode=mode, separator=separator)
 
@@ -784,7 +828,7 @@ class GetterMixin(HubbardGetterMixin):
             # I checked above that it is not an alloy, therefore I take the
             # first symbol
             return_string += (
-                f"{_atomic_numbers[self.get_kind(site.kinds).symbols[0]]} "
+                f"{_atomic_numbers[site.symbols]} "
             )
             return_string += "%18.10f %18.10f %18.10f\n" % tuple(site.position)
         return return_string.encode("utf-8"), {}
@@ -807,7 +851,7 @@ class GetterMixin(HubbardGetterMixin):
 
         # Get cell vectors and atomic position
         lattice_vectors = np.array(self.base.attributes.get("cell"))
-        base_sites = self.base.attributes.get("sites")
+        base_sites = self.sites
 
         start1 = -int(supercell_factors[0] / 2)
         start2 = -int(supercell_factors[1] / 2)
@@ -835,15 +879,15 @@ class GetterMixin(HubbardGetterMixin):
                     - center
                 ).tolist()
 
-                kind_name = base_site["kinds"]
-                kind_string = self.get_kind(kind_name).get_symbols_string()
+                kind_name = base_site.kinds
+                kind_string = base_site.symbols
 
                 atoms_json.append(
                     {
                         "l": kind_string,
-                        "x": base_site["positions"][0] + shift[0],
-                        "y": base_site["positions"][1] + shift[1],
-                        "z": base_site["positions"][2] + shift[2],
+                        "x": np.array(base_site.positions[0]) + shift[0],
+                        "y": np.array(base_site.positions[1]) + shift[1],
+                        "z": np.array(base_site.positions[2]) + shift[2],
                         "atomic_elements_html": atom_kinds_to_html(kind_string),
                     }
                 )
@@ -899,7 +943,7 @@ class GetterMixin(HubbardGetterMixin):
             # first symbol
             return_list.append(
                 "{:6s} {:18.10f} {:18.10f} {:18.10f}".format(
-                    self.get_kind(site.kinds).symbols[0],
+                    site.symbols,
                     site.position[0],
                     site.position[1],
                     site.position[2],
@@ -925,7 +969,7 @@ class GetterMixin(HubbardGetterMixin):
         self.properties.pbc = (False, False, False)
 
         for sym, position in atoms:
-            self.add_atom(atom_info={'symbols':sym, 'position':position})
+            self.add_atom(atom_info={'symbols':sym, 'positions':position})
 
     def _adjust_default_cell(
         self, vacuum_factor=1.0, vacuum_addition=10.0, pbc=(False, False, False)
@@ -942,14 +986,14 @@ class GetterMixin(HubbardGetterMixin):
             )
 
         # Calculating the minimal cell:
-        positions = np.array([site.position for site in self.properties.sites])
+        positions = np.array([site.positions for site in self.properties.sites])
         position_min, _ = get_extremas_from_positions(positions)
 
         # Translate the structure to the origin, such that the minimal values in each dimension
         # amount to (0,0,0)
         positions -= position_min
-        for index, site in enumerate(self.base.attributes.get("sites")):
-            site["positions"] = list(positions[index])
+        for index, site in enumerate(self.sites):
+            site.positions = list(positions[index])
 
         # The orthorhombic cell that (just) accomodates the whole structure is now given by the
         # extremas of position in each dimension:
@@ -977,10 +1021,14 @@ class GetterMixin(HubbardGetterMixin):
         """
         from phonopy.structure.atoms import PhonopyAtoms
 
-        atoms = PhonopyAtoms(symbols=[_.kinds for _ in self.properties.sites])
-        # Phonopy internally uses scaled positions, so you must store cell first!
-        atoms.set_cell(self.properties.cell)
-        atoms.set_positions([_.position for _ in self.properties.sites])
+        atoms = PhonopyAtoms(
+            symbols = self.properties.symbols,
+            masses = self.properties.masses,
+            magnetic_moments = self.properties.magmoms,
+            positions = self.properties.positions,
+            cell = self.cell,
+            pbc = self.pbc,
+        )
 
         return atoms
 
@@ -993,7 +1041,10 @@ class GetterMixin(HubbardGetterMixin):
         """
         import ase
 
-        asecell = ase.Atoms(cell=self.properties.cell, pbc=self.properties.pbc)
+        asecell = ase.Atoms(
+            cell=self.properties.cell,
+            pbc=self.properties.pbc,
+            )
 
         for site in self.properties.sites:
             asecell.append(site.to_ase(kinds=site.kinds))
@@ -1470,27 +1521,11 @@ class SetterMixin(HubbardSetterMixin):
                 sites.append(new_site.model_dump())
             structure["sites"] = sites
             self.__init__(**structure)
-        '''else:
-            """Update the site at the given index."""
-            for key, value in new_site.model_dump(exclude_defaults=True).items():
-                _value = getattr(self.properties, key, None)
-                print(len(self.properties.sites))
-                print(key, _value)
-                if not _value:
-                    print(len(self.properties.sites))
-                    if key in self.get_supported_properties():
-                        print(len(self.properties.sites))
-                        # first, we need to populate a list, so we can insert/append the new value
-                        print([_DEFAULT_VALUES[key]],(len(self.properties.sites)))
-                        setattr(self.properties, key, [_DEFAULT_VALUES[key]]*(len(self.properties.sites)))
-                        _value = getattr(self.properties, key, None)
-                    else:
-                        raise ValueError(f"Invalid key '{key}' for site properties.")
-                if index > -1:
-                    _value.insert(index, value)
-                else:
-                    _value.append(value)
-                print(key, _value)'''
+        return
+
+    def append_atom(self, **atom_info):
+        """Append a new atom to the structure."""
+        self.add_atom(**atom_info)
         return
 
     def pop_atom(self, index=-1):

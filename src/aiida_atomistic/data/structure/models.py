@@ -166,7 +166,7 @@ class StructureBaseModel(BaseModel):
 
         if not data.get("cell", None):
             # raise ValueError("The structure must contain a cell")
-            #warnings.warn("using default cell")
+            warnings.warn("using default cell")
             data["cell"] = _DEFAULT_CELL
         if not data.get("pbc", None):
             # raise ValueError("The structure must contain periodic boundary conditions")
