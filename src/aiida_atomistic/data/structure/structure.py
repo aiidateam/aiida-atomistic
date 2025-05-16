@@ -43,7 +43,7 @@ class StructureDataMutable(GetterMixin, SetterMixin):
     def __init__(self, **kwargs):
 
         if "sites" in kwargs:
-            print('Initializing from sites list, so considering them and the additional global properties like pbc, cell, custom, Hubbard...')
+            #print('Initializing from sites list, so considering them and the additional global properties like pbc, cell, custom, Hubbard...')
             self._properties = MutableStructureModel.from_sites_specs(**kwargs)
         else:
             self._properties = MutableStructureModel(**kwargs)

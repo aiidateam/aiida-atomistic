@@ -2,6 +2,7 @@ import copy
 import json
 import typing as t
 import numpy as np
+import itertools
 
 from aiida import orm
 from aiida.common.constants import elements
@@ -418,7 +419,7 @@ class GetterMixin(HubbardGetterMixin):
 
         :returns: a set of strings of element names.
         """
-        return set(itertools.chain.from_iterable(site.kinds for site in self.sites))
+        return set(site.symbols for site in self.sites)
 
     def get_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.
@@ -1560,7 +1561,7 @@ class SetterMixin(HubbardSetterMixin):
     def clear_property(self, property_name):
         """Clear the given property."""
         mutable_dict = self.to_dict()
-        mutable_dict.pop("sites",None)
+        mutable_dict.pop("sites", None)
         mutable_dict.pop(property_name, None)
 
         self.__init__(**mutable_dict)

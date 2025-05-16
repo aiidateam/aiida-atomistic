@@ -220,6 +220,9 @@ class StructureBaseModel(BaseModel):
                     for key, value in new_data.items():
                         data[key][idx] = value
 
+        if not data.get("weights", None):
+            data["weights"] = [(1,)*len(data["symbols"])]
+
         return data
 
     def validate_instance(self):
