@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "../../codes/aiida-atomistic"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {}
+}
