@@ -53,12 +53,26 @@ _DEFAULT_CELL = [[0.0, 0.0, 0.0]] * 3
 _DEFAULT_PBC = [True, True, True]
 
 _DEFAULT_VALUES = {
-    "kinds": "",
-    "masses": 0,
-    "charges": 0,
-    "magmoms": [0, 0, 0],
+    "kind_name": "",
+    "mass": 0,
+    "charge": 0,
+    "magmom": [0, 0, 0],
+    "magnetization": 0,
     "hubbard": None,
-    "weights": (1,)
+    "weight": (1,)
+}
+
+_CONVERSION_PLURAL_SINGULAR = {
+    "positions": "position",
+    "symbols": "symbol",
+    "masses": "mass",
+    "charges": "charge",
+    "magmoms": "magmom",
+    "magnetizations": "magnetization",
+    "hubbards": "hubbard",
+    "weights": "weight",
+    "kind_names": "kind_name"
+
 }
 
 _GLOBAL_PROPERTIES = [

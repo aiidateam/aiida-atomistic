@@ -7,7 +7,7 @@ import itertools
 from aiida import orm
 from aiida.common.constants import elements
 
-from aiida_atomistic.data.structure.site import SiteImmutable as Site
+from aiida_atomistic.data.structure.site import Site
 from aiida_atomistic.data.structure.models import MutableStructureModel
 from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
@@ -73,24 +73,9 @@ _DEFAULT_THRESHOLDS = {
             "magmoms": 1e-4, # _MAGMOM_THRESHOLD
         }
 
-class RedundantKind:
-    """
-    A class to resemble the Kind class as we find in aiida-core.
-    This is done in order to help a lot the plugin migration, as structure.kinds
-    is used really often.
-    """
-    def __init__(self, site_instance):
-        self.mass = site_instance.masses
-        self.symbol = site_instance.symbols
-        self.weights = site_instance.weights
-        self.name = site_instance.kinds
-        self.has_vacancies = site_instance.has_vacancies
-        self.is_alloy = site_instance.is_alloy
-
-
 class GetterMixin(HubbardGetterMixin):
 
-    # Start redundant properties: This is mainly for make easier migrations
+    # Start redundant properties: This is mainly for make easier migration of plugins.
     @property
     def cell(self):
         return self.properties.cell
@@ -105,18 +90,20 @@ class GetterMixin(HubbardGetterMixin):
 
     @property
     def kinds(self):
-        # This helps in plugin migration,
-        # a lot of them use kinds as defined in orm.StructureData
-        return [RedundantKind(site) for site in self.properties.sites]
-    # End redundant properties.
+        return self.properties.kinds
 
     @property
     def is_alloy(self):
-        return any(_.is_alloy for _ in self.properties.sites)
+        return self.properties.is_alloy
 
     @property
     def has_vacancies(self):
-        return any(_.has_vacancies for _ in self.properties.sites)
+        return self.properties.has_vacancies
+
+    @property
+    def formula(self):
+        return self.properties.formula
+    # End redundant properties
 
     @property
     def is_collinear(self):
@@ -335,6 +322,67 @@ class GetterMixin(HubbardGetterMixin):
 
         return structure
 
+    # @staticmethod
+    # def transform_sites_list(sites = [], return_undefined=False):
+    #     """
+    #     Transforms a list of site dictionaries into a dictionary of lists, where each key corresponds to a field
+    #     and the values are lists of the field values from each site. This is mainly used to provide the possibility
+    #     to define the list of sites in the StructureData constructor, as alternative way to do it. So, using this method
+    #     we build the list of properties as meant to be stored in the database.
+
+    #     Args:
+    #         sites (list): A list of dictionaries, where each dictionary represents a site with various fields.
+    #         return_undefined (bool): If True, returns a set of fields that were not defined in any of the site dictionaries.
+
+    #     Returns:
+    #         dict or set: If return_undefined is False, returns a dictionary where keys are field names and values are lists
+    #                      of field values from each site. If return_undefined is True, returns a set of field names that were
+    #                      not defined in any of the site dictionaries. This is due to the fact that we cannot know a priori the default
+    #                      set of properties just looking at the lists like `charges` , `magmoms`... because the default cannot be established,
+    #                      they need to be computed wrt the number of sites (which cannot be predicted).
+    #     """
+    #     fields_list = Site.model_fields
+    #     fields_set = set()
+    #     transformed_dict = {k: [] for k in fields_list.keys()}
+    #     for item in sites:
+    #         for key in fields_list.keys():
+    #             transformed_dict[key].append(item[key] if key in item else _DEFAULT_VALUES[key])
+    #             if key in item.keys():
+    #                 fields_set.add(key)
+
+    #     return transformed_dict if not return_undefined else set(fields_list).difference(fields_set)
+
+    # @classmethod
+    # def from_sites_specs(cls, **kwargs):
+    #     if "sites" not in kwargs:
+    #         raise ValueError("The 'sites' key must be present in the input data")
+
+    #     new_dict = copy.deepcopy(kwargs)
+    #     new_dict.pop("sites", None)
+    #     transformed_dict = cls.transform_sites_list(kwargs["sites"])
+    #     # here I check that for each site I do not have the default value for a property, otherwise I remove it.
+    #     # the reason is that in the site list, single sites will have all the properties defined, using default values;
+    #     # however, in the list of properties of the structure object, we will not find them (not stored in the db): we don't need to store
+    #     # default values in the db, we can access them from the sites instances.
+    #     new_transformed_dict = copy.deepcopy(transformed_dict)
+
+    #     # need to convert from singular to plural:
+    #     inverted_dict = {v: k for k, v in _CONVERSION_PLURAL_SINGULAR.items()}
+    #     convert_from_site_name = lambda s: inverted_dict.get(s, s)
+
+    #     for key, value in transformed_dict.items():
+    #         if key not in ["cell", "pbc", "custom", "hubbard"]:
+    #             # these are properties which will be always there!
+    #             # I would like to skip the masses as actually, if default, can be 1-to-1 mapped from the symbols
+    #             # but for now let's always keep them.
+    #             new_dict.pop(convert_from_site_name(key), None)
+    #             continue
+    #         if all(np.all(v == _DEFAULT_VALUES[key]) for v in value):
+    #             new_transformed_dict.pop(key, None)
+
+    #     new_transformed_dict.update(new_dict) # we update with new_dict, which now contains only non-site properties.
+    #     return cls(**new_transformed_dict)
+
     def to_dict(
             self,
             detect_kinds: bool = False
@@ -357,14 +405,6 @@ class GetterMixin(HubbardGetterMixin):
 
             return dict_repr
 
-    def get_site_property(self, property_name):
-        """Return a list with length equal to the number of sites of this structure,
-        where each element of the list is the property of the corresponding site.
-
-        :return: a list of floats
-        """
-        return np.array([getattr(this_site, property_name) for this_site in self.properties.sites])
-
     @classmethod
     def get_supported_properties(cls):
         """Get a list of properties that can be set for this structure.
@@ -386,40 +426,6 @@ class GetterMixin(HubbardGetterMixin):
         defined_properties = set(defined_properties).union(defined_properties).difference(_DEFAULT_PROPERTIES)
 
         return defined_properties.difference(plugin_properties)
-
-    def get_charges(self,):
-        return self.get_site_property("charges")
-
-    def get_magmoms(self,):
-        return self.get_site_property("magmoms")
-
-    def get_kind_names(self,):
-        return self.get_site_property("kinds")
-
-    def get_positions(self,):
-        return self.get_site_property("positions")
-
-    def get_symbols(self,):
-        return self.get_site_property("symbols")
-
-    def get_cell_volume(self):
-        """Returns the three-dimensional cell volume in Angstrom^3.
-
-        Use the `get_dimensionality` method in order to get the area/length of lower-dimensional cells.
-
-        :return: a float.
-        """
-        from aiida_atomistic.data.structure.utils import calc_cell_volume
-        return calc_cell_volume(self.properties.cell)
-
-    def get_symbols_set(self):
-        """Return a set containing the names of all elements involved in
-        this structure (i.e., for it joins the list of symbols for each
-        kind k in the structure).
-
-        :returns: a set of strings of element names.
-        """
-        return set(site.symbols for site in self.sites)
 
     def get_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.
@@ -448,58 +454,6 @@ class GetterMixin(HubbardGetterMixin):
         :return: retsrt: the description string
         """
         return self.get_formula(mode="hill_compact")
-
-    def get_formula(self, mode="hill", separator=""):
-        """Return a string with the chemical formula.
-
-        :param mode: a string to specify how to generate the formula, can
-            assume one of the following values:
-
-            * 'hill' (default): count the number of atoms of each species,
-            then use Hill notation, i.e. alphabetical order with C and H
-            first if one or several C atom(s) is (are) present, e.g.
-            ``['C','H','H','H','O','C','H','H','H']`` will return ``'C2H6O'``
-            ``['S','O','O','H','O','H','O']``  will return ``'H2O4S'``
-            From E. A. Hill, J. Am. Chem. Soc., 22 (8), pp 478-494 (1900)
-
-            * 'hill_compact': same as hill but the number of atoms for each
-            species is divided by the greatest common divisor of all of them, e.g.
-            ``['C','H','H','H','O','C','H','H','H','O','O','O']``
-            will return ``'CH3O2'``
-
-            * 'reduce': group repeated symbols e.g.
-            ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
-            'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'BaTiO3BaTiO3BaTi2O3'``
-
-            * 'group': will try to group as much as possible parts of the formula
-            e.g.
-            ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
-            'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'(BaTiO3)2BaTi2O3'``
-
-            * 'count': same as hill (i.e. one just counts the number
-            of atoms of each species) without the re-ordering (take the
-            order of the atomic sites), e.g.
-            ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
-            will return ``'Ba2Ti2O6'``
-
-            * 'count_compact': same as count but the number of atoms
-            for each species is divided by the greatest common divisor of
-            all of them, e.g.
-            ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
-            will return ``'BaTiO3'``
-
-        :param separator: a string used to concatenate symbols. Default empty.
-
-        :return: a string with the formula
-
-        .. note:: in modes reduce, group, count and count_compact, the
-            initial order in which the atoms were appended by the user is
-            used to group and/or order the symbols in the formula
-        """
-        from aiida_atomistic.data.structure.utils import get_formula
-        symbol_list = [s.symbols for s in self.properties.sites]
-
-        return get_formula(symbol_list, mode=mode, separator=separator)
 
     def get_composition(self, mode="full"):
         """Returns the chemical composition of this structure as a dictionary,
@@ -612,7 +566,7 @@ class GetterMixin(HubbardGetterMixin):
                 symbols
             )  # <== For now we support also for only ... see above doc string.
             check_kinds = False
-            # kind=tags = self.properties.kinds.value
+            # kind=tags = self.properties.kind_names.value
         else:
             list_tags = [kind_tags.index(n) for n in kind_tags]
             check_kinds = True
@@ -1150,7 +1104,7 @@ class GetterMixin(HubbardGetterMixin):
             # add "kinds" as a properties to each site, whenever
             # the kinds cannot be automatically obtained from the symbols
             additional_kwargs["site_properties"] = {
-                "kinds": self.properties.kinds,
+                "kinds": self.properties.kind_names,
                 "charge": self.properties.charges,
                 "magmom": self.properties.magmoms
             }
@@ -1208,7 +1162,7 @@ class GetterMixin(HubbardGetterMixin):
         mol =  Molecule(species, positions)
 
         additional_kwargs["site_properties"] = {
-                "kinds": self.properties.kinds,
+                "kinds": self.properties.kind_names,
                 "charge": self.properties.charges,
                 "magmom": self.properties.magmoms
             }
@@ -1408,10 +1362,13 @@ class SetterMixin(HubbardSetterMixin):
     def set_cell_angles(self, value):
         raise NotImplementedError("This method is not implemented yet")
 
-    def update_site(self, site_index, **kwargs):
+    def update_sites(self, site_indices: t.Union[list[int], int], **kwargs):
         """
         Update the site at the given index.
         """
+        if self.kinds:
+            raise ValueError("You cannot update a site if the structure has kinds defined. Please use the `update_kind` method.")
+
         for key, value in kwargs.items():
             # we grab the whole list of values for the given property, for all sites.
             _value = getattr(self.properties, key, None)
@@ -1421,35 +1378,24 @@ class SetterMixin(HubbardSetterMixin):
                     _value = getattr(self.properties, key, None)
                 else:
                     raise ValueError(f"Invalid key '{key}' for site properties.")
-            _value[site_index] = value
+            if isinstance(site_indices, int):
+                _value[site_indices] = value
+            elif isinstance(site_indices, list):
+                for site_index in site_indices:
+                    _value[site_index] = value
         return
 
-    def set_charges(self, value):
-        if not len(self.properties.sites) == len(value):
-            raise ValueError(
-                "The number of charges must be equal to the number of sites"
-            )
-        else:
-            for site_index in range(len(value)):
-                self.update_site(site_index, charges=value[site_index])
+    def update_kind(self, kind_name, **kwargs):
+        """
+        Update all sites with the given kind name.
+        """
+        if not self.kinds:
+            raise ValueError("You cannot update a kind if the structure has no kinds defined. Please use the `update_site` method.")
 
-    def set_magmoms(self, value):
-        if not len(self.properties.sites) == len(value):
-            raise ValueError(
-                "The number of magmom must be equal to the number of sites"
-            )
-        else:
-            for site_index in range(len(value)):
-                self.update_site(site_index, magmoms=value[site_index])
-
-    def set_kinds(self, value):
-        if not len(self.properties.sites) == len(value):
-            raise ValueError(
-                "The number of kind_names must be equal to the number of sites"
-            )
-        else:
-            for site_index in range(len(value)):
-                self.update_site(site_index, kinds=value[site_index])
+        for index, site in enumerate(self.properties.sites):
+            if site.kinds == kind_name:
+                self.update_site(index, **kwargs)
+        return
 
     def set_automatic_kinds(self, exclude=[],custom_thr={}):
 
@@ -1463,33 +1409,6 @@ class SetterMixin(HubbardSetterMixin):
         new_structure_dict.pop("sites",None)
         self.__init__(**new_structure_dict)
 
-    def set_site_property(self, name: str, values: t.List):
-        """
-        Set a property for each site in the structure.
-
-        :param name (str): The name of the property.
-        :param values (list): The values of the property for each site.
-        """
-
-        for index, value in enumerate(values):
-            self.update_site(index, **{name: value})
-
-    def set_kind_property(self, name: str, kinds: str, value):
-        """
-        Set a property for all sites of a given kind.
-
-        Parameters:
-        :param name (str): The name of the property.
-        :param value: The value to set for each site.
-        :param kind (str): The name of the kind to filter sites.
-
-        Returns:
-        None
-        """
-        for index, site in enumerate(self.properties.sites):
-            if  site.kinds == kinds:
-                self.update_site(index, **{name: value})
-
     def add_atom(self, index=-1, **atom_info):
 
         new_site = Site.atom_to_site(**atom_info)
@@ -1500,7 +1419,7 @@ class SetterMixin(HubbardSetterMixin):
         # check to be done in the core.
         for site_position in self.properties.positions:
             if (
-                np.linalg.norm(np.array(new_site.positions) - np.array(site_position))
+                np.linalg.norm(np.array(new_site.position) - np.array(site_position))
                 < 1e-3
             ):
                 raise ValueError(
@@ -1512,7 +1431,7 @@ class SetterMixin(HubbardSetterMixin):
         else:
             sites = self.to_dict()["sites"]
             structure = self.properties.model_dump(
-                exclude_defaults=True,
+                exclude_unset=True,
                 exclude=list(self.properties.model_computed_fields.keys()),
                 )
             self.clear_sites()

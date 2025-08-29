@@ -57,7 +57,7 @@ class FrozenList(list):
 
     def __setitem__(self, index, value):
         raise ValueError("This list is immutable. Site properties cannot be modified. \
-            Please modify them using the `update_site` method of the `StructureDataMutable` object. \
+            Please modify them using the `update_site` method of the structure class instance. \
                 If your object is the AiiDA immutable `StructureData` object, you can create a mutable copy of it using its `get_value` method.")
 
 class SiteCore(BaseModel):
@@ -66,28 +66,34 @@ class SiteCore(BaseModel):
     It can be a single atom, or an alloy, or even contain vacancies.
 
     """
+    _mutable: t.ClassVar[bool] = False
+
     model_config = ConfigDict(from_attributes = True,  frozen = False,  arbitrary_types_allowed = True)
 
-    symbols: t.Optional[t.Union[str, t.List[str]]] # validation is done in the check_is_alloy
-    kinds: t.Optional[str]
-    positions: t.List[float] = Field(min_length=3, max_length=3)
-    masses: t.Optional[float] = Field(gt=0)
-    charges: t.Optional[float] = Field(default=_DEFAULT_VALUES["charges"])
-    magmoms: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=_DEFAULT_VALUES["magmoms"])
-    weights: t.Optional[t.Tuple[float, ...]] = Field(default=_DEFAULT_VALUES["weights"])
+    symbol: t.Union[str, t.List[str]]# validation is done in the check_is_alloy
+    kind_name: t.Optional[str]
+    position: t.Union[np.ndarray[float]] = Field(min_length=3, max_length=3)
+    mass: t.Optional[float] = Field(gt=0)
+    charge: t.Optional[float] = Field(default=None)
+    magmom: t.Optional[np.ndarray[float]] = Field(default=None)
+    magnetization: t.Optional[float] = Field(default=None)
+    weight: t.Optional[t.Tuple[float, ...]] = Field(default=None)
 
-    @field_validator('positions','magmoms')
-    def validate_list(cls, v: t.List[float]) -> t.Any:
-        if not cls._mutable.default:
-            return freeze_nested(v)
-        else:
+    @field_validator('position', 'magmom', mode='before') # maybe instead of the explicit list, I can use model_fields.keys()
+    @classmethod
+    def ensure_numpy_array(cls, v):
+        """We want to ensure that the input is a numpy array."""
+        if v is None:
             return v
+        array_v = np.asarray(v)
+        array_v.flags.writeable = False
+        return array_v
 
     @model_validator(mode='before')
     def check_minimal_requirements(cls, data):
         from aiida_atomistic.data.structure.utils import check_is_alloy
-        if "symbols" not in data and cls._mutable.default:
-            data["symbols"] = "H"
+        if "symbol" not in data and cls._mutable.default:
+            data["symbol"] = "H"
 
         # here below we proceed as in the old Kind, where we detect if
         # we have an alloy (i.e. more than one element for the given site)
@@ -95,26 +101,30 @@ class SiteCore(BaseModel):
         if alloy_detector:
             data.update(alloy_detector)
 
-        if "masses" not in data:
-            data["masses"] = _atomic_masses[data["symbols"]]
-        elif not data["masses"]:
-            data["masses"] =  _atomic_masses[data["symbols"]]
-        #elif data["masses"]<=0:
+        #if more than one is specified, between magmoms, magnetizations and tot_magnetization, raise
+        if (data.get("magmom", None) is not None) + (data.get("magnetization", None) is not None) > 1:
+            raise ValueError(f"You can specify only one between magmom, magnetization: got {data.get('magmom', None)} and {data.get('magnetization', None)}")
+
+        if "mass" not in data:
+            data["mass"] = _atomic_masses[data["symbol"]]
+        elif not data["mass"]:
+            data["mass"] =  _atomic_masses[data["symbol"]]
+        #elif data["mass"]<=0:
         #    raise ValueError("The mass of an atom must be positive")
 
-        if "kinds" not in data:
-            data["kinds"] = data["symbols"]
+        if "kind_name" not in data:
+            data["kind_name"] = data["symbol"]
 
         return data
 
     # Start of redundant properties to make easier plugin migrations
     @property
     def kind_name(self):
-        return self.kinds
+        return self.kind_name
 
     @property
     def position(self):
-        return self.positions
+        return self.position
     # End of redundant properties
 
     @property
@@ -123,82 +133,86 @@ class SiteCore(BaseModel):
 
         :return: boolean, True if the kind has more than one element, False otherwise.
         """
-        return len(self.weights) != 1
+        if self.weight is None:
+            return False
+        return len(self.weight) != 1
 
     @property
     def alloy_list(self):
         """Return the list of elements in the given site which is defined as an alloy
         """
-        return re.sub( r"([A-Z])", r" \1", self.symbols).split()
+        return re.sub( r"([A-Z])", r" \1", self.symbol).split()
 
     @property
     def has_vacancies(self):
-        """Return whether the Structure contains vacancies, i.e. when the sum of the weights is less than one.
+        """Return whether the Structure contains vacancies, i.e. when the sum of the weight is less than one.
 
         .. note:: the property uses the internal variable `_SUM_THRESHOLD` as a threshold.
 
-        :return: boolean, True if the sum of the weights is less than one, False otherwise
+        :return: boolean, True if the sum of the weight is less than one, False otherwise
         """
-        return not 1.0 - sum(self.weights) < _SUM_THRESHOLD
+        if self.weight is None:
+            return False
+        return not 1.0 - sum(self.weight) < _SUM_THRESHOLD
 
     @classmethod
     def atom_to_site(
         cls,
         aseatom: t.Optional[ase.Atom] = None,
-        positions: t.Optional[list] = None,
-        symbols: t.Optional[t.Literal[_valid_symbols]] = None,
-        kinds: t.Optional[str] = None,
-        masses: t.Optional[float] = None,
-        charges: t.Optional[float] = _DEFAULT_VALUES["charges"],
-        magmoms: t.Optional[t.List[float]] = _DEFAULT_VALUES["magmoms"],
-        weights: t.Optional[t.Tuple[float, ...]] = _DEFAULT_VALUES["weights"],
+        position: t.Optional[list] = None,
+        symbol: t.Optional[t.Literal[_valid_symbols]] = None,
+        kind_name: t.Optional[str] = None,
+        mass: t.Optional[float] = None,
+        charge: t.Optional[float] = _DEFAULT_VALUES["charge"],
+        magmom: t.Optional[t.List[float]] = _DEFAULT_VALUES["magmom"],
+        weight: t.Optional[t.Tuple[float, ...]] = _DEFAULT_VALUES["weight"],
         ) -> dict:
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
 
         if aseatom is not None:
-            if positions:
+            if position:
                 raise ValueError(
                     "If you pass 'aseatom' as a parameter to "
                     "append_atom, you cannot pass any further"
                     "parameter"
                 )
             properties_from_Atom = {
-                "symbols": aseatom.symbol,
-                "kinds": aseatom.symbol + str(aseatom.tag),
-                "positions": aseatom.position.tolist(),
-                "masses": aseatom.mass,
-                "charges": aseatom.charge,
-                "magmoms": None,
+                "symbol": aseatom.symbol,
+                "kind_name": aseatom.symbol + str(aseatom.tag),
+                "position": aseatom.position.tolist(),
+                "mass": aseatom.mass,
+                "charge": aseatom.charge,
+                "magmom": None,
             }
             if not aseatom.charge:
-                properties_from_Atom.pop('charges')
+                properties_from_Atom.pop('charge')
             if aseatom.magmom is None:
-                properties_from_Atom.pop('magmoms')
+                properties_from_Atom.pop('magmom')
             elif isinstance(aseatom.magmom, (int, float)):
-                properties_from_Atom['magmoms'] = [aseatom.magmom, 0, 0]
+                properties_from_Atom['magmom'] = [aseatom.magmom, 0, 0]
             else:
-                properties_from_Atom['magmoms'] = aseatom.magmom
+                properties_from_Atom['magmom'] = aseatom.magmom
 
             new_site = cls(**properties_from_Atom)
         else:
-            if positions is None:
+            if position is None:
                 raise ValueError("You have to specify the position of the new atom")
 
-            if symbols is None:
-                raise ValueError("You have to specify the symbols of the new atom")
+            if symbol is None:
+                raise ValueError("You have to specify the symbol of the new atom")
 
             # all remaining parameters
-            kinds = symbols if kinds is None else kinds
-            masses = _atomic_masses[symbols] if masses is None else masses
-            weights = _DEFAULT_VALUES["weights"] if weights is None else weights
+            kind_name = symbol if kind_name is None else kind_name
+            mass = _atomic_masses[symbol] if mass is None else mass
+            weight = _DEFAULT_VALUES["weight"] if weight is None else weight
 
             new_site = cls(
-                symbols=symbols,
-                kinds=kinds,
-                positions=positions.tolist() if isinstance(positions, np.ndarray) else positions,
-                masses=masses,
-                charges=charges,
-                magmoms=magmoms.tolist() if isinstance(magmoms, np.ndarray) else magmoms
+                symbol=symbol,
+                kind_name=kind_name,
+                position=position.tolist() if isinstance(position, np.ndarray) else position,
+                mass=mass,
+                charge=charge,
+                magmom=magmom.tolist() if isinstance(magmom, np.ndarray) else magmom
             )
 
         return new_site
@@ -217,45 +231,45 @@ class SiteCore(BaseModel):
         :return: spherical theta and phi in unit rad
                 cartesian x y and z in unit ang
         """
-        if self.magmoms == [0,0,0]:
+        if self.magmom == [0,0,0]:
             return {"starting_magnetization": 0, "angle1": 0, "angle2": 0} if coord == "spherical" else [0, 0, 0]
 
-        magmoms = self.magmoms
+        magmom = self.magmom
         if coord not in ["spherical", "cartesian"]:
             raise ValueError("`coord` can only be `cartesian` or `spherical`")
         if coord == "cartesian":
-            magmom_coord = magmoms
+            magmom_coord = magmom
         else:
-            r = np.linalg.norm(magmoms)
+            r = np.linalg.norm(magmom)
             if r < _MAGMOM_THRESHOLD:
                 magmom_coord = [0.0, 0.0, 0.0]
             else:
-                theta = np.arccos(magmoms[2]/r) # arccos(z/r)
+                theta = np.arccos(magmom[2]/r) # arccos(z/r)
                 theta = theta / np.pi * 180
-                phi = np.arctan2(magmoms[1], magmoms[0]) # atan2(y, x)
+                phi = np.arctan2(magmom[1], magmom[0]) # atan2(y, x)
                 phi = phi / np.pi * 180
                 magmom_coord = (r, theta, phi)
                 # unit always in degree to fit qe inputs.
         return {"starting_magnetization": magmom_coord[0], "angle1": magmom_coord[1], "angle2": magmom_coord[2]}
 
     def set_automatic_kind_name(self, tag=None):
-        """Set the type to a string obtained with the symbols appended one
+        """Set the type to a string obtained with the symbol appended one
         after the other, without spaces, in alphabetical order;
         if the site has a vacancy, a X is appended at the end too.
 
         :param tag: optional tag to be appended to the kind name
         """
         from aiida_atomistic.data.structure.utils import create_automatic_kind_name
-        name_string = create_automatic_kind_name(self.symbols, self.weights)
+        name_string = create_automatic_kind_name(self.symbol, self.weight)
         if tag is None:
             self.name = name_string
         else:
             self.name = f"{name_string}{tag}"
 
-    def to_ase(self, kinds):
+    def to_ase(self, kind_name):
         """Return a ase.Atom object for this site.
 
-        :param kinds: the list of kinds from the StructureData object.
+        :param kind_name: the list of kind_name from the StructureData object.
         :return: ase.Atom object representing this site
         :raises ValueError: if any site is an alloy or has vacancies
         """
@@ -266,25 +280,25 @@ class SiteCore(BaseModel):
         tag_list = []
         used_tags = defaultdict(list)
 
-        required_properties = set(["symbols", "positions", "masses", "charges", "magmoms"])
+        required_properties = set(["symbol", "position", "mass", "charge", "magmom"])
 
-        # we should put a small routine to do tags. or instead of kinds, provide the tag (or tag mapping).
+        # we should put a small routine to do tags. or instead of kind_name, provide the tag (or tag mapping).
         tag = None
         atom_dict = self.model_dump()
-        atom_dict["symbol"] = atom_dict.pop("symbols", None)
-        atom_dict["position"] = atom_dict.pop("positions", None)
-        atom_dict["magmom"] = atom_dict.pop("magmoms", None)
+        atom_dict["symbol"] = atom_dict.pop("symbol", None)
+        atom_dict["position"] = atom_dict.pop("position", None)
+        atom_dict["magmom"] = atom_dict.pop("magmom", None)
         atom_dict["momentum"] = atom_dict.pop("momenta", None)
-        atom_dict["charge"] = atom_dict.pop("charges", None)
-        atom_dict["mass"] = atom_dict.pop("masses", None)
-        atom_dict["tag"] = atom_dict.pop("kinds", None)
+        atom_dict["charge"] = atom_dict.pop("charge", None)
+        atom_dict["mass"] = atom_dict.pop("mass", None)
+        atom_dict["tag"] = atom_dict.pop("kind_name", None)
         for prop in set(self.model_dump().keys()).difference(required_properties):
             atom_dict.pop(prop,None)
         aseatom = ase.Atom(
             **atom_dict
         )
 
-        tag = self.kinds.replace(self.symbols, "")
+        tag = self.kind_name.replace(self.symbol, "")
         if len(tag) > 0:
             tag = int(tag)
         else:
@@ -293,27 +307,8 @@ class SiteCore(BaseModel):
             aseatom.tag = tag
         return aseatom
 
-    def __repr__(self):
-        return f"<{self.__class__.__name__}: {self!s}>"
-
-    def __str__(self):
-        return f"kind name '{self.kinds}' @ {self.positions[0]},{self.positions[1]},{self.positions[2]}"
-
 # The Classes which are exposed to the user:
-class SiteMutable(SiteCore):
-    """
-    A mutable version of the `SiteCore` class.
-
-    This class represents a site in a crystal structure that can be modified.
-
-    Attributes:
-        _mutable (bool): Flag indicating if the site is mutable.
-    """
-
-    _mutable = True
-
-
-class SiteImmutable(SiteCore):
+class Site(SiteCore):
     """
     A class representing an immutable site in a crystal structure.
 

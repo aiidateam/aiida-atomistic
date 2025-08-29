@@ -827,9 +827,11 @@ def check_is_alloy(data):
     :return: True if the data is an alloy, False otherwise.
     """
     new_data = copy.deepcopy(data)
-    if len(new_data.get("weights", [1,])) == 1:
-        if new_data["symbols"] not in _valid_symbols:
-            raise ValueError(f'This is not a valid element: {new_data["symbols"]}')
+    if "weights" not in new_data.keys() or new_data.get("weights", None) is None:
+        return new_data
+    if len(new_data.get("weight", [1,])) == 1:
+        if new_data["symbol"] not in _valid_symbols:
+            raise ValueError(f'This is not a valid element: {new_data["symbol"]}')
         return None
     set_symbols_and_weights(new_data)
     return new_data
