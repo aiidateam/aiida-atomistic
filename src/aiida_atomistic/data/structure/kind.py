@@ -28,7 +28,7 @@ class Kind(BaseModel):
     """This class contains the core information about a given kind of the system.
 
     """
-    _mutable: t.ClassVar[bool] = False
+    _mutable: t.ClassVar[bool] = True
 
     model_config = ConfigDict(from_attributes = True,  frozen = True,  arbitrary_types_allowed = True)
 

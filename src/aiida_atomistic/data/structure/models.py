@@ -39,88 +39,19 @@ class StructureBaseModel(BaseModel):
     pbc: list[bool] = Field(
         default=_DEFAULT_PBC,
         description="Periodic boundary conditions",
-        can_be_kind_based=False,
-        store_in="db",
         min_items=3,
         max_items=3,
-        kind_of_property="global",
     )
 
-    cell: t.Union[np.ndarray[float], list[float]] = Field(
+    cell: t.Union[np.ndarray[float]] = Field(
         default=_DEFAULT_CELL,
         description="Lattice vectors",
-        can_be_kind_based=False,
         units="Angstrom",
-        store_in="npz",
-        kind_of_property="global",
     )
 
-    ## site properties
-    symbols: list[str] = Field(
+    sites: list[Site] = Field(
         default=None,
-        description="Chemical symbols of the atoms", # in the db, I can save the set of symbols
-        can_be_kind_based=True,
-        store_in="json",
-        kind_of_property="site",
-    )
-
-    positions: t.Union[np.ndarray[float], list[float]] = Field(
-        default=None,
-        description="3D coordinates of the atoms",
-        can_be_kind_based=False,
-        units="Angstrom",
-        store_in="npz",
-        kind_of_property="site",
-    )
-
-    kind_names: list[str] = Field(
-        default=None,
-        description="site-wise list of kinds", # in the db, I can save the set of symbols
-        can_be_kind_based=False,
-        store_in="json",
-        kind_of_property="site",
-    )
-
-    magmoms: t.Optional[t.Union[np.ndarray[float], list[float]]] = Field(
-        default=None,
-        description="3D magnetic moment vector per site",
-        can_be_kind_based=True,
-        units="Bohr magneton",
-        store_in="npz",
-        kind_of_property="site",
-    )
-
-    magnetizations: t.Optional[t.Union[np.ndarray[float], list[float]]] = Field(
-        default=None,
-        description="The magnetizations per site. This is a scalar quantity, in contrast to the magmoms which are vectors.",
-        can_be_kind_based=True,
-        units="Bohr magneton",
-        store_in="npz",
-        kind_of_property="site",
-    )
-
-    charges: t.Optional[t.Union[np.ndarray[float], list[float]]] = Field(
-        default=None,
-        description="Charge of the atoms",
-        can_be_kind_based=True,
-        units="e",
-        store_in="npz",
-        kind_of_property="site",
-    )
-
-    masses: t.Union[np.ndarray[float], list[float]] = Field(
-        default=None,
-        description="Mass of the atoms",
-        can_be_kind_based=True,
-        store_in="npz",
-        kind_of_property="site",
-    )
-    weights: t.Union[np.ndarray[tuple[float, ...]], list[tuple[float, ...]]] = Field(
-        default=None,
-        description="weight of the atoms, useful for fractional occupancies",
-        can_be_kind_based=True,
-        store_in="npz",
-        kind_of_property="site",
+        description="List of sites in the structure",
     )
 
     # global and more specific properties
@@ -135,21 +66,12 @@ class StructureBaseModel(BaseModel):
         frozen = False
         arbitrary_types_allowed = True
 
-    @field_validator('cell', 'positions', 'magmoms', 'charges', 'masses', 'weights', mode='before') # maybe instead of the explicit list, I can use model_fields.keys()
-    @classmethod
-    def ensure_numpy_array(cls, v):
-        """We want to ensure that the input is a numpy array."""
-        if v is None:
-            return v
-        array_v = np.asarray(v)
-        array_v.flags.writeable = cls._mutable
-        return array_v
-
     @field_validator('cell', mode='before')
     @classmethod
     def validate_cell_shape(cls, v):
         """Ensure cell is always a 3x3 array."""
         v = np.asarray(v)
+        v.flags.writeable = cls._mutable
         if v.shape != (3, 3):
             raise ValueError("The cell must be a 3x3 array.")
         return v
@@ -171,72 +93,15 @@ class StructureBaseModel(BaseModel):
 
         from aiida_atomistic.data.structure.utils import _check_valid_sites
 
-        if not data.get("symbols", None):
+        if not data.get("sites", None):
             # if no symbols, no positions, we just return the pbc and cell
             return {
                 "pbc": data.get("pbc", cls.model_fields["pbc"].default),
                 "cell": data.get("cell", cls.model_fields["cell"].default)
             }
 
-        if not len(data.get("positions", [])):
-            raise ValueError("The structure contains symbols, so it must contain positions also.")
 
-        _check_valid_sites(data["positions"])
-
-        # site properties: symbols, kinds, masses, charges, magmoms, weights
-        if data.get("kind_names", None):
-            assert len(data["kind_names"]) == len(data['symbols'])
-
-        #if more than one is specified, between magmoms, magnetizations and tot_magnetization, raise
-        if (data.get("magmoms", None) is not None) + (data.get("magnetizations", None) is not None) + (data.get("tot_magnetization", None) is not None) > 1:
-            raise ValueError("You can specify only one between magmoms, magnetizations and tot_magnetization.")
-
-        if (data.get("charges", None) is not None) + (data.get("tot_charge", None) is not None) > 1:
-            raise ValueError("You can specify only one between charges and tot_charge.")
-
-        # do I want to always define masses? maybe not, as they can be derived from the symbols, in case.
-        # However I use masses in the alloys detection, so I need to define them here.
-        if "masses" not in data.keys():
-            data["masses"] = [_atomic_masses[s] if s in _atomic_masses.keys() else _DEFAULT_VALUES["masses"]
-                        for s in data["symbols"]]
-
-        for prop in ['positions', 'magmoms', 'charges', 'masses', 'weights']:
-            if data.get(prop) is None:
-                pass #data[prop] = [_DEFAULT_VALUES[prop]] * len(data['symbols'])
-            else:
-                if len(data[prop]) != len(data['symbols']):
-                    raise ValueError(f"Length of {prop} does not match the number of symbols")
-
-        # trying to detect alloys
-        if any(mass == 0 for mass in data["masses"]):
-            from aiida_atomistic.data.structure.utils import check_is_alloy
-            weights = data.get("weights", [(1,)*len(data["symbols"])])
-            for idx, (symbol, mass, weight) in enumerate(zip(data["symbols"], data["masses"], weights)):
-                if mass == 0:
-                    new_data = check_is_alloy(
-                        {
-                            "symbols": symbol,
-                            "masses": mass,
-                            "weights": weight,
-                            }
-                        )
-
-                    if not new_data: # not an alloy
-                        new_data = {}
-                        #new_data["kind_names"] = symbol
-                        new_data["symbols"] = new_data["kind_names"]
-                        new_data["masses"] = _atomic_masses[symbol] if symbol in _atomic_masses.keys() else _DEFAULT_VALUES["masses"]
-                    else:
-                        new_data.pop("alloy", None)
-                        new_data["kind_names"] = ''.join(symbol) if isinstance(symbol, list) else symbol
-                        # I could do the following also inside the `check_is_alloy` function, but I do it
-                        # here to be more clear on what we do. We provide symbols as joined strings, as the kinds.
-                        new_data["symbols"] = new_data["kind_names"]
-                    for key, value in new_data.items():
-                        data[key][idx] = value
-
-        #if not data.get("weights", None):
-        #    data["weights"] = [(1,)*len(data["symbols"])]
+        _check_valid_sites(data["sites"])
 
         return data
 
@@ -272,7 +137,7 @@ class StructureBaseModel(BaseModel):
             str: The chemical formula of the structure.
         """
         from aiida_atomistic.data.structure.utils import get_formula
-        return get_formula(self.symbols)
+        return get_formula(self.sites)
 
     @computed_field
     def is_alloy(self) -> dict:
@@ -288,34 +153,107 @@ class StructureBaseModel(BaseModel):
         """
         return any(_.has_vacancies for _ in self.sites)
 
-    @computed_field # can also be just a property, always frozen... in this way we skip initialization at the structure __init__ phase.
-    def sites(self) -> FrozenList[Site]:
+    # HERE I AM DEFINING EXPLICITLY THE COMPUTED FIELDS LIKE POSITIONS AND KINDS, but maybe we can do it with some metaclass.
+    @computed_field
+    def positions(self) -> np.ndarray:
         """
-        Get the sites in the structure.
+        Return the positions of all sites in the structure as a numpy array.
 
         Returns:
-            FrozenList[Site]: The sites in the structure.
+            np.ndarray: An array of shape (N, 3) where N is the number of sites.
         """
-        md = self.model_dump(
-            exclude=_GLOBAL_PROPERTIES+list(self.model_computed_fields.keys())
-            )
+        if all(site.position is None for site in self.sites):
+            return None
+        return np.array([site.position for site in self.sites])
 
-        convert_to_site_name = lambda s: _CONVERSION_PLURAL_SINGULAR.get(s, s)
+    @computed_field
+    def kind_names(self) -> t.List[str]:
+        """
+        Return the list of kind names for all sites in the structure.
 
-        def from_dict_to_list(md):
-            transformed_list = [
-            {convert_to_site_name(key): value[i] if
-                (isinstance(value, list) or isinstance(value, np.ndarray)) else None
-            for key, value in md.items()}
-            for i in range(len(md['symbols']))
-            ]
+        Returns:
+            List[str]: A list of kind names corresponding to each site.
+        """
+        if all(site.kind_name is None for site in self.sites):
+            return None
+        return [site.kind_name for site in self.sites]
 
-            return transformed_list
+    @computed_field
+    def symbols(self) -> t.List[str]:
+        """
+        Return the list of chemical symbols for all sites in the structure.
 
-        sites = FrozenList([Site(**value) for value in from_dict_to_list(md)])
-        return sites
+        Returns:
+            List[str]: A list of chemical symbols corresponding to each site.
+        """
+        if all(site.symbol is None for site in self.sites):
+            return None
+        return [site.symbol for site in self.sites]
 
-    @property
+    @computed_field
+    def masses(self) -> np.ndarray:
+        """
+        Return the masses of all sites in the structure as a numpy array.
+
+        Returns:
+            np.ndarray: An array of masses corresponding to each site.
+        """
+        if all(site.mass is None for site in self.sites):
+            return None
+        return np.array([site.mass for site in self.sites])
+
+    @computed_field
+    def charges(self) -> np.ndarray:
+        """
+        Return the charges of all sites in the structure as a numpy array.
+
+        Returns:
+            np.ndarray: An array of charges corresponding to each site.
+        """
+        if all(site.charge is None for site in self.sites):
+            return None
+        return np.array([site.charge for site in self.sites])
+
+    @computed_field
+    def magmoms(self) -> np.ndarray:
+        """
+        Return the magnetic moments of all sites in the structure as a numpy array.
+
+        Returns:
+            np.ndarray: An array of magnetic moments corresponding to each site.
+        """
+
+        # if all none, return None, otherwise return array with default values if None
+        if all(site.magmom is None for site in self.sites):
+            return None
+        return np.array([site.magmom if site.magmom is not None else _DEFAULT_VALUES['magmom'] for site in self.sites])
+
+    @computed_field
+    def magnetizations(self) -> np.ndarray:
+        """
+        Return the magnetizations of all sites in the structure as a numpy array.
+
+        Returns:
+            np.ndarray: An array of magnetizations corresponding to each site.
+        """
+        if all(site.magnetization is None for site in self.sites):
+            return None
+        return np.array([site.magnetization for site in self.sites])
+
+    @computed_field
+    def weights(self) -> t.List[t.Tuple[float, ...]]:
+        """
+        Return the weights of all sites in the structure as a list of tuples.
+
+        Returns:
+            List[Tuple[float, ...]]: A list of weight tuples corresponding to each site.
+        """
+        if all(site.weight is None for site in self.sites):
+            return None
+        return [site.weight for site in self.sites]
+
+
+    @computed_field
     def kinds(self) -> FrozenList[Kind]:
         """
         Return the reduced set of kinds, grouping sites that share all properties except positions and site_indices.

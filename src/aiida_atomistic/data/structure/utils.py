@@ -105,7 +105,7 @@ def _get_valid_cell(inputcell):
             "Cell must be a list of three vectors, each defined as a list of three coordinates."
         )
 
-    return the_cell
+    return np.array(the_cell)
 
 
 def _get_valid_pbc(inputpbc):
@@ -137,16 +137,16 @@ def _get_valid_pbc(inputpbc):
 
     return the_pbc
 
-def _check_valid_sites(input_positions):
+def _check_valid_sites(sites):
 
-    num_sites = len(input_positions)
+    num_sites = len(sites)
 
     for i in range(num_sites):
         for j in range(num_sites):
             if j == i:
                 continue
-            if np.allclose(input_positions[i], input_positions[j], atol=1e-3):
-                raise ValueError(f"Sites {i+1} and {j+1} cannot have the same position")
+            if np.allclose(sites[i]["position"], sites[j]["position"], atol=1e-3):
+                raise ValueError(f"Sites {i+1} and {j+1} cannot have the same position!")
 
     return
 
@@ -514,7 +514,7 @@ def get_formula_group(symbol_list, separator=""):
     return get_formula_from_symbol_list(new_symbol_list, separator=separator)
 
 
-def get_formula(symbol_list, mode="hill", separator=""):
+def get_formula(sites, mode="hill", separator=""):
     """Return a string with the chemical formula.
 
     :param symbol_list: a list of symbols, e.g. ``['H','H','O']``
@@ -562,6 +562,9 @@ def get_formula(symbol_list, mode="hill", separator=""):
         initial order in which the atoms were appended by the user is
         used to group and/or order the symbols in the formula
     """
+
+    symbol_list = [site.symbol for site in sites]
+
     if mode == "group":
         return get_formula_group(symbol_list, separator=separator)
 

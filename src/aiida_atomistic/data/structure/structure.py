@@ -1,7 +1,8 @@
 from aiida.orm.nodes.data import Data
 
 from aiida_atomistic.data.structure.models import MutableStructureModel, ImmutableStructureModel
-from aiida_atomistic.data.structure.mixin import GetterMixin, SetterMixin
+from aiida_atomistic.data.structure.setter_mixin import SetterMixin
+from aiida_atomistic.data.structure.getter_mixin import GetterMixin
 
 class StructureData(Data, GetterMixin):
 
@@ -9,10 +10,7 @@ class StructureData(Data, GetterMixin):
 
     def __init__(self, **kwargs):
 
-        if "sites" in kwargs:
-            self._properties = ImmutableStructureModel.from_sites_specs(**kwargs)
-        else:
-            self._properties = ImmutableStructureModel(**kwargs)
+        self._properties = ImmutableStructureModel(**kwargs)
         super().__init__()
 
         defined_properties = self.get_defined_properties().union(self.properties.model_computed_fields.keys()).difference({"sites"}) # exclude the default ones. We do not need to store them into the db.
@@ -42,11 +40,7 @@ class StructureDataMutable(GetterMixin, SetterMixin):
 
     def __init__(self, **kwargs):
 
-        if "sites" in kwargs:
-            #print('Initializing from sites list, so considering them and the additional global properties like pbc, cell, custom, Hubbard...')
-            self._properties = MutableStructureModel.from_sites_specs(**kwargs)
-        else:
-            self._properties = MutableStructureModel(**kwargs)
+        self._properties = MutableStructureModel(**kwargs)
 
     @property
     def properties(self):

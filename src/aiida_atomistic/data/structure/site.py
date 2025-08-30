@@ -60,24 +60,25 @@ class FrozenList(list):
             Please modify them using the `update_site` method of the structure class instance. \
                 If your object is the AiiDA immutable `StructureData` object, you can create a mutable copy of it using its `get_value` method.")
 
-class SiteCore(BaseModel):
+class Site(BaseModel):
     """This class contains the core information about a given site of the system.
 
     It can be a single atom, or an alloy, or even contain vacancies.
 
     """
-    _mutable: t.ClassVar[bool] = False
+    _mutable: t.ClassVar[bool] = True
 
     model_config = ConfigDict(from_attributes = True,  frozen = False,  arbitrary_types_allowed = True)
 
-    symbol: t.Union[str, t.List[str]]# validation is done in the check_is_alloy
-    kind_name: t.Optional[str]
+    symbol: t.Union[str, t.List[str]] # validation is done in the check_is_alloy
     position: t.Union[np.ndarray[float]] = Field(min_length=3, max_length=3)
     mass: t.Optional[float] = Field(gt=0)
     charge: t.Optional[float] = Field(default=None)
     magmom: t.Optional[np.ndarray[float]] = Field(default=None)
     magnetization: t.Optional[float] = Field(default=None)
     weight: t.Optional[t.Tuple[float, ...]] = Field(default=None)
+    kind_name: t.Optional[str] = Field(default=None)
+
 
     @field_validator('position', 'magmom', mode='before') # maybe instead of the explicit list, I can use model_fields.keys()
     @classmethod
@@ -112,20 +113,11 @@ class SiteCore(BaseModel):
         #elif data["mass"]<=0:
         #    raise ValueError("The mass of an atom must be positive")
 
-        if "kind_name" not in data:
-            data["kind_name"] = data["symbol"]
+        # we do not automatically set kind_name!
+        #if "kind_name" not in data:
+        #    data["kind_name"] = data["symbol"]
 
         return data
-
-    # Start of redundant properties to make easier plugin migrations
-    @property
-    def kind_name(self):
-        return self.kind_name
-
-    @property
-    def position(self):
-        return self.position
-    # End of redundant properties
 
     @property
     def is_alloy(self):
@@ -159,18 +151,12 @@ class SiteCore(BaseModel):
     def atom_to_site(
         cls,
         aseatom: t.Optional[ase.Atom] = None,
-        position: t.Optional[list] = None,
-        symbol: t.Optional[t.Literal[_valid_symbols]] = None,
-        kind_name: t.Optional[str] = None,
-        mass: t.Optional[float] = None,
-        charge: t.Optional[float] = _DEFAULT_VALUES["charge"],
-        magmom: t.Optional[t.List[float]] = _DEFAULT_VALUES["magmom"],
-        weight: t.Optional[t.Tuple[float, ...]] = _DEFAULT_VALUES["weight"],
+        **kwargs
         ) -> dict:
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
 
         if aseatom is not None:
-            if position:
+            if kwargs:
                 raise ValueError(
                     "If you pass 'aseatom' as a parameter to "
                     "append_atom, you cannot pass any further"
@@ -195,24 +181,8 @@ class SiteCore(BaseModel):
 
             new_site = cls(**properties_from_Atom)
         else:
-            if position is None:
-                raise ValueError("You have to specify the position of the new atom")
-
-            if symbol is None:
-                raise ValueError("You have to specify the symbol of the new atom")
-
-            # all remaining parameters
-            kind_name = symbol if kind_name is None else kind_name
-            mass = _atomic_masses[symbol] if mass is None else mass
-            weight = _DEFAULT_VALUES["weight"] if weight is None else weight
-
             new_site = cls(
-                symbol=symbol,
-                kind_name=kind_name,
-                position=position.tolist() if isinstance(position, np.ndarray) else position,
-                mass=mass,
-                charge=charge,
-                magmom=magmom.tolist() if isinstance(magmom, np.ndarray) else magmom
+                **kwargs
             )
 
         return new_site
@@ -306,18 +276,3 @@ class SiteCore(BaseModel):
         if tag is not None:
             aseatom.tag = tag
         return aseatom
-
-# The Classes which are exposed to the user:
-class Site(SiteCore):
-    """
-    A class representing an immutable site in a crystal structure.
-
-    This class inherits from the `SiteCore` class and adds the functionality to create an immutable site.
-    An immutable site cannot be modified once it is created.
-
-    Attributes:
-        _mutable (bool): A flag indicating whether the site is mutable or immutable.
-    """
-    model_config = ConfigDict(from_attributes = True,  frozen = True,  arbitrary_types_allowed = True)
-
-    _mutable = False
