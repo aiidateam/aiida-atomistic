@@ -979,7 +979,7 @@ def classify_site_kinds(sites:list, exclude_props:bool=None, tolerance:t.Union[d
     Args:
         sites: List of site dictionaries
         exclude_props: Set of property names to exclude from grouping (default: {'position'})
-        tolerance: Numerical tolerance for floating point comparisons (default: 1e-6)
+        tolerance: Numerical tolerance for floating point comparisons (default: 1e-3)
 
     Returns:
         dict: {group_key: {'sites': [site_indices], 'properties': {prop: value}}}
@@ -1013,7 +1013,11 @@ def classify_site_kinds(sites:list, exclude_props:bool=None, tolerance:t.Union[d
         key_props = {}
         for prop, value in site.items():
             if prop not in exclude_props:
-                normalized_value = normalize_value(value, tolerance)
+                if isinstance(tolerance, dict):
+                    tol = tolerance.get(prop, 1e-3)
+                else:
+                    tol = tolerance
+                normalized_value = normalize_value(value, tol)
                 key_props[prop] = normalized_value
 
         # Create a hashable key containing both property names and their normalized values, so it is a unique identifier
@@ -1026,7 +1030,7 @@ def classify_site_kinds(sites:list, exclude_props:bool=None, tolerance:t.Union[d
         # Store the original properties (first occurrence)
         if not groups[key]['properties']:
             groups[key]['properties'] = {
-                prop: normalize_value(value, tolerance) for prop, value in site.items()
+                prop: normalize_value(value, tolerance.get(prop, 1e-3) if isinstance(tolerance, dict) else tolerance) for prop, value in site.items()
                 if prop not in exclude_props
             }
 
@@ -1049,3 +1053,45 @@ def check_kinds_match(structure, kinds_list):
         check_kinds.append(site_indices in kind_names_indices)
 
     return all(check_kinds)
+
+
+def sites_from_kinds(kinds):
+    """
+    Expand kinds into a list of site dictionaries, sorted by site_index.
+    1. Create a list of site indices and positions from the kinds
+    2. Create a list of site dictionaries by copying the kind properties
+       and adding the position
+    3. Return the list of site dictionaries
+    4. Note: the returned list is sorted by site_index
+
+    Format of kinds (basically what can be obtained by structure.generate_kinds()):
+    [
+        {'site_indices': [0, 2],
+        'positions': [array([0., 0., 0.]), array([0., 1., 0.])],
+        'symbol': 'H',
+        'mass': 1.008,
+        'charge': 0.0,
+        'magmom': (0.0, 0.0, -1.0),
+        'kind_name': 'H1'},
+        {'site_indices': [1],
+        'positions': [array([0., 0., 1.])],
+        'symbol': 'O',
+        'mass': 15.999,
+        'charge': -2.0,
+        'magmom': (0.0, 0.0, 1.0),
+        'kind_name': 'O1'}
+    ]
+    """
+    sites_list = []
+    positions = []
+    for i,kind in enumerate(kinds):
+        sites_list += [i]*len(kind['site_indices'])
+        positions += kind['positions']
+    num_sites = len(sites_list)
+    for i in range(num_sites):
+        sites_list[i] = copy.deepcopy(kinds[sites_list[i]])
+        sites_list[i].pop('site_indices', None)
+        sites_list[i].pop('positions', None)
+        sites_list[i]['position'] = positions[i]
+
+    return sites_list

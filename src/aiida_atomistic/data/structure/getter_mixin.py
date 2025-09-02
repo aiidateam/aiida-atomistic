@@ -316,9 +316,9 @@ class GetterMixin(HubbardGetterMixin):
         return structure
 
     # method for the kinds generation and validation
-    def generate_kinds(self,):
+    def generate_kinds(self, tolerance:t.Union[dict, float]=1e-3):
         sites = self.to_dict()['sites']
-        groups = classify_site_kinds(sites)
+        groups = classify_site_kinds(sites, tolerance=tolerance)
         kinds = []
         kind_names = []
         for i, (key, group) in enumerate(groups.items()):
@@ -354,7 +354,7 @@ class GetterMixin(HubbardGetterMixin):
 
 
     # TO methods:
-    def to_dict(self):
+    def to_dict(self, exclude_kinds=False):
             """
             Convert the structure to a dictionary representation.
 
@@ -363,7 +363,7 @@ class GetterMixin(HubbardGetterMixin):
             :return: The structure as a dictionary.
             :rtype: dict
             """
-            dict_repr = copy.deepcopy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False))
+            dict_repr = copy.deepcopy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False, exclude={'kinds'} if exclude_kinds else {}))
 
             return dict_repr
 
@@ -434,170 +434,7 @@ class GetterMixin(HubbardGetterMixin):
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
-        """
-        Get the list of kinds, taking into account all the properties.
-        If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
-        by computing the kinds with threshold=0 for each property.
 
-        NB: for now, we exclude the `weights` property. TOBE implemented.
-        NB: can be improved, of course.
-
-        TODO: remove kind_tags and use only exclude and custom_thr.
-
-        Algorithm:
-        it generated the kinds_list for each property separately in Step 1, then
-        it creates the matrix k = k.T where the rows are the sites, the columns are the properties and each element
-        is the corresponding kind for the given property and the given site:
-
-        ```bash
-                p1 p2 p3
-        site1 = | 1  1  2 | = kind1
-        site2 = | 1  2  3 | = kind2
-        site3 = | 2  2  3 | = kind3
-        site4 = | 1  2  3 | = kind4
-        ```
-
-        In Step 2 it checks for the matrix which rows have the same numbers in the same order, i.e. recognize the different
-        kinds considering all the properties. This is done by subtracting a row from the others and see if all the elements
-        are zero, meaning that we have the same combination of kinds.
-        In Step 2.2 it reorders the kind_numeration to start from 1 for each element.
-        In Step 2.3 it defines the new kind names.
-        In Step 3 it creates the dictionary with the new kinds.
-        In Step 4 it checks the consistency of the provided kind_tags with the properties values.
-
-        Args:
-            kind_tags (list, optional): list of kind names as user defined: in principle this input trigger a check in the kind
-                                        determination -> the mapping should be the same as obtained with get_kinds(kind_tags=[],) and
-                                        all thresholds = 0. And this is what is done: `if not None in kind_tags: thr = 0`.
-                                        For now we support also for only some selected kinds defined: ["kind1",None, ...] but with the same length as the symbols (sites).
-            exclude (list, optional): list of properties to be excluded in the kind determination
-            custom_thr (dict, options): dictionary with the custom threshold for given properties (key: property, value: thr).
-                                        if not provided, we fallback into the default threshold define in the property class.
-
-        Returns:
-            kinds_dictionary (dictionary): the associated per-site (and per-kind) value of the property. The structure of the dictionary is the one that you may
-                                        have in the `properties` dictionary input of the StructureData constructor.
-                                        We also provide the `kinds` property: list of kind-per-site to be used in a plugin which requires it. If kind tags are all decided, then we
-                                        do not compute anything and we return kind_tags and None. In this way, we know that we basically already defined
-                                        the kinds in our StructureData.
-
-        Comments:
-
-        - Implementation can and should be improved, but the functionalities are the desired ones.
-        - Moreover, the method should be accessible to run on a given properties dictionary, so to predict the kinds before the StructureData instance generation.
-        """
-        from aiida_atomistic.data.structure.utils import order_k
-
-        # cannot do properties.symbols.value due to recursion problem if called in Kinds:
-        # if I call properties, this will again reinitialize the properties attribute and so on.
-        # should be this:
-        # symbols = self.base.attributes.get("_property_attributes")['symbols']['value']
-        # However, for now I do not let the kinds to be automatically generated when we initialise the structure:
-        symbols = self.get_site_property("symbols")
-
-        # TOBE implemented: weights support
-        if "weights" not in exclude:
-            exclude.append("weights")
-
-        list_tags = []
-        if len(kind_tags) == 0:
-            kind_tags = [None] * len(
-                symbols
-            )  # <== For now we support also for only ... see above doc string.
-            check_kinds = False
-            # kind=tags = self.properties.kind_names.value
-        else:
-            list_tags = [kind_tags.index(n) for n in kind_tags]
-            check_kinds = True
-
-        array_tags = np.array(list_tags)
-
-        # Step 1:
-        kind_properties = []
-        kinds_dictionary = {"kinds": {}}
-        for single_property in self.properties.sites[0].model_dump().keys():
-            if single_property not in ["symbols", "positions", "kinds",] + exclude:
-                #prop = self.get_site_property(single_property)
-                thr = custom_thr.get(
-                    single_property, _DEFAULT_THRESHOLDS.get(single_property)
-                )
-                kinds_dictionary[single_property] = {}
-
-                kinds_per_property = self._to_kinds(
-                    property_name=single_property, thr=thr
-                )
-
-                kind_properties.append(kinds_per_property[0])
-                # I prefer to store again under the key 'value', may be useful in the future
-                kinds_dictionary[single_property] = kinds_per_property[1]
-
-        k = np.array(kind_properties)
-        k = k.T
-
-        # Step 2:
-        # kinds = np.zeros(len(self.get_site_property("symbols")), dtype=int) - 1
-        check_array = np.zeros(len(self.get_site_property("positions")), dtype=int) -1
-        kind_names = symbols.tolist()
-        kind_numeration = np.zeros_like(check_array, dtype=int)
-        for i in range(len(k)):
-            #print('iteration ' , i)
-            # This starts from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
-            # This will be fixed in step 2.3.
-
-            diff = k - k[i]
-            diff_sum = np.sum(np.abs(diff), axis=1)
-
-            # checking the same kinds
-            #print('where is, ', np.where(diff_sum == 0)[0])
-            for where in np.where(diff_sum == 0)[0]:
-                element = symbols[where]
-                #print('where iteration ', where)
-                if not check_array[where] == -1:
-                    continue
-                if (
-                    f"{element}{i}" in kind_tags
-                ):  # If I encounter the same tag as provided as input or generated here:
-                    kind_numeration[where] = i + len(k)
-                else:
-                    kind_numeration[where] = i
-
-            if len(np.where(check_array == -1)[0]) == 0:
-                #print(f"search ended at iteration {i}")
-                break
-
-        # Step 2.2 Define the new kind names
-        # Step 2.2.1 Re-order kind_numeration (to start from 1, not from 0, for each new element).
-        for element in set(symbols):
-            element_wise_k = kind_numeration[np.where(symbols== element)[0]]
-            kk = order_k(element_wise_k)
-            kind_numeration[np.where(symbols == element)[0]] = kk
-            if len(set(kk)) == 1:
-                kind_numeration[np.where(symbols == element)[0]] = 0
-
-        # Step 2.3: Define the new kind names
-        #print(symbols,kind_numeration)
-        for ind, (element, kind_number) in enumerate(zip(symbols, kind_numeration)):
-            kind_names[ind] = f"{element}{kind_number if kind_number > 0 else ''}"
-
-
-        # Step 3:
-        kinds_dictionary["kinds"] =kind_names
-
-        kinds_dictionary["index"] = kind_numeration - 1 # kinds_numeration starts from 1, here we want to start from 0
-        kinds_dictionary["symbols"] = symbols.tolist()
-        kinds_dictionary["positions"] = self.get_site_property("positions").tolist()
-
-        # Step 4: check on the kind_tags consistency with the properties value.
-        if check_kinds and not np.array_equal(check_array, array_tags):
-            raise ValueError(
-                "The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want."
-            )
-
-        # we delete the index key, as it is not a property
-        kinds_dictionary.pop("index", None)
-
-        return kinds_dictionary
 
     def to_ase(self):
         """Get the ASE object.
@@ -1166,92 +1003,6 @@ class GetterMixin(HubbardGetterMixin):
             )
 
         return
-
-    def _to_kinds(self, property_name, thr: float = 0):
-        """Called by the `get_kinds` function.
-        Get the kinds for a generic site property. Can also be overridden in the specific property.
-
-        ### Search algorithm:
-
-        Basically we compute the indexes array which locates each point in regions centered on our values, considering
-        min(values) as reference and each region being of width=thr:
-
-            indexes = np.array((prop_array-np.min(prop_array))/thr,dtype=int)
-
-        To understand this, try to draw the problem considering prop_array=[1.6,2,3.2,4] and thr=0.5.
-        This methods allows to efficiently clusterize the point using the defined threshold.
-
-        At the end, we reorder the kinds from zero (to have ordered list like Li0, Li1...).
-        Basically we define the set of unordered kinds, and the range(len(set(kinds))) being the group of ordered kinds.
-        Then we basically do a mapping with the np.where().
-
-        Args:
-            thr (float, optional): the threshold to consider two atoms of the same element to be the same kind.
-                Defaults to structure.properties.<property>.default_kind_threshold.
-                If thr==0, we just return different kind for each site with the original property value. This is
-                needed when we have tags for each site, in the get_kind method of StructureData.
-
-        Returns:
-            kinds_labels: array of kinds (as integers) associated to the charge property. they are integers so that in the `get_kinds()` method
-                                can be used in the matrix representation (the k.T).
-            kinds_values: list of the associated property value to each kind detected.
-        """
-        symbols_array = np.array(self.properties.symbols)
-
-        if isinstance(self.get_site_property(property_name)[0], list) or isinstance(self.get_site_property(property_name)[0], np.ndarray):
-            #reference_array = np.array(self.get_site_property(property_name)[0]) # I take the difference to detect also the case [1,0,0] != [-1,0,0]
-            #prop_array = np.array([np.linalg.norm(row-reference_array) for row in self.get_site_property(property_name)])
-            prop_array = np.array(self.get_site_property(property_name))
-            shape_1 = len(prop_array[0])
-            kinds_values = np.zeros((len(symbols_array),shape_1))
-        else:
-            prop_array = np.array(self.get_site_property(property_name))
-            kinds_values = np.zeros(len(symbols_array))
-
-        if thr == 0 or not thr:
-            return np.array(range(len(prop_array))), prop_array
-
-        # list for the value of the property for each generated kind.
-
-        if isinstance(prop_array[0], np.ndarray):
-            # here, to deal with set of 3D indexes and avoid to deal with directions of the vectors,
-            # I transform the set of indexes into string, so I can compared them in the np.where
-            indexes = np.array([np.array2string(np.array((row-prop_array[0])/ thr, dtype=int)) for row in prop_array])
-        else:
-            indexes = np.array((prop_array - np.min(prop_array)) / thr, dtype=int)
-
-        # Here we select the closest value present in the property values
-        set_indexes = set(indexes)
-
-        for index in set_indexes:
-            where_index_in_indexes = np.where(indexes == index)[0]
-            kinds_values[where_index_in_indexes] = prop_array[where_index_in_indexes[0]]
-
-
-        # here we reorder from zero the kinds.
-        list_set_indexes = list(set_indexes)
-        kinds_labels = np.zeros(len(symbols_array), dtype=int)
-        for i in range(len(list_set_indexes)):
-            kinds_labels[np.where(indexes == list_set_indexes[i])[0]] = i
-
-        # now we truncate the kinds_values considering the threshold magnitude
-        truncation_order = int(np.log10(thr)*np.sign(np.log10(thr)))
-        truncated_kinds_values = np.round(kinds_values, truncation_order)
-
-        return kinds_labels, truncated_kinds_values
-
-    def __getitem__(self, index):
-        "ENABLE SLICING. Return a sliced StructureData."
-        # Handle slicing
-        sliced_structure_dict = self.to_dict()
-        if isinstance(index, slice):
-            sliced_structure_dict["sites"] = sliced_structure_dict["sites"][index]
-            return self.__class__(**sliced_structure_dict)
-        elif isinstance(index, int):
-            sliced_structure_dict["sites"] = [sliced_structure_dict["sites"][index]]
-            return self.__class__(**sliced_structure_dict)
-        else:
-            raise TypeError(f"Invalid argument type: {type(index)}")
 
     def __len__(
         self,
