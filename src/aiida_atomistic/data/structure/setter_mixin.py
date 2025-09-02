@@ -11,6 +11,7 @@ from aiida_atomistic.data.structure.site import Site
 from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardSetterMixin
 )
+from aiida_atomistic.data.structure.kind import Kind
 
 try:
     import ase  # noqa: F401
@@ -177,8 +178,6 @@ class SetterMixin(HubbardSetterMixin):
 
     # setter and remove methods for specific properties
     def set_charges(self, charges: np.ndarray[float]):
-        if self.properties.tot_charge is not None:
-            raise ValueError("You cannot set the charges if the total charge is defined.")
         if len(charges) != len(self.properties.sites):
             raise ValueError(f"The length of the charges list ({len(charges)}) does not match the number of sites ({len(self.properties.sites)}).")
         for site, charge in zip(self.properties.sites, charges):
@@ -202,8 +201,6 @@ class SetterMixin(HubbardSetterMixin):
 
     def set_magmoms(self, magmoms: np.ndarray[np.ndarray[float]]):
         # if defined magnetization or tot_magnetization, raise an error
-        if self.properties.tot_magnetization is not None or self.properties.magnetizations is not None:
-            raise ValueError("You cannot set the magnetic moments if the magnetizations are defined.")
         if len(magmoms) != len(self.properties.sites):
             raise ValueError(f"The length of the magmoms list ({len(magmoms)}) does not match the number of sites ({len(self.properties.sites)}).")
         for site, magmom in zip(self.properties.sites, magmoms):
@@ -215,8 +212,6 @@ class SetterMixin(HubbardSetterMixin):
         return
 
     def set_magnetizations(self, magnetizations: np.ndarray[float]):
-        if self.properties.tot_magnetization is not None or self.properties.magmoms is not None:
-            raise ValueError("You cannot set the magnetizations if the magnetic moments are defined.")
         if len(magnetizations) != len(self.properties.sites):
             raise ValueError(f"The length of the magnetizations array ({len(magnetizations)}) does not match the number of sites ({len(self.properties.sites)}).")
         for site, magnetization in zip(self.properties.sites, magnetizations):
@@ -240,8 +235,6 @@ class SetterMixin(HubbardSetterMixin):
 
     def set_tot_charge(self, value: float):
         """Set the total charge of the cell."""
-        if self.properties.charges is not None:
-            raise ValueError("You cannot set the total charge if the charges are defined.")
         self.properties.tot_charge = value
         return
 

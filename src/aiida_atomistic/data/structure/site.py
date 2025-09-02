@@ -20,7 +20,6 @@ from . import (
     _atomic_masses,
     _MAGMOM_THRESHOLD,
     _SUM_THRESHOLD,
-    _DEFAULT_VALUES,
     _valid_symbols,
 )
 
@@ -68,7 +67,12 @@ class Site(BaseModel):
     """
     _mutable: t.ClassVar[bool] = True
 
-    model_config = ConfigDict(from_attributes = True,  frozen = False,  arbitrary_types_allowed = True)
+    model_config = ConfigDict(
+        from_attributes = True,
+        frozen = False,
+        arbitrary_types_allowed = True,
+        validate_assignment = True
+        )
 
     symbol: t.Union[str, t.List[str]] # validation is done in the check_is_alloy
     position: t.Union[np.ndarray[float]] = Field(min_length=3, max_length=3)
@@ -90,11 +94,10 @@ class Site(BaseModel):
         array_v.flags.writeable = False
         return array_v
 
+
     @model_validator(mode='before')
     def check_minimal_requirements(cls, data):
         from aiida_atomistic.data.structure.utils import check_is_alloy
-        if "symbol" not in data and cls._mutable.default:
-            data["symbol"] = "H"
 
         # here below we proceed as in the old Kind, where we detect if
         # we have an alloy (i.e. more than one element for the given site)
@@ -106,16 +109,21 @@ class Site(BaseModel):
         if (data.get("magmom", None) is not None) + (data.get("magnetization", None) is not None) > 1:
             raise ValueError(f"You can specify only one between magmom, magnetization: got {data.get('magmom', None)} and {data.get('magnetization', None)}")
 
+        # we always define masses.
         if "mass" not in data:
             data["mass"] = _atomic_masses[data["symbol"]]
         elif not data["mass"]:
             data["mass"] =  _atomic_masses[data["symbol"]]
-        #elif data["mass"]<=0:
-        #    raise ValueError("The mass of an atom must be positive")
+        elif data["mass"]<=0:
+            raise ValueError("The mass of an atom must be positive")
 
         # we do not automatically set kind_name!
         #if "kind_name" not in data:
         #    data["kind_name"] = data["symbol"]
+
+        for prop in data.keys():
+            if cls._mutable:
+                data[prop] = freeze_nested(data[prop])
 
         return data
 
@@ -201,7 +209,10 @@ class Site(BaseModel):
         :return: spherical theta and phi in unit rad
                 cartesian x y and z in unit ang
         """
-        if self.magmom == [0,0,0]:
+        if self.magmom is None:
+            return {"starting_magnetization": 0, "angle1": 0, "angle2": 0} if coord == "spherical" else [0, 0, 0]
+        elif self.magmom is not None and np.all(self.magmom == 0):
+            # array is all zeros
             return {"starting_magnetization": 0, "angle1": 0, "angle2": 0} if coord == "spherical" else [0, 0, 0]
 
         magmom = self.magmom
@@ -236,7 +247,7 @@ class Site(BaseModel):
         else:
             self.name = f"{name_string}{tag}"
 
-    def to_ase(self, kind_name):
+    def to_ase(self,):
         """Return a ase.Atom object for this site.
 
         :param kind_name: the list of kind_name from the StructureData object.
@@ -276,3 +287,14 @@ class Site(BaseModel):
         if tag is not None:
             aseatom.tag = tag
         return aseatom
+
+class FrozenSite(Site):
+
+    _mutable: t.ClassVar[bool] = False
+
+    model_config = ConfigDict(
+        from_attributes = True,
+        frozen = True,
+        arbitrary_types_allowed = True,
+        validate_assignment = True
+        )

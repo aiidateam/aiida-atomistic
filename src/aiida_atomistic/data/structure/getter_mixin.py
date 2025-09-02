@@ -13,6 +13,8 @@ from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
 )
 
+from aiida_atomistic.data.structure.utils import classify_site_kinds, check_kinds_match
+
 try:
     import ase  # noqa: F401
     from ase import io as ase_io
@@ -42,29 +44,11 @@ _SUM_THRESHOLD = 1.0e-6
 # Default cell
 _DEFAULT_CELL = ((0, 0, 0),) * 3
 
-_DEFAULT_PROPERTIES = {
-            'pbc',
-            'cell',
-            'sites',
-            'masses',
-            'kinds',
-            'symbols',
-            'positions',
-            'weights',
-            'custom', # experimental
-        }
-
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
-_DEFAULT_VALUES = {
-    "masses": 0,
-    "charges": 0,
-    "magmoms": [0, 0, 0],
-    "hubbard": None,
-    "weights": (1,)
-}
+from . import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES
 
 _DEFAULT_THRESHOLDS = {
             "charges": 0.1,
@@ -104,22 +88,47 @@ class GetterMixin(HubbardGetterMixin):
         return self.properties.formula
     # End redundant properties
 
+    @staticmethod
+    def get_supported_properties():
+        """
+        Get a dictionary of global and site properties that can be set
+        for this structure.
+        """
+        structure_fields = set(MutableStructureModel.model_fields.keys())
+        site_fields = set(Site.model_fields.keys())
+
+        return {
+            'global': structure_fields,
+            'site': site_fields
+        }
+
+    def get_defined_properties(self):
+        """
+            Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
+
+            Args:
+                exclude_computed (bool): If False, all properties will be returned, including those computed after the initialization (the pydantic computed fields).
+                exclude_defaults (bool): If True, properties with default values will be excluded from the result.
+        """
+        return set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys()).difference(_COMPUTED_PROPERTIES)
+
     @property
     def is_collinear(self):
-        if "magmoms" not in self.get_defined_properties():
+        # if not magmoms, is can be collinear if magnetizations are provided (just quantum number)
+        # if magmoms, we check that the rank of the magmoms matrix is one (if not, it is not collinear)
+        if self.properties.magmoms is None:
             return False
-        namelist = {"starting_magnetization":{},"angle1":{},"angle2":{}}
-        for site in self.properties.sites:
-            for variable in namelist.keys():
-                namelist[variable][site.kinds] = site.get_magmom_coord(coord="spherical")[variable]
-        return len(set([namelist["angle1"][site.kinds] for site in self.properties.sites])) == 1 and \
-            len(set([namelist["angle2"][site.kinds] for site in self.properties.sites])) == 1
+        if self.properties.magnetizations is not None:
+            return True
+        return np.linalg.matrix_rank(self.properties.magmoms) == 1
 
+
+    # initialization methods
     @classmethod
     def from_ase(
         cls,
         aseatoms: ASE_ATOMS_TYPE,
-        detect_kinds: bool = True):
+        detect_kinds: bool = False):
         """Load the structure from a ASE object"""
 
         if not has_ase:
@@ -138,13 +147,6 @@ class GetterMixin(HubbardGetterMixin):
 
         structure = cls(**data)
 
-        if detect_kinds:
-            data_kinds = structure.get_kinds()
-            data.pop('sites', None)
-            data.update(data_kinds)
-
-        structure = cls(**data)
-
         return structure
 
     @classmethod
@@ -152,7 +154,7 @@ class GetterMixin(HubbardGetterMixin):
         cls,
         filename,
         format="cif",
-        detect_kinds: bool = True,
+        detect_kinds: bool = False,
         **kwargs):
         """Load the structure from a file"""
 
@@ -164,7 +166,7 @@ class GetterMixin(HubbardGetterMixin):
     def from_pymatgen(
         cls,
         pymatgen_obj: t.Union[PYMATGEN_MOLECULE, PYMATGEN_STRUCTURE],
-        detect_kinds: bool = True,
+        detect_kinds: bool = False,
         **kwargs,
     ):
         """Load the structure from a pymatgen object.
@@ -187,7 +189,7 @@ class GetterMixin(HubbardGetterMixin):
         cls,
         mol: PYMATGEN_MOLECULE,
         margin=5,
-        detect_kinds: bool = True,
+        detect_kinds: bool = False,
         ):
         """Load the structure from a pymatgen Molecule object.
 
@@ -217,7 +219,7 @@ class GetterMixin(HubbardGetterMixin):
     def _from_pymatgen_structure(
         cls,
         struct: PYMATGEN_STRUCTURE,
-        detect_kinds: bool = True,
+        detect_kinds: bool = False,
         ):
         """Load the structure from a pymatgen Structure object.
 
@@ -294,98 +296,65 @@ class GetterMixin(HubbardGetterMixin):
             if "kind_name" in site.properties:
                 kind_name = site.properties["kinds"]
             else:
-                kind_name = site.label
+                kind_name = None
 
             site_info = {
-                "symbols": site.specie.symbol,
-                "masses": site.species.weight,
-                "positions": site.coords.tolist(),
-                "charges": site.properties.get("charge", 0.0),
-                'magmoms': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else [0,0,0]
+                "symbol": site.specie.symbol,
+                "mass": site.species.weight,
+                "position": site.coords.tolist(),
+                "charge": site.properties.get("charge", None),
+                'magmom': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else None
             }
 
             if kind_name is not None:
-                site_info["kinds"] = kind_name.replace("+", "").replace("-", "")
+                site_info["kind_name"] = kind_name.replace("+", "").replace("-", "")
 
             inputs["sites"].append(site_info)
 
         structure = cls(**inputs)
 
-        if detect_kinds:
-            inputs_kinds = structure.get_kinds()
-            inputs_kinds = structure.get_kinds()
-            inputs.pop('sites', None)
-            inputs.update(inputs_kinds)
-
-        structure = cls(**inputs)
-
         return structure
 
-    # @staticmethod
-    # def transform_sites_list(sites = [], return_undefined=False):
-    #     """
-    #     Transforms a list of site dictionaries into a dictionary of lists, where each key corresponds to a field
-    #     and the values are lists of the field values from each site. This is mainly used to provide the possibility
-    #     to define the list of sites in the StructureData constructor, as alternative way to do it. So, using this method
-    #     we build the list of properties as meant to be stored in the database.
+    # method for the kinds generation and validation
+    def generate_kinds(self,):
+        sites = self.to_dict()['sites']
+        groups = classify_site_kinds(sites)
+        kinds = []
+        kind_names = []
+        for i, (key, group) in enumerate(groups.items()):
+            for l in range(i+1):
+                kind_name = f"{group['properties']['symbol']}{l+1}"
+                if kind_name not in kind_names:
+                    kind_names.append(kind_name)
+                    break
+                else:
+                    continue
 
-    #     Args:
-    #         sites (list): A list of dictionaries, where each dictionary represents a site with various fields.
-    #         return_undefined (bool): If True, returns a set of fields that were not defined in any of the site dictionaries.
+            site_indices = group['sites']
+            properties = group['properties']
+            positions = group['positions']
+            properties['kind_name'] = kind_name
+            kind = {
+                'site_indices': site_indices,
+                'positions': positions,
+                **properties
+            }
+            kinds.append(kind)
+        return kinds
 
-    #     Returns:
-    #         dict or set: If return_undefined is False, returns a dictionary where keys are field names and values are lists
-    #                      of field values from each site. If return_undefined is True, returns a set of field names that were
-    #                      not defined in any of the site dictionaries. This is due to the fact that we cannot know a priori the default
-    #                      set of properties just looking at the lists like `charges` , `magmoms`... because the default cannot be established,
-    #                      they need to be computed wrt the number of sites (which cannot be predicted).
-    #     """
-    #     fields_list = Site.model_fields
-    #     fields_set = set()
-    #     transformed_dict = {k: [] for k in fields_list.keys()}
-    #     for item in sites:
-    #         for key in fields_list.keys():
-    #             transformed_dict[key].append(item[key] if key in item else _DEFAULT_VALUES[key])
-    #             if key in item.keys():
-    #                 fields_set.add(key)
+    def validate_kinds(self,):
+        if not self.kinds:
+            raise ValueError("No kinds defined in the structure.")
 
-    #     return transformed_dict if not return_undefined else set(fields_list).difference(fields_set)
+        generated_kinds = self.generate_kinds()
+        check_kinds = check_kinds_match(self, generated_kinds)
 
-    # @classmethod
-    # def from_sites_specs(cls, **kwargs):
-    #     if "sites" not in kwargs:
-    #         raise ValueError("The 'sites' key must be present in the input data")
+        if not check_kinds:
+            raise ValueError("The kinds defined in the structure do not match the generated kinds from the sites. Please run the 'generate_kinds' method to see the expected kinds.")
 
-    #     new_dict = copy.deepcopy(kwargs)
-    #     new_dict.pop("sites", None)
-    #     transformed_dict = cls.transform_sites_list(kwargs["sites"])
-    #     # here I check that for each site I do not have the default value for a property, otherwise I remove it.
-    #     # the reason is that in the site list, single sites will have all the properties defined, using default values;
-    #     # however, in the list of properties of the structure object, we will not find them (not stored in the db): we don't need to store
-    #     # default values in the db, we can access them from the sites instances.
-    #     new_transformed_dict = copy.deepcopy(transformed_dict)
 
-    #     # need to convert from singular to plural:
-    #     inverted_dict = {v: k for k, v in _CONVERSION_PLURAL_SINGULAR.items()}
-    #     convert_from_site_name = lambda s: inverted_dict.get(s, s)
-
-    #     for key, value in transformed_dict.items():
-    #         if key not in ["cell", "pbc", "custom", "hubbard"]:
-    #             # these are properties which will be always there!
-    #             # I would like to skip the masses as actually, if default, can be 1-to-1 mapped from the symbols
-    #             # but for now let's always keep them.
-    #             new_dict.pop(convert_from_site_name(key), None)
-    #             continue
-    #         if all(np.all(v == _DEFAULT_VALUES[key]) for v in value):
-    #             new_transformed_dict.pop(key, None)
-
-    #     new_transformed_dict.update(new_dict) # we update with new_dict, which now contains only non-site properties.
-    #     return cls(**new_transformed_dict)
-
-    def to_dict(
-            self,
-            detect_kinds: bool = False
-        ):
+    # TO methods:
+    def to_dict(self):
             """
             Convert the structure to a dictionary representation.
 
@@ -394,37 +363,9 @@ class GetterMixin(HubbardGetterMixin):
             :return: The structure as a dictionary.
             :rtype: dict
             """
-            dict_repr = copy.deepcopy(self.properties.model_dump())
-
-            if detect_kinds:
-                dict_repr_kinds = self.get_kinds()
-                dict_repr.pop('sites', None)
-                dict_repr.update(dict_repr_kinds)
-            # dict_repr = get_serialized_data(dict_repr)
+            dict_repr = copy.deepcopy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False))
 
             return dict_repr
-
-    @classmethod
-    def get_supported_properties(cls):
-        """Get a list of properties that can be set for this structure.
-        """
-        return set(MutableStructureModel.model_fields.keys())
-
-    def check_plugin_support(self, plugin_properties):
-        """
-        Check if the plugin supports the given properties.
-        :param plugin_properties: The supported properties in the plugin.
-        :return: The properties supported by the plugin but not excluded by the mixin.
-        :rtype: set
-        """
-
-        excluded_properties = self.get_supported_properties()
-        defined_properties = self.get_defined_properties()
-
-        excluded_properties = set(excluded_properties).union(excluded_properties)
-        defined_properties = set(defined_properties).union(defined_properties).difference(_DEFAULT_PROPERTIES)
-
-        return defined_properties.difference(plugin_properties)
 
     def get_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.
@@ -1001,7 +942,7 @@ class GetterMixin(HubbardGetterMixin):
             )
 
         for site in self.properties.sites:
-            asecell.append(site.to_ase(kinds=site.kinds))
+            asecell.append(site.to_ase())
 
         # asecell.set_initial_charges(self.get_site_property("charge"))
 
@@ -1090,10 +1031,10 @@ class GetterMixin(HubbardGetterMixin):
         else:
             # case when no spin are defined
             for site in self.properties.sites:
-                kind = site.kinds
+                kind = site.kind_name
                 specie = Specie(
-                    site.symbols,
-                    site.charges,
+                    site.symbol,
+                    site.charge,
                 )  # spin)
                 species.append(specie)
             # if any(
@@ -1113,7 +1054,7 @@ class GetterMixin(HubbardGetterMixin):
                 f"Unrecognized parameters passed to pymatgen converter: {kwargs.keys()}"
             )
 
-        positions = [list(x.positions) for x in self.properties.sites]
+        positions = [list(site.position) for site in self.properties.sites]
 
         try:
             return Structure(
@@ -1316,16 +1257,3 @@ class GetterMixin(HubbardGetterMixin):
         self,
     ):
         return len(self.properties.sites)
-
-    def get_defined_properties(self, exclude_computed = True, exclude_defaults=True):
-        """
-            Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
-
-            Args:
-                exclude_computed (bool): If False, all properties will be returned, including those computed after the initialization (the pydantic computed fields).
-                exclude_defaults (bool): If True, properties with default values will be excluded from the result.
-        """
-        computed_fields = set(self.properties.model_computed_fields.keys()) if exclude_computed else set()
-        return set(self.properties.model_dump(exclude_defaults=True).keys()).difference(self.properties.transform_sites_list(
-            self.properties.model_dump(exclude_defaults=True)["sites"],
-            return_undefined=True)).difference(computed_fields)

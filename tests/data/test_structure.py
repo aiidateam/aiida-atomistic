@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from aiida_atomistic.data.structure.structure import StructureData, StructureDataMutable
-from aiida_atomistic.data.structure.site import SiteImmutable
+from aiida_atomistic.data.structure.site import Site
 
 from pydantic import ValidationError
 

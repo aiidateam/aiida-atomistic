@@ -2,6 +2,7 @@ import copy
 import functools
 import re
 
+import typing as t
 import numpy as np
 
 from aiida.common.constants import elements
@@ -21,7 +22,8 @@ except ImportError:
 from aiida.engine import calcfunction
 from aiida.orm import List
 
-from .structure import StructureData
+
+from . import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES, _CONVERSION_PLURAL_SINGULAR
 
 # Threshold used to check if the mass of two different Site objects is the same.
 
@@ -30,6 +32,7 @@ _MASS_THRESHOLD = 1.0e-3
 _SUM_THRESHOLD = 1.0e-6
 # Default cell
 _DEFAULT_CELL = ((0, 0, 0), (0, 0, 0), (0, 0, 0))
+
 
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
@@ -803,25 +806,25 @@ def set_symbols_and_weights(new_data):
 
         .. note:: Note that the kind name remains unchanged.
         """
-        symbols_tuple = _create_symbols_tuple(new_data["symbols"]) if isinstance(new_data["symbols"], str) else new_data["symbols"]
+        symbols_tuple = _create_symbols_tuple(new_data["symbol"]) if isinstance(new_data["symbol"], str) else new_data["symbol"]
         for symbol in symbols_tuple:
             if symbol not in _valid_symbols:
                 raise ValueError(f'This is not a valid element: {symbol}')
-        weights_tuple = _create_weights_tuple(new_data["weights"])
+        weights_tuple = _create_weights_tuple(new_data["weight"])
         if len(symbols_tuple) != len(weights_tuple):
             raise ValueError('The number of symbols and weights must coincide.')
         validate_symbols_tuple(symbols_tuple)
 
         validate_weights_tuple(weights_tuple, _SUM_THRESHOLD)
         new_data["alloy"] = symbols_tuple
-        new_data["weights"] = weights_tuple
+        new_data["weight"] = weights_tuple
 
-        if "masses" not in new_data.keys() or np.isnan(new_data.get("masses", None)) or new_data.get("masses", None) == 0:
+        if "mass" not in new_data.keys() or np.isnan(new_data.get("mass", None)) or new_data.get("mass", None) == 0:
             # Weighted mass
             w_sum = sum(weights_tuple)
             normalized_weights = (i / w_sum for i in weights_tuple)
             element_masses = (_atomic_masses[sym] for sym in symbols_tuple)
-            new_data["masses"] = sum(i * j for i, j in zip(normalized_weights, element_masses))
+            new_data["mass"] = sum(i * j for i, j in zip(normalized_weights, element_masses))
 
 def check_is_alloy(data):
     """Check if the data is an alloy or not.
@@ -830,7 +833,7 @@ def check_is_alloy(data):
     :return: True if the data is an alloy, False otherwise.
     """
     new_data = copy.deepcopy(data)
-    if "weights" not in new_data.keys() or new_data.get("weights", None) is None:
+    if "weight" not in new_data.keys() or new_data.get("weight", None) is None:
         return new_data
     if len(new_data.get("weight", [1,])) == 1:
         if new_data["symbol"] not in _valid_symbols:
@@ -839,14 +842,16 @@ def check_is_alloy(data):
     set_symbols_and_weights(new_data)
     return new_data
 
+def check_plugin_support(structure, plugin_properties: set) -> set:
+    """
+    Check if the plugin supports the given properties.
+    :param plugin_properties: The supported properties in the plugin.
+    :return: the defined properties which are not supported by the plugin
+    :rtype: set
+    """
 
-@calcfunction
-def generate_striped_structure(structure: StructureData, to_be_striped: List) -> StructureData:
-    """Return a stripped version of the input structure."""
-    mutable = structure.get_value()
-    for key in to_be_striped:
-        mutable = mutable.clear_property(key)
-    return StructureData.from_mutable(mutable, detect_kinds=True)
+    defined_properties = structure.get_defined_properties()
+    return defined_properties.difference(plugin_properties)
 
 
 def order_k(k):
@@ -869,3 +874,178 @@ def order_k(k):
         if  i-1 not in k:
             k[np.where(k >=i )] -= 1
     return k
+
+def compress_properties_by_kind(props):
+    """
+    Compress site-wise properties into kind-wise lists.
+    Returns a dict with properties as lists, one entry per kind.
+    """
+    import numpy as np
+
+    if not props.get("kind_names", None):
+        raise ValueError("The input properties must contain 'kind_names' information.")
+
+    kind_names_array = np.array(props["kind_names"])
+
+    site_props = set(props.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites"])
+
+
+    compressed = {prop: [] if prop in site_props.union(["site_indices"]) else props.get(prop, None) for prop in site_props.union(["site_indices"]).union(_GLOBAL_PROPERTIES)}
+
+    for kind_name in set(props["kind_names"]):
+        site_indices = np.where(kind_names_array == kind_name)[0]
+        for prop in site_props:
+            if prop == "positions":
+                compressed[prop].append([props[prop][i] for i in site_indices])
+            elif prop in props:
+                compressed[prop].append(props[prop][site_indices[0]])
+            else:
+                compressed.pop(prop)
+        compressed["site_indices"].append(site_indices.tolist())
+
+    for prop in _GLOBAL_PROPERTIES:
+        if compressed.get(prop, None) is None:
+            compressed.pop(prop, None)
+
+    return compressed
+
+
+def rebuild_site_lists_from_kind_lists(compressed):
+    """
+    Expand kinds into a list of site dictionaries, sorted by site_index.
+    """
+    site_props = set(compressed.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites","site_indices"])
+    expanded = {prop: [] if prop in site_props.union(["site_indices"]) else compressed.get(prop, None) for prop in site_props.union(["site_indices"]).union(_GLOBAL_PROPERTIES)}
+
+    for i, site_indices in enumerate(compressed["site_indices"]):
+        for prop in site_props:
+            if prop == "positions":
+                expanded[prop].extend(compressed[prop][i])
+            elif prop == "site_indices":
+                continue
+            elif prop in compressed:
+                expanded[prop].extend([compressed[prop][i]] * len(site_indices))
+            else:
+                expanded.pop(prop)
+
+        expanded["site_indices"] += site_indices
+
+    # Reorder by site_index
+    order = np.argsort(expanded["site_indices"])
+    for prop in site_props.union(["site_indices"]):
+        if prop in expanded:
+            expanded[prop] = [expanded[prop][i] for i in order]
+
+    for prop in _GLOBAL_PROPERTIES:
+        if expanded.get(prop, None) is None:
+            expanded.pop(prop, None)
+
+    expanded.pop("site_indices")
+
+    return expanded
+
+
+def build_sites_from_expanded_properties(expanded):
+    """
+    Build the structure dictionary from expanded site-wise lists of properties.
+    """
+
+    # Use all keys except positions if you want to exclude arrays, or specify your own
+    site_props = set(expanded.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites", "site_indices"])
+
+    n_sites = len(expanded["positions"])
+    sites = []
+    for i in range(n_sites):
+        site = {}
+        site["position"] = expanded["positions"][i]
+        for prop in site_props:
+            site[_CONVERSION_PLURAL_SINGULAR[prop]] = expanded[prop][i]
+        sites.append(site)
+
+    structure_dict = {}
+    for prop in _GLOBAL_PROPERTIES:
+        if expanded.get(prop, None) is not None:
+            structure_dict[prop] = expanded[prop]
+
+    structure_dict["sites"] = sites
+
+    return structure_dict
+
+
+def classify_site_kinds(sites:list, exclude_props:bool=None, tolerance:t.Union[dict, float]=1e-3):
+    """
+    Classify sites into groups where each group (kind) has the same properties except position.
+
+    Args:
+        sites: List of site dictionaries
+        exclude_props: Set of property names to exclude from grouping (default: {'position'})
+        tolerance: Numerical tolerance for floating point comparisons (default: 1e-6)
+
+    Returns:
+        dict: {group_key: {'sites': [site_indices], 'properties': {prop: value}}}
+    """
+    import numpy as np
+    from collections import defaultdict
+
+    if exclude_props is None:
+        exclude_props = {'position'}
+
+    def normalize_value(value, tol=tolerance):
+        """Normalize values for consistent comparison."""
+        if isinstance(value, np.ndarray):
+            # Round numpy arrays to tolerance
+            normalized = np.round(value / tol) * tol
+            return tuple(normalized.tolist())
+        elif isinstance(value, (float, np.floating)):
+            # Round floats to tolerance
+            return round(value / tol) * tol
+        elif isinstance(value, (int, np.integer)):
+            return int(value)
+        elif value is None:
+            return None
+        else:
+            return value
+
+    groups = defaultdict(lambda: {'sites': [], 'positions': [], 'properties': {}})
+
+    for i, site in enumerate(sites):
+        # Create a hashable key from normalized properties
+        key_props = {}
+        for prop, value in site.items():
+            if prop not in exclude_props:
+                normalized_value = normalize_value(value, tolerance)
+                key_props[prop] = normalized_value
+
+        # Create a hashable key containing both property names and their normalized values, so it is a unique identifier
+        key = tuple(sorted(key_props.items()))
+
+        # Add site index to this group (or this specific hashable key)
+        groups[key]['sites'].append(i)
+        groups[key]['positions'].append(site['position'])
+
+        # Store the original properties (first occurrence)
+        if not groups[key]['properties']:
+            groups[key]['properties'] = {
+                prop: normalize_value(value, tolerance) for prop, value in site.items()
+                if prop not in exclude_props
+            }
+
+    return dict(groups)
+
+# Usage example:
+# groups = classify_site_kinds(m.to_dict()['sites'])
+# for i, (key, group) in enumerate(groups.items()):
+#     print(f"Group {i+1}:")
+#     print(f"  Sites: {group['sites']}")
+#     print(f"  Positions: {group['positions']}")
+#     print(f"  Properties: {group['properties']}")
+#     print()
+
+def check_kinds_match(structure, kinds_list):
+    check_kinds = []
+    kind_names_indices = [kind['site_indices'] for kind in kinds_list]
+    for kind in structure.kinds:
+        site_indices = kind.site_indices
+        check_kinds.append(site_indices in kind_names_indices)
+
+    return all(check_kinds)

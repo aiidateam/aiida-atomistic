@@ -10,6 +10,7 @@ import copy
 import functools
 import json
 import typing as t
+import numpy as np
 
 from aiida import orm
 from aiida.common.constants import elements
@@ -56,7 +57,7 @@ _DEFAULT_VALUES = {
     "kind_name": "",
     "mass": 0,
     "charge": 0,
-    "magmom": [0, 0, 0],
+    "magmom": np.array([0, 0, 0]),
     "magnetization": 0,
     "hubbard": None,
     "weight": (1,)
@@ -80,6 +81,16 @@ _GLOBAL_PROPERTIES = [
     "cell",
     "custom",
     "hubbard",
-    "cell_magmom",
-    "cell_charge",
+    "tot_magmom",
+    "tot_charge",
+]
+
+
+_COMPUTED_PROPERTIES = [
+    "kinds",
+    "cell_volume",
+    "dimensionality",
+    "formula",
+    "is_alloy",
+    "has_vacancies",
 ]

@@ -12,18 +12,16 @@ from aiida import orm
 from aiida.common.constants import elements
 from aiida.orm.nodes.data import Data
 
-from aiida_atomistic.data.structure.site import Site, FrozenList, freeze_nested
+from aiida_atomistic.data.structure.site import Site, FrozenList, freeze_nested, FrozenSite
 from aiida_atomistic.data.structure.kind import Kind
 
 from aiida_quantumespresso.common.hubbard import Hubbard
 
 from aiida_atomistic.data.structure import (
     _atomic_masses,
-    _DEFAULT_VALUES,
     _DEFAULT_CELL,
     _DEFAULT_PBC,
-    _GLOBAL_PROPERTIES,
-    _CONVERSION_PLURAL_SINGULAR,
+    _DEFAULT_VALUES,
 )
 
 class StructureBaseModel(BaseModel):
@@ -65,6 +63,7 @@ class StructureBaseModel(BaseModel):
         from_attributes = True
         frozen = False
         arbitrary_types_allowed = True
+        #validate_assignment = True
 
     @field_validator('cell', mode='before')
     @classmethod
@@ -100,10 +99,29 @@ class StructureBaseModel(BaseModel):
                 "cell": data.get("cell", cls.model_fields["cell"].default)
             }
 
-
-        _check_valid_sites(data["sites"])
-
         return data
+
+    @field_validator('sites', mode='before')
+    def validate_sites(cls, v):
+        """Validate the list of sites."""
+        from aiida_atomistic.data.structure.utils import _check_valid_sites
+
+        if v is None:
+            return v
+        else:
+            # test if they can be converted to Site
+            sites = [Site.model_validate(site) if not isinstance(site, Site) else site for site in v]
+
+        _check_valid_sites(v)
+
+        return v
+
+    @field_validator('sites', mode='after')
+    def freeze_sites(cls, v):
+        """Freeze the list of sites if the structure is immutable."""
+        if not cls._mutable and v is not None:
+            return freeze_nested(v)
+        return v
 
     # computed properties
     @computed_field
@@ -176,7 +194,7 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.kind_name is None for site in self.sites):
             return None
-        return [site.kind_name for site in self.sites]
+        return [site.kind_name if site.kind_name is not None else site.symbol for site in self.sites]
 
     @computed_field
     def symbols(self) -> t.List[str]:
@@ -212,7 +230,7 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.charge is None for site in self.sites):
             return None
-        return np.array([site.charge for site in self.sites])
+        return np.array([site.charge if site.charge else _DEFAULT_VALUES['charge'] for site in self.sites])
 
     @computed_field
     def magmoms(self) -> np.ndarray:
@@ -238,7 +256,7 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.magnetization is None for site in self.sites):
             return None
-        return np.array([site.magnetization for site in self.sites])
+        return np.array([site.magnetization if site.magnetization is not None else _DEFAULT_VALUES['magnetization'] for site in self.sites])
 
     @computed_field
     def weights(self) -> t.List[t.Tuple[float, ...]]:
@@ -250,7 +268,7 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.weight is None for site in self.sites):
             return None
-        return [site.weight for site in self.sites]
+        return [site.weight if site.weight is not None else _DEFAULT_VALUES['weight'] for site in self.sites]
 
 
     @computed_field
@@ -258,43 +276,26 @@ class StructureBaseModel(BaseModel):
         """
         Return the reduced set of kinds, grouping sites that share all properties except positions and site_indices.
         """
-        # Group sites by their kind-defining properties (excluding positions and site_indices)
+        # Group sites by their kind_name. Here there is no kinds validation, just grouping.
+        # the validation can be done with the dedicated method validate_kinds
 
         if not self.kind_names:
-            #raise ValueError("Kind names must be defined to compute kinds.")
+            #raise ValueError("Kind names must be defined to access kinds.")
             return None
 
-        kind_map = defaultdict(list)
-        for idx, site in enumerate(self.sites):
-            # Build a tuple of properties that define a kind (excluding position and site_indices)
-            kind_key = (
-                site.symbol,
-                site.kind_name,
-                site.mass,
-                site.charge,
-                tuple(site.magmom) if isinstance(site.magmom, (list, np.ndarray)) else site.magmom,
-                site.magnetization,
-                tuple(site.weight) if isinstance(site.weight, (list, np.ndarray)) else site.weight,
-                # add other relevant properties here
-            )
-            kind_map[kind_key].append(idx)
-
         kinds_list = []
-        for kind_key, indices in kind_map.items():
-            # Collect positions for all sites of this kind
-            positions = np.array([self.positions[i] for i in indices])
-            kind = Kind(
-                symbol=kind_key[0],
-                kind_name=kind_key[1],
-                mass=kind_key[2],
-                charge=kind_key[3],
-                magmom=np.array(kind_key[4]) if kind_key[4] is not None else None,
-                magnetization=kind_key[5],
-                weight=kind_key[6],
-                positions=positions,
-                site_indices=indices,
-            )
-            kinds_list.append(kind)
+        kind_name_set = set(self.kind_names)
+        for idx, site in enumerate(self.sites):
+            if site.kind_name in kind_name_set:
+                site_indices = [i for i, name in enumerate(self.kind_names) if name == site.kind_name]
+                positions=np.array([self.positions[i] for i in site_indices])
+                kind = Kind(
+                    **site.model_dump(exclude={'position'}),
+                    site_indices=site_indices,
+                    positions=positions,
+                )
+                kinds_list.append(kind)
+                kind_name_set.remove(site.kind_name)  # Ensure we don't add the same kind multiple
 
         return FrozenList(kinds_list)
 
@@ -326,6 +327,11 @@ class ImmutableStructureModel(StructureBaseModel):
         arbitrary_types_allowed (bool): Flag indicating whether arbitrary types are allowed or not.
     """
     _mutable = False
+
+    sites: t.Optional[list[FrozenSite]] = Field(
+        default=None,
+        description="List of sites in the structure",
+    )
 
     class Config:
         from_attributes = True
