@@ -92,6 +92,13 @@ class ObservedArray(np.ndarray):
         if obj is None:
             return
 
+def efficient_copy(self):
+    # Only copy mutable parts, this is much more efficient than using always copy.deepcopy.
+    return self.__class__(**{
+        k: v if isinstance(v, (str, int, float, tuple)) else copy.deepcopy(v)
+        for k, v in self.items()
+    })
+
 def _get_valid_cell(inputcell):
     """Return the cell in a valid format from a generic input.
 
@@ -141,16 +148,29 @@ def _get_valid_pbc(inputpbc):
     return the_pbc
 
 def _check_valid_sites(sites):
+    """Check that no two sites have positions that are too close to each other."""
 
-    num_sites = len(sites)
+    positions = np.array([site['position'] for site in sites])
+    n_sites = len(positions)
 
-    for i in range(num_sites):
-        for j in range(num_sites):
-            if j == i:
-                continue
-            if np.allclose(sites[i]["position"], sites[j]["position"], atol=1e-3):
-                raise ValueError(f"Sites {i+1} and {j+1} cannot have the same position!")
+    if n_sites <= 1:
+        return
 
+    # Calculate pairwise distances using broadcasting (this is much more efficient than loops...)
+    diff = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]  # Shape: (n_sites, n_sites, 3)
+    distances = np.linalg.norm(diff, axis=2)  # Shape: (n_sites, n_sites)
+
+    # Set diagonal to large value to ignore self-comparisons
+    np.fill_diagonal(distances, np.inf)
+
+    # Check if any distance is below threshold
+    min_distance = 1e-3  # You can adjust this threshold
+    close_pairs = np.where(distances < min_distance)
+
+    if len(close_pairs[0]) > 0:
+        i, j = close_pairs[0][0], close_pairs[1][0]  # Get first problematic pair
+        raise ValueError(f"Sites {i} and {j} have positions that are too close: "
+                       f"{positions[i]} and {positions[j]} (distance: {distances[i,j]:.6f})")
     return
 
 
@@ -350,7 +370,7 @@ def group_symbols(_list):
     :param _list: a list of elements representing a chemical formula
     :return: a list of length-2 lists of the form [ multiplicity , element ]
     """
-    the_list = copy.deepcopy(_list)
+    the_list = efficient_copy(_list)
     the_list.reverse()
     grouped_list = [[1, the_list.pop()]]
     while the_list:
@@ -428,7 +448,7 @@ def get_formula_group(symbol_list, separator=""):
             ``group_together(['O','Ba','Ti','Ba','Ti'],2,1) =
                 ['O',['Ba','Ti'],['Ba','Ti']]``
         """
-        the_list = copy.deepcopy(_list)
+        the_list = efficient_copy(_list)
         the_list.reverse()
         grouped_list = []
         for _ in range(offset):
@@ -467,14 +487,14 @@ def get_formula_group(symbol_list, separator=""):
         :return the_symbol_list: the new grouped symbol list
         :return has_grouped: True if we grouped something
         """
-        the_symbol_list = copy.deepcopy(_list)
+        the_symbol_list = efficient_copy(_list)
         has_grouped = False
         offset = 0
         while not has_grouped and offset < group_size:
             grouped_list = group_together(the_symbol_list, group_size, offset)
             new_symbol_list = group_symbols(grouped_list)
             if len(new_symbol_list) < len(grouped_list):
-                the_symbol_list = copy.deepcopy(new_symbol_list)
+                the_symbol_list = efficient_copy(new_symbol_list)
                 the_symbol_list = cleanout_symbol_list(the_symbol_list)
                 has_grouped = True
                 # print get_formula_from_symbol_list(the_symbol_list)
@@ -490,7 +510,7 @@ def get_formula_group(symbol_list, separator=""):
         """
         has_finished = False
         group_size = 2
-        the_symbol_list = copy.deepcopy(_list)
+        the_symbol_list = efficient_copy(_list)
 
         while not has_finished and group_size <= len(_list) // 2:
             # try to group as much as possible by groups of size group_size
@@ -511,7 +531,7 @@ def get_formula_group(symbol_list, separator=""):
     # successively apply the grouping procedure until the symbol list does not
     # change anymore
     while new_symbol_list != old_symbol_list:
-        old_symbol_list = copy.deepcopy(new_symbol_list)
+        old_symbol_list = efficient_copy(new_symbol_list)
         new_symbol_list = group_all_together_symbols(old_symbol_list)
 
     return get_formula_from_symbol_list(new_symbol_list, separator=separator)
@@ -832,7 +852,7 @@ def check_is_alloy(data):
     :param data: the data to check. The dict of the SiteCore model.
     :return: True if the data is an alloy, False otherwise.
     """
-    new_data = copy.deepcopy(data)
+    new_data = efficient_copy(data)
     if "weight" not in new_data.keys() or new_data.get("weight", None) is None:
         return new_data
     if len(new_data.get("weight", [1,])) == 1:
@@ -953,7 +973,7 @@ def build_sites_from_expanded_properties(expanded):
     # Use all keys except positions if you want to exclude arrays, or specify your own
     site_props = set(expanded.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites", "site_indices"])
 
-    n_sites = len(expanded["positions"])
+    n_sites = len(expanded.get("positions",[]))
     sites = []
     for i in range(n_sites):
         site = {}
@@ -1089,7 +1109,7 @@ def sites_from_kinds(kinds):
         positions += kind['positions']
     num_sites = len(sites_list)
     for i in range(num_sites):
-        sites_list[i] = copy.deepcopy(kinds[sites_list[i]])
+        sites_list[i] = efficient_copy(kinds[sites_list[i]])
         sites_list[i].pop('site_indices', None)
         sites_list[i].pop('positions', None)
         sites_list[i]['position'] = positions[i]

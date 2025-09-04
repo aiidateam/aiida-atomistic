@@ -51,13 +51,17 @@ class FrozenList(list):
     Usage:
     >>> my_list = FrozenList([1, 2, 3])
     >>> my_list[0] = 4
-    ValueError: This list is immutable
+    ValueError: This list is immutable...
     """
 
     def __setitem__(self, index, value):
-        raise ValueError("This list is immutable. Site properties cannot be modified. \
-            Please modify them using the `update_site` method of the structure class instance. \
-                If your object is the AiiDA immutable `StructureData` object, you can create a mutable copy of it using its `get_value` method.")
+        raise ValueError(
+            """
+            This list is immutable. Site properties cannot be modified.
+            Please modify them using the `set_<property>` method of the structure class instance (where <property> is the plural of the site property name).
+            If your object is the AiiDA immutable `StructureData` object, you can create a mutable copy of it using its `get_value` method.
+            """
+        )
 
 class Site(BaseModel):
     """This class contains the core information about a given site of the system.
@@ -156,7 +160,7 @@ class Site(BaseModel):
         return not 1.0 - sum(self.weight) < _SUM_THRESHOLD
 
     @classmethod
-    def atom_to_site(
+    def from_ase_atom(
         cls,
         aseatom: t.Optional[ase.Atom] = None,
         **kwargs
@@ -175,17 +179,15 @@ class Site(BaseModel):
                 "kind_name": aseatom.symbol + str(aseatom.tag),
                 "position": aseatom.position.tolist(),
                 "mass": aseatom.mass,
-                "charge": aseatom.charge,
-                "magmom": None,
             }
-            if not aseatom.charge:
-                properties_from_Atom.pop('charge')
-            if aseatom.magmom is None:
-                properties_from_Atom.pop('magmom')
-            elif isinstance(aseatom.magmom, (int, float)):
-                properties_from_Atom['magmom'] = [aseatom.magmom, 0, 0]
-            else:
-                properties_from_Atom['magmom'] = aseatom.magmom
+            if aseatom.charge != 0:
+                properties_from_Atom['charge'] = aseatom.charge
+            if isinstance(aseatom.magmom, (int, float)):
+                if aseatom.magmom != 0:
+                    properties_from_Atom['magnetization'] = aseatom.magmom
+            elif isinstance(aseatom.magmom, (list, np.ndarray)):
+                if np.linalg.norm(aseatom.magmom) > 0:
+                    properties_from_Atom['magmom'] = aseatom.magmom
 
             new_site = cls(**properties_from_Atom)
         else:
@@ -261,20 +263,20 @@ class Site(BaseModel):
         tag_list = []
         used_tags = defaultdict(list)
 
-        required_properties = set(["symbol", "position", "mass", "charge", "magmom"])
+        #required_properties = set(["symbol", "position", "mass", "charge", "magmom"])
 
         # we should put a small routine to do tags. or instead of kind_name, provide the tag (or tag mapping).
         tag = None
         atom_dict = self.model_dump()
         atom_dict["symbol"] = atom_dict.pop("symbol", None)
         atom_dict["position"] = atom_dict.pop("position", None)
-        atom_dict["magmom"] = atom_dict.pop("magmom", None)
-        atom_dict["momentum"] = atom_dict.pop("momenta", None)
+        atom_dict["magmom"] = atom_dict.pop("magmom", atom_dict.pop("magnetization", None))
+        atom_dict["momentum"] = atom_dict.pop("momentum", None)
         atom_dict["charge"] = atom_dict.pop("charge", None)
         atom_dict["mass"] = atom_dict.pop("mass", None)
         atom_dict["tag"] = atom_dict.pop("kind_name", None)
-        for prop in set(self.model_dump().keys()).difference(required_properties):
-            atom_dict.pop(prop,None)
+        #for prop in set(self.model_dump().keys()).difference(required_properties):
+        #    atom_dict.pop(prop,None)
         aseatom = ase.Atom(
             **atom_dict
         )

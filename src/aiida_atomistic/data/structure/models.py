@@ -2,7 +2,7 @@ import copy
 import functools
 import json
 import typing as t
-from pydantic import BaseModel, Field, field_validator, ConfigDict, computed_field, model_validator, field_serializer
+from pydantic import BaseModel, Field, field_validator, ConfigDict, computed_field, model_validator
 import numpy as np
 import warnings
 
@@ -48,14 +48,14 @@ class StructureBaseModel(BaseModel):
     )
 
     sites: list[Site] = Field(
-        default=None,
+        default=[],
         description="List of sites in the structure",
     )
 
     # global and more specific properties
     tot_magnetization: t.Optional[float] = Field(default=None)
     tot_charge: t.Optional[float] = Field(default=None)
-    hubbard: t.Optional[Hubbard] = Field(default=None) #Hubbard(parameters=[]))
+    hubbard: t.Optional[Hubbard] = Field(default=Hubbard(parameters=[])) # to have access to the methods.
 
     custom: t.Optional[dict] = Field(default=None)
 
@@ -96,8 +96,14 @@ class StructureBaseModel(BaseModel):
             # if no symbols, no positions, we just return the pbc and cell
             return {
                 "pbc": data.get("pbc", cls.model_fields["pbc"].default),
-                "cell": data.get("cell", cls.model_fields["cell"].default)
+                "cell": data.get("cell", cls.model_fields["cell"].default),
+                "sites": []
             }
+
+        # explicitly set default values for pbc and cell if not provided, so in the self.get_defined_properties() they are always there
+        for global_property in ['pbc', 'cell']:
+            if global_property not in data:
+                data[global_property] = cls.model_fields[global_property].default
 
         return data
 
@@ -194,7 +200,7 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.kind_name is None for site in self.sites):
             return None
-        return [site.kind_name if site.kind_name is not None else site.symbol for site in self.sites]
+        return FrozenList([site.kind_name if site.kind_name is not None else site.symbol for site in self.sites])
 
     @computed_field
     def symbols(self) -> t.List[str]:
@@ -206,7 +212,7 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.symbol is None for site in self.sites):
             return None
-        return [site.symbol for site in self.sites]
+        return FrozenList([site.symbol for site in self.sites])
 
     @computed_field
     def masses(self) -> np.ndarray:
@@ -268,7 +274,7 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.weight is None for site in self.sites):
             return None
-        return [site.weight if site.weight is not None else _DEFAULT_VALUES['weight'] for site in self.sites]
+        return FrozenList([site.weight if site.weight is not None else _DEFAULT_VALUES['weight'] for site in self.sites])
 
 
     @computed_field

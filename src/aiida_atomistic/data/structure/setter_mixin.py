@@ -130,7 +130,7 @@ class SetterMixin(HubbardSetterMixin):
 
     def append_atom(self, index=-1, **atom_info):
 
-        new_site = Site.atom_to_site(**atom_info)
+        new_site = Site(**atom_info)
         # I look for identical species only if the name is not specified
         # _kinds = self.kinds
 

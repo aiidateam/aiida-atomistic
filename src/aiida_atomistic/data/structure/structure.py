@@ -26,7 +26,7 @@ class StructureData(Data, GetterMixin):
         self._properties = ImmutableStructureModel(sites=sites, **kwargs)
         super().__init__()
 
-        if validate_kinds:
+        if validate_kinds and self.kinds is not None:
             self.validate_kinds()
 
         attributes = self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False)
@@ -60,6 +60,8 @@ class StructureData(Data, GetterMixin):
             raise ValueError(f"Input structure should be of type StructureDataMutable, not {type(mutable_structure)}")
         return cls(validate_kinds=validate_kinds, **mutable_structure.to_dict(exclude_kinds=True))
 
+    def to_mutable(self,):
+        return StructureDataMutable(**self.to_dict())
 
     def get_value(self):
         return StructureDataMutable(**self.to_dict())

@@ -13,7 +13,7 @@ from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
 )
 
-from aiida_atomistic.data.structure.utils import classify_site_kinds, check_kinds_match
+from aiida_atomistic.data.structure.utils import classify_site_kinds, check_kinds_match, efficient_copy
 
 try:
     import ase  # noqa: F401
@@ -128,7 +128,7 @@ class GetterMixin(HubbardGetterMixin):
     def from_ase(
         cls,
         aseatoms: ASE_ATOMS_TYPE,
-        detect_kinds: bool = False):
+        detect_kinds: bool = True):
         """Load the structure from a ASE object"""
 
         if not has_ase:
@@ -142,8 +142,9 @@ class GetterMixin(HubbardGetterMixin):
         data["sites"] = []
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
-            new_site = Site.atom_to_site(aseatom=atom)
-            data["sites"].append(new_site.model_dump())
+            new_site = Site.from_ase_atom(aseatom=atom)
+            data["sites"].append(new_site.model_dump(exclude={"kind_name"} if not detect_kinds else None))
+
 
         structure = cls(**data)
 
@@ -156,11 +157,17 @@ class GetterMixin(HubbardGetterMixin):
         format="cif",
         detect_kinds: bool = False,
         **kwargs):
-        """Load the structure from a file"""
+        """Load the structure from a file."""
 
-        ase_read = ase_io.read(filename, format=format, **kwargs)
-
-        return cls.from_ase(aseatoms=ase_read, detect_kinds=detect_kinds)
+        if format == 'mcif' or '.mcif' in filename:
+            # in this case, we use pymatgen parser, because the ase one does not work properly for now.
+            from pymatgen.io.cif import CifParser
+            parser  = CifParser(filename)
+            mcif_structure   = parser.get_structures(**kwargs)[0]
+            return cls.from_pymatgen(pymatgen_obj=mcif_structure, detect_kinds=detect_kinds)
+        else:
+            ase_read = ase_io.read(filename, format=format, **kwargs)
+            return cls.from_ase(aseatoms=ase_read, detect_kinds=detect_kinds)
 
     @classmethod
     def from_pymatgen(
@@ -293,21 +300,28 @@ class GetterMixin(HubbardGetterMixin):
         sites_collection = struct.properties["sites"] if "sites" in struct.properties.keys() else struct.sites
         for site in sites_collection:
 
-            if "kind_name" in site.properties:
-                kind_name = site.properties["kinds"]
-            else:
-                kind_name = None
-
             site_info = {
                 "symbol": site.specie.symbol,
                 "mass": site.species.weight,
                 "position": site.coords.tolist(),
-                "charge": site.properties.get("charge", None),
                 'magmom': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else None
             }
 
-            if kind_name is not None:
-                site_info["kind_name"] = kind_name.replace("+", "").replace("-", "")
+
+            if site.properties.get('kinds', None) is not None:
+                site_info["kind_name"] = site.properties.get('kinds').replace("+", "").replace("-", "")
+
+            if bool(site.properties.get('charge', None)):
+                site_info["charge"] = site.properties.get("charge")
+
+            if site.properties.get('magmom', None) is not None:
+                magmom = site.properties.get("magmom").moment
+                if isinstance(magmom, (int, float)):
+                    if magmom != 0:
+                        site_info['magnetization'] = magmom
+                elif isinstance(magmom, (list, np.ndarray)):
+                    if np.linalg.norm(magmom) > 0:
+                        site_info['magmom'] = magmom
 
             inputs["sites"].append(site_info)
 
@@ -363,9 +377,25 @@ class GetterMixin(HubbardGetterMixin):
             :return: The structure as a dictionary.
             :rtype: dict
             """
-            dict_repr = copy.deepcopy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False, exclude={'kinds'} if exclude_kinds else {}))
+            dict_repr = efficient_copy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False, exclude={'kinds'} if exclude_kinds else {}))
 
             return dict_repr
+
+    def to_kinds_based(self, tolerance:t.Union[dict, float]=1e-3):
+        """
+        Convert the structure to a kinds-based representation.
+
+        :param tolerance: Tolerance for grouping sites into kinds. Can be a float or a dictionary specifying tolerances for specific properties.
+        :type tolerance: float or dict, optional
+        :return: The structure as a dictionary with kinds.
+        :rtype: dict
+        """
+        dict_repr = self.to_dict(exclude_kinds=True)
+        dict_repr['kinds'] = self.generate_kinds(tolerance=tolerance)
+        dict_repr.pop('sites', None)
+
+        return self.__class__(**dict_repr)
+
 
     def get_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.

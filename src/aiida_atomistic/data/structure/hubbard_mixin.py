@@ -187,12 +187,12 @@ class HubbardSetterMixin:
     def _get_one_kind_index(self, kinds: str) -> List[int]:
         """Return the first site index matching with `kinds`."""
         for i, site in enumerate(self.properties.sites):
-            if site.kinds == kinds:
+            if site.kind_name == kinds:
                 return [i]
 
     def _get_symbol_indices(self, symbol: str) -> List[int]:
         """Return one site index for each kind name matching symbol."""
-        matching_kinds = [kind for kind, symbols in zip(self.properties.kinds,self.properties.symbols)
+        matching_kinds = [kind for kind, symbols in zip(self.properties.kind_names,self.properties.symbols)
                           if symbol == symbols]
 
-        return [self.properties.kinds.index(kind) for kind in matching_kinds]
+        return [self.properties.kind_names.index(kind) for kind in matching_kinds]
