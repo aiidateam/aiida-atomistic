@@ -292,8 +292,9 @@ class StructureBaseModel(BaseModel):
         kinds_list = []
         kind_name_set = set(self.kind_names)
         for idx, site in enumerate(self.sites):
-            if site.kind_name in kind_name_set:
-                site_indices = [i for i, name in enumerate(self.kind_names) if name == site.kind_name]
+            kind_name = site.kind_name if site.kind_name else site.symbol
+            if kind_name in kind_name_set:
+                site_indices = [i for i, name in enumerate(self.kind_names) if name == kind_name]
                 positions=np.array([self.positions[i] for i in site_indices])
                 kind = Kind(
                     **site.model_dump(exclude={'position'}),
@@ -301,7 +302,7 @@ class StructureBaseModel(BaseModel):
                     positions=positions,
                 )
                 kinds_list.append(kind)
-                kind_name_set.remove(site.kind_name)  # Ensure we don't add the same kind multiple
+                kind_name_set.remove(kind_name)  # Ensure we don't add the same kind multiple
 
         return FrozenList(kinds_list)
 

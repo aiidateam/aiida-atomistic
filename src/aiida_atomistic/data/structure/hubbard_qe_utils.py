@@ -54,8 +54,8 @@ class HubbardUtils:
         lines = [f'HUBBARD\t{hubbard.projectors}\n']
 
         for param in hubbard_parameters:
-            atom_i = sites[param.atom_index].kinds
-            atom_j = sites[param.neighbour_index].kinds
+            atom_i = sites[param.atom_index].kind_name
+            atom_j = sites[param.neighbour_index].kind_name
             index_i = param.atom_index + 1  # QE indices start from 1
             index_j = get_supercell_atomic_index(param.neighbour_index, natoms, param.translation) + 1
             man_i = param.atom_manifold
@@ -205,13 +205,13 @@ class HubbardUtils:
         # We define a map from ``index`` to ``site specifications``. We need the complete
         # specification, as we will loose track of the index ordering with the following shuffle.
         # The ``index`` are needed for re-indexing later the hubbard parameters.
-        index_map = {index: site.get_raw() for index, site in enumerate(sites) if site.kinds in hubbard_kinds}
+        index_map = {index: site.get_raw() for index, site in enumerate(sites) if site.kind_name in hubbard_kinds}
 
         while hubbard_kinds:
 
             hubbard_kind = hubbard_kinds.pop()
-            hubbard_sites = [s for s in sites if s.kinds == hubbard_kind]
-            remaining_sites = [s for s in sites if not s.kinds == hubbard_kind]
+            hubbard_sites = [s for s in sites if s.kind_name == hubbard_kind]
+            remaining_sites = [s for s in sites if not s.kind_name == hubbard_kind]
 
             ordered_sites.extend(hubbard_sites)
             sites = remaining_sites
@@ -221,8 +221,8 @@ class HubbardUtils:
 
         for site in ordered_sites:
 
-            if site.kinds not in reordered.get_kind_names():
-                kind = structure.get_kind(site.kinds)
+            if site.kind_name not in reordered.get_kind_names():
+                kind = structure.get_kind(site.kind_name)
                 reordered.append_kind(kind)
 
             reordered.append_site(site)

@@ -112,6 +112,10 @@ class GetterMixin(HubbardGetterMixin):
         """
         return set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys()).difference(_COMPUTED_PROPERTIES)
 
+    def get_kind_names(self):
+        """Return a list of the kind names defined in this structure."""
+        return self.properties.kind_names
+
     @property
     def is_collinear(self):
         # if not magmoms, is can be collinear if magnetizations are provided (just quantum number)

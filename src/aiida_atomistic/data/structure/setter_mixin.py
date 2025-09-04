@@ -250,3 +250,10 @@ class SetterMixin(HubbardSetterMixin):
     def remove_hubbard(self):
         self.remove_property('hubbard')
         return
+
+    def set_kind_names(self, value: list):
+        if len(value) != len(self.properties.sites):
+            raise ValueError(f"The length of the kind_names list ({len(value)}) does not match the number of sites ({len(self.properties.sites)}).")
+        for site, kind_name in zip(self.properties.sites, value):
+            site.kind_name = kind_name
+        return

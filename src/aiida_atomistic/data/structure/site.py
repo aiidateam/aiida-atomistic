@@ -275,18 +275,21 @@ class Site(BaseModel):
         atom_dict["charge"] = atom_dict.pop("charge", None)
         atom_dict["mass"] = atom_dict.pop("mass", None)
         atom_dict["tag"] = atom_dict.pop("kind_name", None)
-        #for prop in set(self.model_dump().keys()).difference(required_properties):
-        #    atom_dict.pop(prop,None)
+
+        atom_dict_keys = list(atom_dict.keys())
+        for prop in atom_dict_keys:
+            if prop not in ["symbol", "position", "mass", "charge", "magmom", "tag"]:
+                atom_dict.pop(prop,None)
         aseatom = ase.Atom(
             **atom_dict
         )
 
-        tag = self.kind_name.replace(self.symbol, "")
-        if len(tag) > 0:
-            tag = int(tag)
-        else:
-            tag = 0
+        tag = self.kind_name.replace(self.symbol, "") if self.kind_name else None
         if tag is not None:
+            if len(tag) > 0:
+                tag = int(tag)
+            else:
+                tag = 0
             aseatom.tag = tag
         return aseatom
 
