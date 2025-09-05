@@ -94,3 +94,11 @@ _COMPUTED_PROPERTIES = [
     "is_alloy",
     "has_vacancies",
 ]
+
+# Import classes after constants are defined to avoid circular imports
+from aiida_atomistic.data.structure.structure import StructureData, StructureDataMutable
+
+__all__ = [
+    "StructureData",
+    "StructureDataMutable",
+]

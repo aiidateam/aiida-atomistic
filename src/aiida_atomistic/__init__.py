@@ -8,6 +8,6 @@ from aiida_atomistic.data.structure.structure import StructureData, StructureDat
 __version__ = "0.1.0a0"
 
 __all__ = [
-    StructureData,
-    StructureDataMutable
+    "StructureData",
+    "StructureDataMutable",
 ]

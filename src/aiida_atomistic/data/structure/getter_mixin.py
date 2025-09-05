@@ -132,7 +132,7 @@ class GetterMixin(HubbardGetterMixin):
     def from_ase(
         cls,
         aseatoms: ASE_ATOMS_TYPE,
-        detect_kinds: bool = True):
+        detect_kinds: bool = False):
         """Load the structure from a ASE object"""
 
         if not has_ase:
