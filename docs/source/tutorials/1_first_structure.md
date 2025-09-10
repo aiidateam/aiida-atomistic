@@ -113,18 +113,9 @@ final_structure = StructureData.from_mutable(mutable)
 
 **Output:**
 ```
-mutable = StructureDataMutable.from_ase(ase_atoms)
-
-print(f"Created mutable structure with {len(mutable.sites)} sites")
-print(f"Initial first site charge: {mutable.sites[0].charge}")
-
-# Modify existing site
-mutable.sites[0].charge = -1.0
-
-print(f"Modified first site charge to {mutable.sites[0].charge}")
-
-# Convert back to immutable for storage
-final_structure = StructureData.from_mutable(mutable)
+Created mutable structure with 2 sites
+Initial first site charge: None
+Modified first site charge to -1.0
 ```
 
 ## Storing and Loading
@@ -149,11 +140,6 @@ Loaded: Si2
 
 
 ## Key Takeaways
-
-✅ **Multiple Import Options**: You can import `StructureData` and `StructureDataMutable` from different levels:
-   - `from aiida_atomistic import StructureData, StructureDataMutable`
-   - `from aiida_atomistic.data import StructureData, StructureDataMutable`
-   - `from aiida_atomistic.data.structure import StructureData, StructureDataMutable`
 
 ✅ **Easy Conversion**: Convert seamlessly from ASE Atoms objects using `StructureData.from_ase()`
 

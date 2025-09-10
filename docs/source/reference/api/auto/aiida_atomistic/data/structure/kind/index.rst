@@ -26,6 +26,12 @@ Classes
 
 
 
+   .. py:property:: name
+      :type: str
+
+      Return the name of the kind. This is an alias of `kind_name`.
+
+
    .. py:attribute:: _mutable
       :type: ClassVar[bool]
       :value: False

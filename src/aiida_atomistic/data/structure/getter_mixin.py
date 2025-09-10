@@ -1038,6 +1038,10 @@ class GetterMixin(HubbardGetterMixin):
 
         return
 
+    def get_symbols_set(self):
+        """Return the set of unique chemical symbols in the structure."""
+        return set(self.properties.symbols)
+
     def __len__(
         self,
     ):

@@ -27,3 +27,8 @@ class Kind(FrozenSite):
     # additional wrt FrozenSite:
     positions: t.Union[np.ndarray[float], list[float]] = Field(default=None)
     site_indices: t.Optional[t.List[int]] = Field(default=None)
+
+    @property
+    def name(self) -> str:
+        """Return the name of the kind. This is an alias of `kind_name`."""
+        return self.kind_name

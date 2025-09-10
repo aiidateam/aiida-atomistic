@@ -419,4 +419,9 @@ Attributes
       Check whether the given pbc and cell vectors are consistent.
 
 
+   .. py:method:: get_symbols_set()
+
+      Return the set of unique chemical symbols in the structure.
+
+
    .. py:method:: __len__()
