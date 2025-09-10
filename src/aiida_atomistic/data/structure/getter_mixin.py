@@ -114,7 +114,13 @@ class GetterMixin(HubbardGetterMixin):
 
     def get_kind_names(self):
         """Return a list of the kind names defined in this structure."""
-        return self.properties.kind_names
+        return list(set(self.properties.kind_names))
+
+    def get_kind(self, kind_name: str = None):
+        """Return a given kind."""
+        for kind in self.kinds:
+            if kind.kind_name == kind_name:
+                return kind
 
     @property
     def is_collinear(self):

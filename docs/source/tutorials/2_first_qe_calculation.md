@@ -9,6 +9,7 @@ This guide demonstrates how to use aiida-atomistic structures in computational w
 Ensure you have the necessary packages installed:
 
 ```bash
+pip install aiida-pseudo
 pip install aiida-quantumespresso
 ```
 
