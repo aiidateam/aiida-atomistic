@@ -123,6 +123,11 @@ Attributes
       Return a list of the kind names defined in this structure.
 
 
+   .. py:method:: get_kind(kind_name: str = None)
+
+      Return a given kind.
+
+
    .. py:method:: from_ase(aseatoms: ASE_ATOMS_TYPE, detect_kinds: bool = False)
       :classmethod:
 

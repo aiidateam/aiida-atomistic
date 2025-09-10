@@ -141,22 +141,17 @@ Loaded: Si2
 
 ## Key Takeaways
 
-✅ **Easy Conversion**: Convert seamlessly from ASE Atoms objects using `StructureData.from_ase()`
-
-✅ **Rich Properties**: Access comprehensive structural information through the `.properties` attribute:
-   - Formula, cell volume, number of sites
-   - Atomic positions, symbols, masses
-   - Supported vs. defined properties
-
-✅ **Site-Level Access**: Iterate through individual sites to access atomic positions and properties
-
-✅ **Immutable vs. Mutable**:
-   - `StructureData`: Immutable, AiiDA-compatible, database storage
-   - `StructureDataMutable`: Mutable, for modifications, then convert back
-
-✅ **Database Integration**: Store structures in AiiDA database with full provenance tracking
-
-✅ **Property Discovery**: Use `get_supported_properties()` and `get_defined_properties()` to explore available data
+- ✅ **Easy Conversion**: Convert seamlessly from ASE Atoms objects using `StructureData.from_ase()`
+- ✅ **Rich Properties**: Access comprehensive structural information through the `.properties` attribute:
+    - Formula, cell volume, number of sites
+    - Atomic positions, symbols, masses and more
+    - Hubbard U and V
+- ✅ **Site-Level Access**: Iterate through individual sites to access atomic positions and properties
+- ✅ **Immutable vs. Mutable**:
+    - `StructureData`: Immutable, AiiDA-compatible, database storage
+    - `StructureDataMutable`: Mutable, for modifications, then convert back
+- ✅ **Database Integration**: Store structures in AiiDA database with full provenance tracking
+- ✅ **Property Discovery**: Use `get_supported_properties()` and `get_defined_properties()` to explore available data
 
 ## Next Steps
 
