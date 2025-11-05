@@ -2,11 +2,18 @@ import copy
 import json
 import typing as t
 import numpy as np
+import itertools
 
 from aiida import orm
 from aiida.common.constants import elements
 
-from aiida_atomistic.data.structure.site import SiteMutable as Site
+from aiida_atomistic.data.structure.site import Site, FrozenSite
+from aiida_atomistic.data.structure.models import MutableStructureModel
+from aiida_atomistic.data.structure.hubbard_mixin import (
+    HubbardGetterMixin,
+)
+
+from aiida_atomistic.data.structure.utils import classify_site_kinds, check_kinds_match, efficient_copy
 
 try:
     import ase  # noqa: F401
@@ -31,16 +38,6 @@ except ImportError:
     PYMATGEN_MOLECULE = t.Any
     PYMATGEN_STRUCTURE = t.Any
 
-
-from aiida_atomistic.data.structure.utils import (
-    _get_valid_cell,
-    _get_valid_pbc,
-    atom_kinds_to_html,
-    calc_cell_volume,
-    create_automatic_kind_name,
-    get_formula,
-)
-
 _MASS_THRESHOLD = 1.0e-3
 # Threshold to check if the sum is one or not
 _SUM_THRESHOLD = 1.0e-6
@@ -51,21 +48,98 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
-_default_values = {
-    "charges": 0,
-    "magmoms": [0, 0, 0],
-}
+from .constants import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES
 
-class GetterMixin:
+_DEFAULT_THRESHOLDS = {
+            "charges": 0.1,
+            "masses": 1e-4,
+            "magmoms": 1e-4, # _MAGMOM_THRESHOLD
+        }
+
+class GetterMixin(HubbardGetterMixin):
+
+    # Start redundant properties: This is mainly for make easier migration of plugins.
+    @property
+    def cell(self):
+        return self.properties.cell
+
+    @property
+    def pbc(self):
+        return self.properties.pbc
+
+    @property
+    def sites(self):
+        return self.properties.sites
+
+    @property
+    def kinds(self):
+        return self.properties.kinds
 
     @property
     def is_alloy(self):
-        return any(_.is_alloy for _ in self.properties.sites)
+        return self.properties.is_alloy
 
     @property
     def has_vacancies(self):
-        return any(_.has_vacancies for _ in self.properties.sites)
+        return self.properties.has_vacancies
 
+    @property
+    def formula(self):
+        return self.properties.formula
+    # End redundant properties
+
+    @classmethod
+    def get_supported_properties(cls):
+        """
+        Get a dictionary of global and site properties that can be set
+        for this structure.
+        """
+        structure_fields = set(cls._model.model_fields.keys())
+        site_fields = set(Site.model_fields.keys())
+
+        return {
+            'global': structure_fields,
+            'site': site_fields
+        }
+
+    @classmethod
+    def get_queryable_properties(cls):
+        fields = cls._model.model_fields
+        computed_fields = cls._model.model_computed_fields
+        return set(fields.keys()).union(computed_fields.keys()).difference({'kinds', 'sites'})
+
+    def get_defined_properties(self, exclude_computed: bool = False):
+        """
+            Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
+
+            Args:
+                exclude_computed (bool): If False, all properties will be returned, including those computed after the initialization (the pydantic computed fields).
+                exclude_defaults (bool): If True, properties with default values will be excluded from the result.
+        """
+        return set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys()).difference(set(self._model.model_computed_fields.keys()) if exclude_computed else set())
+
+    def get_kind_names(self):
+        """Return a list of the kind names defined in this structure."""
+        return list(set(self.properties.kind_names))
+
+    def get_kind(self, kind_name: str = None):
+        """Return a given kind."""
+        for kind in self.kinds:
+            if kind.kind_name == kind_name:
+                return kind
+
+    @property
+    def is_collinear(self):
+        # if not magmoms, is can be collinear if magnetizations are provided (just quantum number)
+        # if magmoms, we check that the rank of the magmoms matrix is one (if not, it is not collinear)
+        if self.properties.magmoms is None:
+            return False
+        if self.properties.magnetizations is not None:
+            return True
+        return np.linalg.matrix_rank(self.properties.magmoms) == 1
+
+
+    # initialization methods
     @classmethod
     def from_ase(
         cls,
@@ -76,6 +150,11 @@ class GetterMixin:
         if not has_ase:
             raise ImportError("The ASE package cannot be imported.")
 
+        if not cls._mutable:
+            SiteClass = FrozenSite
+        else:
+            SiteClass = Site
+
         # Read the ase structure
         data = {}
         data["cell"] = aseatoms.cell.array.tolist()
@@ -84,13 +163,9 @@ class GetterMixin:
         data["sites"] = []
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
-            new_site = Site.atom_to_site(aseatom=atom)
-            data["sites"].append(new_site.model_dump())
+            new_site = SiteClass.from_ase_atom(aseatom=atom)
+            data["sites"].append(new_site.model_dump(exclude={"kind_name"} if not detect_kinds else None))
 
-        structure = cls(**data)
-
-        if detect_kinds:
-            data["sites"] = structure.get_kinds(ready_to_use=True)
 
         structure = cls(**data)
 
@@ -103,11 +178,17 @@ class GetterMixin:
         format="cif",
         detect_kinds: bool = False,
         **kwargs):
-        """Load the structure from a file"""
+        """Load the structure from a file."""
 
-        ase_read = ase_io.read(filename, format=format, **kwargs)
-
-        return cls.from_ase(aseatoms=ase_read, detect_kinds=detect_kinds)
+        if format == 'mcif' or '.mcif' in filename:
+            # in this case, we use pymatgen parser, because the ase one does not work properly for now.
+            from pymatgen.io.cif import CifParser
+            parser  = CifParser(filename)
+            mcif_structure   = parser.get_structures(**kwargs)[0]
+            return cls.from_pymatgen(pymatgen_obj=mcif_structure, detect_kinds=detect_kinds)
+        else:
+            ase_read = ase_io.read(filename, format=format, **kwargs)
+            return cls.from_ase(aseatoms=ase_read, detect_kinds=detect_kinds)
 
     @classmethod
     def from_pymatgen(
@@ -211,6 +292,7 @@ class GetterMixin:
                 )
 
             if has_spin:
+                from aiida_atomistic.data.structure.utils import create_automatic_kind_name
                 symbols = [specie.symbol for specie in species]
                 kind_name = create_automatic_kind_name(symbols, occupations)
 
@@ -239,37 +321,74 @@ class GetterMixin:
         sites_collection = struct.properties["sites"] if "sites" in struct.properties.keys() else struct.sites
         for site in sites_collection:
 
-            if "kind_name" in site.properties:
-                kind_name = site.properties["kind_name"]
-            else:
-                kind_name = site.label
-
             site_info = {
                 "symbol": site.specie.symbol,
                 "mass": site.species.weight,
                 "position": site.coords.tolist(),
-                "charge": site.properties.get("charge", 0.0),
-                'magmom': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else [0,0,0]
+                'magmom': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else None
             }
 
-            if kind_name is not None:
-                site_info["kind_name"] = kind_name.replace("+", "").replace("-", "")
+
+            if site.properties.get('kinds', None) is not None:
+                site_info["kind_name"] = site.properties.get('kinds').replace("+", "").replace("-", "")
+
+            if bool(site.properties.get('charge', None)):
+                site_info["charge"] = site.properties.get("charge")
+
+            if site.properties.get('magmom', None) is not None:
+                magmom = site.properties.get("magmom").moment
+                if isinstance(magmom, (int, float)):
+                    if magmom != 0:
+                        site_info['magnetization'] = magmom
+                elif isinstance(magmom, (list, np.ndarray)):
+                    if np.linalg.norm(magmom) > 0:
+                        site_info['magmom'] = magmom
 
             inputs["sites"].append(site_info)
 
         structure = cls(**inputs)
 
-        if detect_kinds:
-                inputs["sites"] = structure.get_kinds(ready_to_use=True)
-
-        structure = cls(**inputs)
-
         return structure
 
-    def to_dict(
-            self,
-            detect_kinds: bool = False
-        ):
+    # method for the kinds generation and validation
+    def generate_kinds(self, tolerance:t.Union[dict, float]=1e-3):
+        sites = self.to_dict()['sites']
+        groups = classify_site_kinds(sites, tolerance=tolerance)
+        kinds = []
+        kind_names = []
+        for i, (key, group) in enumerate(groups.items()):
+            for l in range(i+1):
+                kind_name = f"{group['properties']['symbol']}{l+1}"
+                if kind_name not in kind_names:
+                    kind_names.append(kind_name)
+                    break
+                else:
+                    continue
+
+            site_indices = group['sites']
+            properties = group['properties']
+            positions = group['positions']
+            properties['kind_name'] = kind_name
+            kind = {
+                'site_indices': site_indices,
+                'positions': positions,
+                **properties
+            }
+            kinds.append(kind)
+        return kinds
+
+    def validate_kinds(self,):
+        if not self.kinds:
+            raise ValueError("No kinds defined in the structure.")
+
+        generated_kinds = self.generate_kinds()
+        check_kinds = check_kinds_match(self, generated_kinds)
+
+        if not check_kinds:
+            raise ValueError("The kinds defined in the structure do not match the generated kinds from the sites. Please run the 'generate_kinds' method to see the expected kinds.")
+
+    # TO methods:
+    def to_dict(self, exclude_kinds=False):
             """
             Convert the structure to a dictionary representation.
 
@@ -278,54 +397,25 @@ class GetterMixin:
             :return: The structure as a dictionary.
             :rtype: dict
             """
-            dict_repr = copy.deepcopy(self.properties.model_dump())
-
-            if detect_kinds:
-                dict_repr["sites"] = self.get_kinds(ready_to_use=True)
-
-            # dict_repr = get_serialized_data(dict_repr)
+            dict_repr = efficient_copy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False, exclude={'kinds'} if exclude_kinds else {}))
 
             return dict_repr
 
-    def get_site_property(self, property_name):
-        """Return a list with length equal to the number of sites of this structure,
-        where each element of the list is the property of the corresponding site.
-
-        :return: a list of floats
+    def to_kinds_based(self, tolerance:t.Union[dict, float]=1e-3):
         """
-        return np.array([getattr(this_site, property_name) for this_site in self.properties.sites])
+        Convert the structure to a kinds-based representation.
 
-    def get_property_names(self, domain=None):
-        """get a list of properties
-
-        Args:
-            domain (str, optional): restrict the domain of the printed property names. Defaults to None, but can be also 'site'.
+        :param tolerance: Tolerance for grouping sites into kinds. Can be a float or a dictionary specifying tolerances for specific properties.
+        :type tolerance: float or dict, optional
+        :return: The structure as a dictionary with kinds.
+        :rtype: dict
         """
-        return {'direct': list(self.properties.model_fields.keys()), 'computed': list(self.properties.model_computed_fields.keys()), 'site':list(Site.model_fields.keys())}
+        dict_repr = self.to_dict(exclude_kinds=True)
+        dict_repr['kinds'] = self.generate_kinds(tolerance=tolerance)
+        dict_repr.pop('sites', None)
 
-    def get_charges(self,):
-        return self.get_site_property("charge")
+        return self.__class__(**dict_repr)
 
-    def get_magmoms(self,):
-        return self.get_site_property("magmom")
-
-    def get_kind_names(self,):
-        return self.get_site_property("kind_name")
-
-    def get_positions(self,):
-        return self.get_site_property("position")
-
-    def get_symbols(self,):
-        return self.get_site_property("symbol")
-
-    def get_cell_volume(self):
-        """Returns the three-dimensional cell volume in Angstrom^3.
-
-        Use the `get_dimensionality` method in order to get the area/length of lower-dimensional cells.
-
-        :return: a float.
-        """
-        return calc_cell_volume(self.properties.cell)
 
     def get_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.
@@ -355,57 +445,6 @@ class GetterMixin:
         """
         return self.get_formula(mode="hill_compact")
 
-    def get_formula(self, mode="hill", separator=""):
-        """Return a string with the chemical formula.
-
-        :param mode: a string to specify how to generate the formula, can
-            assume one of the following values:
-
-            * 'hill' (default): count the number of atoms of each species,
-            then use Hill notation, i.e. alphabetical order with C and H
-            first if one or several C atom(s) is (are) present, e.g.
-            ``['C','H','H','H','O','C','H','H','H']`` will return ``'C2H6O'``
-            ``['S','O','O','H','O','H','O']``  will return ``'H2O4S'``
-            From E. A. Hill, J. Am. Chem. Soc., 22 (8), pp 478-494 (1900)
-
-            * 'hill_compact': same as hill but the number of atoms for each
-            species is divided by the greatest common divisor of all of them, e.g.
-            ``['C','H','H','H','O','C','H','H','H','O','O','O']``
-            will return ``'CH3O2'``
-
-            * 'reduce': group repeated symbols e.g.
-            ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
-            'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'BaTiO3BaTiO3BaTi2O3'``
-
-            * 'group': will try to group as much as possible parts of the formula
-            e.g.
-            ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
-            'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'(BaTiO3)2BaTi2O3'``
-
-            * 'count': same as hill (i.e. one just counts the number
-            of atoms of each species) without the re-ordering (take the
-            order of the atomic sites), e.g.
-            ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
-            will return ``'Ba2Ti2O6'``
-
-            * 'count_compact': same as count but the number of atoms
-            for each species is divided by the greatest common divisor of
-            all of them, e.g.
-            ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
-            will return ``'BaTiO3'``
-
-        :param separator: a string used to concatenate symbols. Default empty.
-
-        :return: a string with the formula
-
-        .. note:: in modes reduce, group, count and count_compact, the
-            initial order in which the atoms were appended by the user is
-            used to group and/or order the symbols in the formula
-        """
-        symbol_list = [s.symbol for s in self.properties.sites]
-
-        return get_formula(symbol_list, mode=mode, separator=separator)
-
     def get_composition(self, mode="full"):
         """Returns the chemical composition of this structure as a dictionary,
         where each key is the kind symbol (e.g. H, Li, Ba),
@@ -422,9 +461,8 @@ class GetterMixin:
         """
         import numpy as np
 
-        symbols_list = [
-            self.get_kind(s.kind_name).get_symbols_string() for s in self.properties.sites
-        ]
+        symbols_list = self.properties.symbols
+
         symbols_set = set(symbols_list)
 
         if mode == "full":
@@ -446,159 +484,7 @@ class GetterMixin:
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=["weights"], custom_thr={}, ready_to_use=False):
-        """
-        Get the list of kinds, taking into account all the properties.
-        If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
-        by computing the kinds with threshold=0 for each property.
 
-
-        Algorithm:
-        it generated the kinds_list for each property separately in Step 1, then
-        it creates the matrix k = k.T where the rows are the sites, the columns are the properties and each element
-        is the corresponding kind for the given property and the given site:
-
-        ```bash
-                p1 p2 p3
-        site1 = | 1  1  2 | = kind1
-        site2 = | 1  2  3 | = kind2
-        site3 = | 2  2  3 | = kind3
-        site4 = | 1  2  3 | = kind4
-        ```
-
-        In Step 2 it checks for the matrix which rows have the same numbers in the same order, i.e. recognize the different
-        kinds considering all the properties. This is done by subtracting a row from the others and see if all the elements
-        are zero, meaning that we have the same combination of kinds.
-
-        In Step 3 we override the kinds with the kind_tags.
-
-        Args:
-            kind_tags (list, optional): list of kind names as user defined: in principle this input trigger a check in the kind
-                                        determination -> the mapping should be the same as obtained with get_kinds(kind_tags=[],) and
-                                        all thresholds = 0. And this is what is done: `if not None in kind_tags: thr = 0`.
-                                        For now we support also for only some selected kinds defined: ["kind1",None, ...] but with the same length as the symbols (sites).
-            exclude (list, optional): list of properties to be excluded in the kind determination
-            custom_thr (dict, options): dictionary with the custom threshold for given properties (key: property, value: thr).
-                                        if not provided, we fallback into the default threshold define in the property class.
-
-        Returns:
-            kinds_dictionary (dictionary): the associated per-site (and per-kind) value of the property. The structure of the dictionary is the one that you may
-                                        have in the `properties` dictionary input of the StructureData constructor.
-                                        We also provide the `kinds` property: list of kind-per-site to be used in a plugin which requires it. If kind tags are all decided, then we
-                                        do not compute anything and we return kind_tags and None. In this way, we know that we basically already defined
-                                        the kinds in our StructureData.
-
-        Comments:
-
-        - Implementation can and should be improved, but the functionalities are the desired ones.
-        - Moreover, the method should be accessible to run on a given properties dictionary, so to predict the kinds before the StructureData instance generation.
-        """
-
-        # cannot do properties.symbols.value due to recursion problem if called in Kinds:
-        # if I call properties, this will again reinitialize the properties attribute and so on.
-        # should be this:
-        # symbols = self.base.attributes.get("_property_attributes")['symbols']['value']
-        # However, for now I do not let the kinds to be automatically generated when we initialise the structure:
-        symbols = self.get_site_property("symbol")
-        default_thresholds = {
-            "charge": 0.1,
-            "mass": 1e-4,
-            "magmom": 1e-4, # _MAGMOM_THRESHOLD
-        }
-
-        list_tags = []
-        if len(kind_tags) == 0:
-            kind_tags = [None] * len(
-                symbols
-            )  # <== For now we support also for only ... see above doc string.
-            check_kinds = False
-            # kind=tags = self.properties.kinds.value
-        else:
-            list_tags = [kind_tags.index(n) for n in kind_tags]
-            check_kinds = True
-
-        array_tags = np.array(list_tags)
-
-        # Step 1:
-        kind_properties = []
-        kinds_dictionary = {"kind_name": {}}
-        for single_property in self.properties.sites[0].model_dump().keys():
-            if single_property not in ["symbol", "position", "kind_name",] + exclude:
-                # prop = self.get_site_property(single_property)
-                thr = custom_thr.get(
-                    single_property, default_thresholds.get(single_property)
-                )
-                kinds_dictionary[single_property] = {}
-
-                kinds_per_property = self._to_kinds(
-                    property_name=single_property, symbols=symbols, thr=thr
-                )
-
-                kind_properties.append(kinds_per_property[0])
-                # I prefer to store again under the key 'value', may be useful in the future
-                kinds_dictionary[single_property] = kinds_per_property[1]
-
-        k = np.array(kind_properties)
-        k = k.T
-
-        # Step 2:
-        kinds = np.zeros(len(self.get_site_property("symbol")), dtype=int) - 1
-        check_array = np.zeros(len(self.get_site_property("position")), dtype=int)
-        kind_names = symbols.tolist()
-        kind_numeration = []
-        for i in range(len(k)):
-            # Goes from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
-            element = symbols[i]
-            diff = k - k[i]
-            diff_sum = np.sum(np.abs(diff), axis=1)
-
-            kinds[np.where(diff_sum == 0)[0]] = i
-            for where in np.where(diff_sum == 0)[0]:
-                if (
-                    f"{element}{i}" in kind_tags
-                ):  # If I encounter the same tag as provided as input or generated here:
-                    kind_numeration.append(i + len(k))
-                else:
-                    kind_numeration.append(i)
-
-                kind_names[where] = f"{element}{kind_numeration[-1]}"
-
-                check_array[where] = i
-                #print(f"site {where} is {element}{kind_numeration[-1]}")
-
-            if len(np.where(kinds == -1)[0]) == 0:
-                #print(f"search ended at iteration {i}")
-                break
-
-        # Step 3:
-        kinds_dictionary["kind_name"] = [
-            kind_names[i]  if not kind_tags[i] else kind_tags[i]
-            for i in range(len(kind_tags))
-        ]
-
-        kinds_dictionary["index"] = kind_numeration
-        kinds_dictionary["symbol"] = symbols.tolist()
-        kinds_dictionary["position"] = self.get_site_property("position").tolist()
-
-        # Step 4: check on the kind_tags consistency with the properties value.
-        if check_kinds and not np.array_equal(check_array, array_tags):
-            raise ValueError(
-                "The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want."
-            )
-
-        if ready_to_use:
-            new_sites = []
-            for index_kind in kinds_dictionary["index"]:
-                dict_site = {}
-                for k,v in kinds_dictionary.items():
-                    if k not in ["symbol","position","index"]:
-                        dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
-                for value in ["symbol","position"]:
-                    dict_site[value] = kinds_dictionary[value][index_kind]
-                new_sites.append(dict_site)
-            return new_sites
-
-        return kinds_dictionary
 
     def to_ase(self):
         """Get the ASE object.
@@ -658,7 +544,7 @@ class GetterMixin:
 
         return
 
-    def to_legacy(self) -> orm.StructureData:
+    '''def to_legacy(self) -> LegacyStructureData:
 
         """
         Returns: orm.StructureData object, used for backward compatibility.
@@ -668,7 +554,8 @@ class GetterMixin:
 
         aseatoms = self.to_ase()
 
-        return orm.StructureData(ase=aseatoms)
+        return LegacyStructureData(ase=aseatoms)
+    '''
 
     def get_pymatgen_structure(self, **kwargs):
         """Get the pymatgen Structure object with any PBC, provided the cell is not singular.
@@ -704,57 +591,6 @@ class GetterMixin:
         """
         return self._get_object_pymatgen_molecule()
 
-    def _validate(self):
-        """Performs some standard validation tests."""
-        from aiida.common.exceptions import ValidationError
-
-        super()._validate()
-
-        try:
-            _get_valid_cell(self.properties.cell)
-        except ValueError as exc:
-            raise ValidationError(f"Invalid cell: {exc}")
-
-        try:
-            _get_valid_pbc(self.properties.pbc)
-        except ValueError as exc:
-            raise ValidationError(f"Invalid periodic boundary conditions: {exc}")
-
-        self._validate_dimensionality()
-
-        try:
-            # This will try to create the kinds objects
-            kinds = set(self.get_site_property("kind_name"))
-        except ValueError as exc:
-            raise ValidationError(f"Unable to validate the kinds: {exc}")
-
-        from collections import Counter
-
-        counts = Counter([k for k in kinds])
-        for count in counts:
-            if counts[count] != 1:
-                raise ValidationError(
-                    f"Kind with name '{count}' appears {counts[count]} times instead of only one"
-                )
-
-        try:
-            # This will try to create the sites objects
-            sites = self.properties.sites
-        except ValueError as exc:
-            raise ValidationError(f"Unable to validate the sites: {exc}")
-
-        for site in sites:
-            if site.kind_name not in kinds:
-                raise ValidationError(
-                    f"A site has kind {site.kind_name}, but no specie with that name exists"
-                )
-
-        kinds_without_sites = {k for k in kinds} - {s.kind_name for s in sites}
-        if kinds_without_sites:
-            raise ValidationError(
-                f"The following kinds are defined, but there are no sites with that kind: {list(kinds_without_sites)}"
-            )
-
     def _prepare_xsf(self, main_file_name=""):
         """Write the given structure to a string of format XSF (for XCrySDen)."""
         if self.is_alloy or self.has_vacancies:
@@ -774,7 +610,7 @@ class GetterMixin:
             # I checked above that it is not an alloy, therefore I take the
             # first symbol
             return_string += (
-                f"{_atomic_numbers[self.get_kind(site.kind_name).symbols[0]]} "
+                f"{_atomic_numbers[site.symbols]} "
             )
             return_string += "%18.10f %18.10f %18.10f\n" % tuple(site.position)
         return return_string.encode("utf-8"), {}
@@ -789,6 +625,7 @@ class GetterMixin:
     def _prepare_chemdoodle(self, main_file_name=""):
         """Write the given structure to a string of format required by ChemDoodle."""
         from itertools import product
+        from aiida_atomistic.data.structure.utils import atom_kinds_to_html
 
         import numpy as np
 
@@ -796,7 +633,7 @@ class GetterMixin:
 
         # Get cell vectors and atomic position
         lattice_vectors = np.array(self.base.attributes.get("cell"))
-        base_sites = self.base.attributes.get("sites")
+        base_sites = self.sites
 
         start1 = -int(supercell_factors[0] / 2)
         start2 = -int(supercell_factors[1] / 2)
@@ -824,15 +661,15 @@ class GetterMixin:
                     - center
                 ).tolist()
 
-                kind_name = base_site["kind_name"]
-                kind_string = self.get_kind(kind_name).get_symbols_string()
+                kind_name = base_site.kinds
+                kind_string = base_site.symbols
 
                 atoms_json.append(
                     {
                         "l": kind_string,
-                        "x": base_site["position"][0] + shift[0],
-                        "y": base_site["position"][1] + shift[1],
-                        "z": base_site["position"][2] + shift[2],
+                        "x": np.array(base_site.positions[0]) + shift[0],
+                        "y": np.array(base_site.positions[1]) + shift[1],
+                        "z": np.array(base_site.positions[2]) + shift[2],
                         "atomic_elements_html": atom_kinds_to_html(kind_string),
                     }
                 )
@@ -888,7 +725,7 @@ class GetterMixin:
             # first symbol
             return_list.append(
                 "{:6s} {:18.10f} {:18.10f} {:18.10f}".format(
-                    self.get_kind(site.kind_name).symbols[0],
+                    site.symbols,
                     site.position[0],
                     site.position[1],
                     site.position[2],
@@ -914,7 +751,7 @@ class GetterMixin:
         self.properties.pbc = (False, False, False)
 
         for sym, position in atoms:
-            self.add_atom(symbol=sym, position=position)
+            self.add_atom(atom_info={'symbols':sym, 'positions':position})
 
     def _adjust_default_cell(
         self, vacuum_factor=1.0, vacuum_addition=10.0, pbc=(False, False, False)
@@ -931,14 +768,14 @@ class GetterMixin:
             )
 
         # Calculating the minimal cell:
-        positions = np.array([site.position for site in self.properties.sites])
+        positions = np.array([site.positions for site in self.properties.sites])
         position_min, _ = get_extremas_from_positions(positions)
 
         # Translate the structure to the origin, such that the minimal values in each dimension
         # amount to (0,0,0)
         positions -= position_min
-        for index, site in enumerate(self.base.attributes.get("sites")):
-            site["position"] = list(positions[index])
+        for index, site in enumerate(self.sites):
+            site.positions = list(positions[index])
 
         # The orthorhombic cell that (just) accomodates the whole structure is now given by the
         # extremas of position in each dimension:
@@ -966,10 +803,14 @@ class GetterMixin:
         """
         from phonopy.structure.atoms import PhonopyAtoms
 
-        atoms = PhonopyAtoms(symbols=[_.kind_name for _ in self.properties.sites])
-        # Phonopy internally uses scaled positions, so you must store cell first!
-        atoms.set_cell(self.properties.cell)
-        atoms.set_positions([_.position for _ in self.properties.sites])
+        atoms = PhonopyAtoms(
+            symbols = self.properties.symbols,
+            masses = self.properties.masses,
+            magnetic_moments = self.properties.magmoms,
+            positions = self.properties.positions,
+            cell = self.cell,
+            pbc = self.pbc,
+        )
 
         return atoms
 
@@ -982,10 +823,13 @@ class GetterMixin:
         """
         import ase
 
-        asecell = ase.Atoms(cell=self.properties.cell, pbc=self.properties.pbc)
+        asecell = ase.Atoms(
+            cell=self.properties.cell,
+            pbc=self.properties.pbc,
+            )
 
         for site in self.properties.sites:
-            asecell.append(site.to_ase(kinds=site.kind_name))
+            asecell.append(site.to_ase())
 
         # asecell.set_initial_charges(self.get_site_property("charge"))
 
@@ -1046,7 +890,7 @@ class GetterMixin:
 
             oxidation_state = 0  # now I always set the oxidation_state to zero
             for site in self.properties.sites:
-                kind = site.kind_name
+                kind = site.kinds
                 if len(kind.symbols) != 1 or (
                     len(kind.weights) != 1 or sum(kind.weights) < 1.0
                 ):
@@ -1055,9 +899,9 @@ class GetterMixin:
                     )
                 spin = (
                     -1
-                    if site.kind_name.endswith("1")
+                    if site.kinds.endswith("1")
                     else 1
-                    if site.kind_name.endswith("2")
+                    if site.kinds.endswith("2")
                     else 0
                 )
                 try:
@@ -1082,12 +926,12 @@ class GetterMixin:
                 species.append(specie)
             # if any(
             #    create_automatic_kind_name(self.get_kind(name).symbols, self.get_kind(name).weights) != name
-            #    for name in self.get_site_property("kind_name")
+            #    for name in self.get_site_property("kinds")
             # ):
-            # add "kind_name" as a properties to each site, whenever
-            # the kind_name cannot be automatically obtained from the symbols
+            # add "kinds" as a properties to each site, whenever
+            # the kinds cannot be automatically obtained from the symbols
             additional_kwargs["site_properties"] = {
-                "kind_name": self.properties.kinds,
+                "kinds": self.properties.kind_names,
                 "charge": self.properties.charges,
                 "magmom": self.properties.magmoms
             }
@@ -1097,7 +941,7 @@ class GetterMixin:
                 f"Unrecognized parameters passed to pymatgen converter: {kwargs.keys()}"
             )
 
-        positions = [list(x.position) for x in self.properties.sites]
+        positions = [list(site.position) for site in self.properties.sites]
 
         try:
             return Structure(
@@ -1135,17 +979,17 @@ class GetterMixin:
         additional_kwargs = {}
 
         for site in self.properties.sites:
-            if hasattr(site, "weight"):
-                weight = site.weight
+            if hasattr(site, "weights"):
+                weight = site.weights
             else:
                 weight = 1
-            species.append({site.symbol: weight})
+            species.append({site.symbols: weight})
 
-        positions = [list(site.position) for site in self.properties.sites]
+        positions = [list(site.positions) for site in self.properties.sites]
         mol =  Molecule(species, positions)
 
         additional_kwargs["site_properties"] = {
-                "kind_name": self.properties.kinds,
+                "kinds": self.properties.kind_names,
                 "charge": self.properties.charges,
                 "magmom": self.properties.magmoms
             }
@@ -1187,6 +1031,7 @@ class GetterMixin:
             vectors = cell[pbc]
             retdict["value"] = np.linalg.norm(np.cross(vectors[0], vectors[1]))
         elif dim == 3:
+            from aiida_atomistic.data.structure.utils import calc_cell_volume
             retdict["value"] = calc_cell_volume(cell)
 
         return retdict
@@ -1209,197 +1054,11 @@ class GetterMixin:
 
         return
 
-    def _to_kinds(self, property_name, symbols, thr: float = 0):
-        """Called by the `get_kinds` function.
-        Get the kinds for a generic site property. Can also be overridden in the specific property.
-
-        ### Search algorithm:
-
-        Basically we compute the indexes array which locates each point in regions centered on our values, considering
-        min(values) as reference and each region being of width=thr:
-
-            indexes = np.array((prop_array-np.min(prop_array))/thr,dtype=int)
-
-        To understand this, try to draw the problem considering prop_array=[1,2,3,4] and thr=0.5.
-        This methods allows to efficiently clusterize the point using the defined threshold.
-
-        At the end, we reorder the kinds from zero (to have ordered list like Li0, Li1...).
-        Basically we define the set of unordered kinds, and the range(len(set(kinds))) being the group of orderd kinds.
-        Then we basically do a mapping with the np.where().
-
-        Args:
-            thr (float, optional): the threshold to consider two atoms of the same element to be the same kind.
-                Defaults to structure.properties.<property>.default_kind_threshold.
-                If thr==0, we just return different kind for each site with the original property value. This is
-                needed when we have tags for each site, in the get_kind method of StructureData.
-
-        Returns:
-            kinds_labels: array of kinds (as integers) associated to the charge property. they are integers so that in the `get_kinds()` method
-                                can be used in the matrix representation (the k.T).
-            kinds_values: list of the associated property value to each kind detected.
-        """
-        symbols_array = np.array(symbols)
-
-        if isinstance(self.get_site_property(property_name)[0], list) or isinstance(self.get_site_property(property_name)[0], np.ndarray):
-            #reference_array = np.array(self.get_site_property(property_name)[0]) # I take the difference to detect also the case [1,0,0] != [-1,0,0]
-            #prop_array = np.array([np.linalg.norm(row-reference_array) for row in self.get_site_property(property_name)])
-            prop_array = np.array(self.get_site_property(property_name))
-            shape_1 = len(prop_array[0])
-            kinds_values = np.zeros((len(symbols_array),shape_1))
-        else:
-            prop_array = np.array(self.get_site_property(property_name))
-            kinds_values = np.zeros(len(symbols_array))
-
-        if thr == 0 or not thr:
-            return np.array(range(len(prop_array))), prop_array
-
-        # list for the value of the property for each generated kind.
-
-        if isinstance(prop_array[0], np.ndarray):
-            # here, to deal with set of 3D indexes and avoid to deal with directions of the vectors,
-            # I transform the set of indexes into string, so I can compared them in the np.where
-            indexes = np.array([np.array2string(np.array((row-prop_array[0])/ thr, dtype=int)) for row in prop_array])
-        else:
-            indexes = np.array((prop_array - np.min(prop_array)) / thr, dtype=int)
-
-        # Here we select the closest value present in the property values
-        set_indexes = set(indexes)
-
-        for index in set_indexes:
-            where_index_in_indexes = np.where(indexes == index)[0]
-            kinds_values[where_index_in_indexes] = prop_array[where_index_in_indexes[0]]
-
-
-        # here we reorder from zero the kinds.
-        list_set_indexes = list(set_indexes)
-        kinds_labels = np.zeros(len(symbols_array), dtype=int)
-        for i in range(len(list_set_indexes)):
-            kinds_labels[np.where(indexes == list_set_indexes[i])[0]] = i
-
-        return kinds_labels, kinds_values
-
-    def __getitem__(self, index):
-        "ENABLE SLICING. Return a sliced StructureData."
-        # Handle slicing
-        sliced_structure_dict = self.to_dict()
-        if isinstance(index, slice):
-            sliced_structure_dict["sites"] = sliced_structure_dict["sites"][index]
-            return self.__class__(**sliced_structure_dict)
-        elif isinstance(index, int):
-            sliced_structure_dict["sites"] = [sliced_structure_dict["sites"][index]]
-            return self.__class__(**sliced_structure_dict)
-        else:
-            raise TypeError(f"Invalid argument type: {type(index)}")
+    def get_symbols_set(self):
+        """Return the set of unique chemical symbols in the structure."""
+        return set(self.properties.symbols)
 
     def __len__(
         self,
     ):
         return len(self.properties.sites)
-
-    def get_defined_properties(self, exclude_defaults=True):
-        """
-        Get the defined properties of the structure.
-
-        Args:
-            exclude_defaults (bool): Whether to exclude properties with default values.
-
-        Returns:
-            list: A list of defined properties.
-        """
-        defined_properties = []
-
-        for prop, value in self.properties.model_dump(exclude_defaults=exclude_defaults).items():
-            if isinstance(value, list):
-                if value.count(_default_values.get(prop, None)) == len(value):
-                    # Skip charges, magmoms if not defined for any site.
-                    continue
-                else:
-                    defined_properties.append(prop)
-            elif value is not None:
-                defined_properties.append(prop)
-
-        return defined_properties
-
-class SetterMixin:
-
-    def set_pbc(self, value):
-        """Set the periodic boundary conditions."""
-        the_pbc = _get_valid_pbc(value)
-        self.properties.pbc = the_pbc
-
-    def set_cell(self, value):
-        """Set the cell."""
-        the_cell = _get_valid_cell(value)
-        self.properties.cell = the_cell
-
-    def set_cell_lengths(self, value):
-        raise NotImplementedError("Modification is not implemented yet")
-
-    def set_cell_angles(self, value):
-        raise NotImplementedError("Modification is not implemented yet")
-
-    def update_site(self, site_index, **kwargs):
-        """Update the site at the given index."""
-        self.properties.sites[site_index].update(**kwargs)
-
-    def set_charges(self, value):
-        if not len(self.properties.sites) == len(value):
-            raise ValueError(
-                "The number of charges must be equal to the number of sites"
-            )
-        else:
-            for site_index in range(len(value)):
-                self.update_site(site_index, charge=value[site_index])
-
-    def set_magmoms(self, value):
-        if not len(self.properties.sites) == len(value):
-            raise ValueError(
-                "The number of magmom must be equal to the number of sites"
-            )
-        else:
-            for site_index in range(len(value)):
-                self.update_site(site_index, magmom=value[site_index])
-
-    def set_kind_names(self, value):
-        if not len(self.properties.sites) == len(value):
-            raise ValueError(
-                "The number of kind_names must be equal to the number of sites"
-            )
-        else:
-            for site_index in range(len(value)):
-                self.update_site(site_index, kind_name=value[site_index])
-
-    def add_atom(self, atom_info, index=-1):
-
-        new_site = Site.atom_to_site(**atom_info)
-        # I look for identical species only if the name is not specified
-        # _kinds = self.kinds
-
-        # check that the matrix is not singular. If it is, raise an error.
-        # check to be done in the core.
-        for site_position in self.get_site_property("position"):
-            if (
-                np.linalg.norm(np.array(new_site.position) - np.array(site_position))
-                < 1e-3
-            ):
-                raise ValueError(
-                    "You cannot define two different sites to be in the same position!"
-                )
-
-        if len(self.properties.sites) < index:
-            raise IndexError("insert_atom index out of range")
-        else:
-            self.properties.sites.append(new_site) if index == -1 else self.properties.sites.insert(index, new_site)
-
-    def pop_atom(self, index=None):
-        # If no index is provided, pop the last item
-        if index is None:
-            return self.properties.sites.pop()
-        # Check if the provided index is valid
-        elif 0 <= index < len(self.properties.sites):
-            return self.properties.sites.pop(index)
-        else:
-            raise IndexError("pop_atom index out of range")
-
-    def clear_sites(self,):
-        self.properties.sites = []

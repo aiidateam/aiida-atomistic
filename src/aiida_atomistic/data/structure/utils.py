@@ -2,6 +2,7 @@ import copy
 import functools
 import re
 
+import typing as t
 import numpy as np
 
 from aiida.common.constants import elements
@@ -17,7 +18,12 @@ try:
 except ImportError:
     pass
 
-from plumpy.utils import AttributesFrozendict
+
+from aiida.engine import calcfunction
+from aiida.orm import List
+
+
+from .constants import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES, _CONVERSION_PLURAL_SINGULAR
 
 # Threshold used to check if the mass of two different Site objects is the same.
 
@@ -27,6 +33,7 @@ _SUM_THRESHOLD = 1.0e-6
 # Default cell
 _DEFAULT_CELL = ((0, 0, 0), (0, 0, 0), (0, 0, 0))
 
+
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
@@ -35,7 +42,7 @@ _dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
 class ObservedArray(np.ndarray):
     """
     This is a subclass of numpy.ndarray that allows to observe changes to the array.
-    In this way, full flexibility of StructureDataMutable is achieved and at the same
+    In this way, full flexibility of StructureBuilder is achieved and at the same
     time we can keep track of all the changes.
     """
 
@@ -85,40 +92,32 @@ class ObservedArray(np.ndarray):
         if obj is None:
             return
 
-def freeze_nested(obj):
+def efficient_copy(obj):
     """
-    Recursively freezes a nested dictionary or list by converting it into an immutable object.
+    Efficiently copy an object, only deep-copying mutable parts.
 
-    Args:
-        obj (dict or list): The nested dictionary or list to be frozen.
-
-    Returns:
-        AttributesFrozendict or FrozenList: The frozen version of the input object.
-
+    Handles both dictionaries and lists, as well as other types.
     """
-    if isinstance(obj, dict):
-        return AttributesFrozendict({k: freeze_nested(v) for k, v in obj.items()})
-    if isinstance(obj, list):
-        return FrozenList(freeze_nested(v) for v in obj)
-    else:
+    if obj is None:
+        return None
+    elif isinstance(obj, dict):
+        # For dictionaries, only deep-copy mutable values
+        return {
+            k: v if isinstance(v, (str, int, float, tuple, type(None))) else copy.deepcopy(v)
+            for k, v in obj.items()
+        }
+    elif isinstance(obj, list):
+        # For lists, only deep-copy mutable elements
+        return [
+            item if isinstance(item, (str, int, float, tuple, type(None))) else copy.deepcopy(item)
+            for item in obj
+        ]
+    elif isinstance(obj, (str, int, float, tuple, type(None))):
+        # Immutable types don't need copying
         return obj
-
-class FrozenList(list):
-    """
-    A subclass of list that represents an immutable list.
-
-    This class overrides the __setitem__ method to raise a ValueError
-    when attempting to modify the list.
-
-    Usage:
-    >>> my_list = FrozenList([1, 2, 3])
-    >>> my_list[0] = 4
-    ValueError: This list is immutable
-    """
-
-    def __setitem__(self, index, value):
-        raise ValueError("This list is immutable")
-
+    else:
+        # For other types, use deep copy
+        return copy.deepcopy(obj)
 
 def _get_valid_cell(inputcell):
     """Return the cell in a valid format from a generic input.
@@ -136,7 +135,7 @@ def _get_valid_cell(inputcell):
             "Cell must be a list of three vectors, each defined as a list of three coordinates."
         )
 
-    return the_cell
+    return np.array(the_cell)
 
 
 def _get_valid_pbc(inputpbc):
@@ -168,17 +167,30 @@ def _get_valid_pbc(inputpbc):
 
     return the_pbc
 
-def _check_valid_sites(input_sites):
+def _check_valid_sites(sites):
+    """Check that no two sites have positions that are too close to each other."""
 
-    num_sites = len(input_sites)
+    positions = np.array([site['position'] for site in sites])
+    n_sites = len(positions)
 
-    for i in range(num_sites):
-        for j in range(num_sites):
-            if j == i:
-                continue
-            if np.allclose(input_sites[i]["position"], input_sites[j]["position"], atol=1e-3):
-                raise ValueError(f"Sites {i+1} and {j+1} cannot have the same position")
+    if n_sites <= 1:
+        return
 
+    # Calculate pairwise distances using broadcasting (this is much more efficient than loops...)
+    diff = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]  # Shape: (n_sites, n_sites, 3)
+    distances = np.linalg.norm(diff, axis=2)  # Shape: (n_sites, n_sites)
+
+    # Set diagonal to large value to ignore self-comparisons
+    np.fill_diagonal(distances, np.inf)
+
+    # Check if any distance is below threshold
+    min_distance = 1e-3  # You can adjust this threshold
+    close_pairs = np.where(distances < min_distance)
+
+    if len(close_pairs[0]) > 0:
+        i, j = close_pairs[0][0], close_pairs[1][0]  # Get first problematic pair
+        raise ValueError(f"Sites {i} and {j} have positions that are too close: "
+                       f"{positions[i]} and {positions[j]} (distance: {distances[i,j]:.6f})")
     return
 
 
@@ -378,7 +390,7 @@ def group_symbols(_list):
     :param _list: a list of elements representing a chemical formula
     :return: a list of length-2 lists of the form [ multiplicity , element ]
     """
-    the_list = copy.deepcopy(_list)
+    the_list = efficient_copy(_list)
     the_list.reverse()
     grouped_list = [[1, the_list.pop()]]
     while the_list:
@@ -456,7 +468,7 @@ def get_formula_group(symbol_list, separator=""):
             ``group_together(['O','Ba','Ti','Ba','Ti'],2,1) =
                 ['O',['Ba','Ti'],['Ba','Ti']]``
         """
-        the_list = copy.deepcopy(_list)
+        the_list = efficient_copy(_list)
         the_list.reverse()
         grouped_list = []
         for _ in range(offset):
@@ -495,14 +507,14 @@ def get_formula_group(symbol_list, separator=""):
         :return the_symbol_list: the new grouped symbol list
         :return has_grouped: True if we grouped something
         """
-        the_symbol_list = copy.deepcopy(_list)
+        the_symbol_list = efficient_copy(_list)
         has_grouped = False
         offset = 0
         while not has_grouped and offset < group_size:
             grouped_list = group_together(the_symbol_list, group_size, offset)
             new_symbol_list = group_symbols(grouped_list)
             if len(new_symbol_list) < len(grouped_list):
-                the_symbol_list = copy.deepcopy(new_symbol_list)
+                the_symbol_list = efficient_copy(new_symbol_list)
                 the_symbol_list = cleanout_symbol_list(the_symbol_list)
                 has_grouped = True
                 # print get_formula_from_symbol_list(the_symbol_list)
@@ -518,7 +530,7 @@ def get_formula_group(symbol_list, separator=""):
         """
         has_finished = False
         group_size = 2
-        the_symbol_list = copy.deepcopy(_list)
+        the_symbol_list = efficient_copy(_list)
 
         while not has_finished and group_size <= len(_list) // 2:
             # try to group as much as possible by groups of size group_size
@@ -539,13 +551,13 @@ def get_formula_group(symbol_list, separator=""):
     # successively apply the grouping procedure until the symbol list does not
     # change anymore
     while new_symbol_list != old_symbol_list:
-        old_symbol_list = copy.deepcopy(new_symbol_list)
+        old_symbol_list = efficient_copy(new_symbol_list)
         new_symbol_list = group_all_together_symbols(old_symbol_list)
 
     return get_formula_from_symbol_list(new_symbol_list, separator=separator)
 
 
-def get_formula(symbol_list, mode="hill", separator=""):
+def get_formula(sites, mode="hill", separator=""):
     """Return a string with the chemical formula.
 
     :param symbol_list: a list of symbols, e.g. ``['H','H','O']``
@@ -593,6 +605,16 @@ def get_formula(symbol_list, mode="hill", separator=""):
         initial order in which the atoms were appended by the user is
         used to group and/or order the symbols in the formula
     """
+
+    # Convert symbols to strings, handling alloys (where symbol is a list)
+    symbol_list = []
+    for site in sites:
+        if isinstance(site.symbol, list):
+            # For alloys, join the symbols into a single string
+            symbol_list.append(''.join(site.symbol))
+        else:
+            symbol_list.append(site.symbol)
+
     if mode == "group":
         return get_formula_group(symbol_list, separator=separator)
 
@@ -831,17 +853,20 @@ def set_symbols_and_weights(new_data):
 
         .. note:: Note that the kind name remains unchanged.
         """
-        symbols_tuple = _create_symbols_tuple(new_data["symbol"])
-        weights_tuple = _create_weights_tuple(new_data["weights"])
+        symbols_tuple = _create_symbols_tuple(new_data["symbol"]) if isinstance(new_data["symbol"], str) else new_data["symbol"]
+        for symbol in symbols_tuple:
+            if symbol not in _valid_symbols:
+                raise ValueError(f'This is not a valid element: {symbol}')
+        weights_tuple = _create_weights_tuple(new_data["weight"])
         if len(symbols_tuple) != len(weights_tuple):
             raise ValueError('The number of symbols and weights must coincide.')
         validate_symbols_tuple(symbols_tuple)
 
         validate_weights_tuple(weights_tuple, _SUM_THRESHOLD)
         new_data["alloy"] = symbols_tuple
-        new_data["weights"] = weights_tuple
+        new_data["weight"] = weights_tuple
 
-        if not "mass" in new_data.keys() or np.isnan(new_data.get("mass", None)):
+        if "mass" not in new_data.keys() or np.isnan(new_data.get("mass", None)) or new_data.get("mass", None) == 0:
             # Weighted mass
             w_sum = sum(weights_tuple)
             normalized_weights = (i / w_sum for i in weights_tuple)
@@ -854,10 +879,275 @@ def check_is_alloy(data):
     :param data: the data to check. The dict of the SiteCore model.
     :return: True if the data is an alloy, False otherwise.
     """
-    new_data = copy.deepcopy(data)
-    if len(new_data.get("weights", [1,])) == 1:
+    new_data = efficient_copy(data)
+    if "weight" not in new_data.keys() or new_data.get("weight", None) is None:
+        if isinstance(new_data["symbol"], list) or re.search(r'[A-Z][a-z]*[A-Z]', new_data["symbol"]):
+            return new_data
+        else:
+            return None
+    if len(new_data.get("weight", [1,])) == 1:
         if new_data["symbol"] not in _valid_symbols:
-            raise ValueError(f'his is not a valid element: {new_data["symbol"]}')
+            raise ValueError(f'This is not a valid element: {new_data["symbol"]}')
         return None
     set_symbols_and_weights(new_data)
     return new_data
+
+def check_plugin_unsupported_props(structure, plugin_properties: set) -> set:
+    """
+    Check if the plugin supports the given properties.
+    :param plugin_properties: The supported properties in the plugin.
+    :return: the defined properties which are not supported by the plugin
+    :rtype: set
+    """
+
+    defined_properties = structure.get_defined_properties(exclude_computed=True)
+    return defined_properties.difference(plugin_properties)
+
+
+def order_k(k):
+    """
+    Adjusts the order of elements in the array `k` by ensuring that there are no gaps in the sequence.
+
+    If the minimum value in `k` is 0, it increments all elements by 1. Then, it iterates from the maximum value
+    in `k` down to the minimum value, checking if each value minus one is not in `k`. If a value minus one is not
+    found, it decrements all elements in `k` that are greater than or equal to the current value.
+
+    Parameters:
+    k (numpy.ndarray): An array of integers to be reordered.
+
+    Returns:
+    numpy.ndarray: The reordered array `k`.
+    """
+    if min(k) == 0:
+        k = k + 1
+    for i in range(max(k),min(1,min(k)),-1):
+        if  i-1 not in k:
+            k[np.where(k >=i )] -= 1
+    return k
+
+def compress_properties_by_kind(props):
+    """
+    Compress site-wise properties into kind-wise lists.
+    Returns a dict with properties as lists, one entry per kind.
+    """
+    import numpy as np
+
+    if not props.get("kind_names", None):
+        raise ValueError("The input properties must contain 'kind_names' information.")
+
+    kind_names_array = np.array(props["kind_names"])
+
+    site_props = set(props.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites"])
+
+
+    compressed = {prop: [] if prop in site_props.union(["site_indices"]) else props.get(prop, None) for prop in site_props.union(["site_indices"]).union(_GLOBAL_PROPERTIES)}
+
+    for kind_name in set(props["kind_names"]):
+        site_indices = np.where(kind_names_array == kind_name)[0]
+        for prop in site_props:
+            if prop == "positions":
+                compressed[prop].append([props[prop][i] for i in site_indices])
+            elif prop in props and props[prop] is not None:
+                compressed[prop].append(props[prop][site_indices[0]])
+            else:
+                compressed.pop(prop, None)
+        compressed["site_indices"].append(site_indices.tolist())
+
+    for prop in _GLOBAL_PROPERTIES:
+        if compressed.get(prop, None) is None:
+            compressed.pop(prop, None)
+
+    return compressed
+
+
+def rebuild_site_lists_from_kind_lists(compressed):
+    """
+    Expand kinds into a list of site dictionaries, sorted by site_index.
+    """
+    site_props = set(compressed.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites","site_indices"])
+    expanded = {prop: [] if prop in site_props.union(["site_indices"]) else compressed.get(prop, None) for prop in site_props.union(["site_indices"]).union(_GLOBAL_PROPERTIES)}
+
+    for i, site_indices in enumerate(compressed["site_indices"]):
+        for prop in site_props:
+            if prop == "positions":
+                expanded[prop].extend(compressed[prop][i])
+            elif prop == "site_indices":
+                continue
+            elif prop in compressed:
+                expanded[prop].extend([compressed[prop][i]] * len(site_indices))
+            else:
+                expanded.pop(prop)
+
+        expanded["site_indices"] += site_indices
+
+    # Reorder by site_index
+    order = np.argsort(expanded["site_indices"])
+    for prop in site_props.union(["site_indices"]):
+        if prop in expanded:
+            expanded[prop] = [expanded[prop][i] for i in order]
+
+    for prop in _GLOBAL_PROPERTIES:
+        if expanded.get(prop, None) is None:
+            expanded.pop(prop, None)
+
+    expanded.pop("site_indices")
+
+    return expanded
+
+
+def build_sites_from_expanded_properties(expanded):
+    """
+    Build the structure dictionary from expanded site-wise lists of properties.
+    """
+
+    # Use all keys except positions if you want to exclude arrays, or specify your own
+    site_props = set(expanded.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites", "site_indices"])
+
+    n_sites = len(expanded.get("positions",[]))
+    sites = []
+    for i in range(n_sites):
+        site = {}
+        site["position"] = expanded["positions"][i]
+        for prop in site_props:
+            site[_CONVERSION_PLURAL_SINGULAR[prop]] = expanded[prop][i]
+        sites.append(site)
+
+    structure_dict = {}
+    for prop in _GLOBAL_PROPERTIES:
+        if expanded.get(prop, None) is not None:
+            structure_dict[prop] = expanded[prop]
+
+    structure_dict["sites"] = sites
+
+    return structure_dict
+
+
+def classify_site_kinds(sites:list, exclude_props:bool=None, tolerance:t.Union[dict, float]=1e-3):
+    """
+    Classify sites into groups where each group (kind) has the same properties except position.
+
+    Args:
+        sites: List of site dictionaries
+        exclude_props: Set of property names to exclude from grouping (default: {'position'})
+        tolerance: Numerical tolerance for floating point comparisons (default: 1e-3)
+
+    Returns:
+        dict: {group_key: {'sites': [site_indices], 'properties': {prop: value}}}
+    """
+    import numpy as np
+    from collections import defaultdict
+
+    if exclude_props is None:
+        exclude_props = {'position'}
+
+    def normalize_value(value, tol=tolerance):
+        """Normalize values for consistent comparison."""
+        if isinstance(value, np.ndarray):
+            # Round numpy arrays to tolerance
+            normalized = np.round(value / tol) * tol
+            return tuple(normalized.tolist())
+        elif isinstance(value, (float, np.floating)):
+            # Round floats to tolerance
+            return round(value / tol) * tol
+        elif isinstance(value, (int, np.integer)):
+            return int(value)
+        elif isinstance(value, list):
+            # Convert lists to tuples (for alloy symbols, weights, etc.)
+            return tuple(value)
+        elif isinstance(value, tuple):
+            # Already a tuple, return as-is
+            return value
+        elif value is None:
+            return None
+        else:
+            return value
+
+    groups = defaultdict(lambda: {'sites': [], 'positions': [], 'properties': {}})
+
+    for i, site in enumerate(sites):
+        # Create a hashable key from normalized properties
+        key_props = {}
+        for prop, value in site.items():
+            if prop not in exclude_props:
+                if isinstance(tolerance, dict):
+                    tol = tolerance.get(prop, 1e-3)
+                else:
+                    tol = tolerance
+                normalized_value = normalize_value(value, tol)
+                key_props[prop] = normalized_value
+
+        # Create a hashable key containing both property names and their normalized values, so it is a unique identifier
+        key = tuple(sorted(key_props.items()))
+
+        # Add site index to this group (or this specific hashable key)
+        groups[key]['sites'].append(i)
+        groups[key]['positions'].append(site['position'])
+
+        # Store the original properties (first occurrence) WITHOUT normalization
+        if not groups[key]['properties']:
+            groups[key]['properties'] = {
+                prop: value for prop, value in site.items()
+                if prop not in exclude_props
+            }
+
+    return dict(groups)
+
+# Usage example:
+# groups = classify_site_kinds(m.to_dict()['sites'])
+# for i, (key, group) in enumerate(groups.items()):
+#     print(f"Group {i+1}:")
+#     print(f"  Sites: {group['sites']}")
+#     print(f"  Positions: {group['positions']}")
+#     print(f"  Properties: {group['properties']}")
+#     print()
+
+def check_kinds_match(structure, kinds_list):
+    check_kinds = []
+    kind_names_indices = [kind['site_indices'] for kind in kinds_list]
+    for kind in structure.kinds:
+        site_indices = kind.site_indices
+        check_kinds.append(site_indices in kind_names_indices)
+
+    return all(check_kinds)
+
+
+def sites_from_kinds(kinds):
+    """
+    Expand kinds into a list of site dictionaries, sorted by site_index.
+    1. Create a list of site indices and positions from the kinds
+    2. Create a list of site dictionaries by copying the kind properties
+       and adding the position
+    3. Return the list of site dictionaries
+    4. Note: the returned list is sorted by site_index
+
+    Format of kinds (basically what can be obtained by structure.generate_kinds()):
+    [
+        {'site_indices': [0, 2],
+        'positions': [array([0., 0., 0.]), array([0., 1., 0.])],
+        'symbol': 'H',
+        'mass': 1.008,
+        'charge': 0.0,
+        'magmom': (0.0, 0.0, -1.0),
+        'kind_name': 'H1'},
+        {'site_indices': [1],
+        'positions': [array([0., 0., 1.])],
+        'symbol': 'O',
+        'mass': 15.999,
+        'charge': -2.0,
+        'magmom': (0.0, 0.0, 1.0),
+        'kind_name': 'O1'}
+    ]
+    """
+    sites_list = []
+    positions = []
+    for i,kind in enumerate(kinds):
+        sites_list += [i]*len(kind['site_indices'])
+        positions += list(kind['positions'])
+    num_sites = len(sites_list)
+    for i in range(num_sites):
+        sites_list[i] = efficient_copy(kinds[sites_list[i]])
+        sites_list[i].pop('site_indices', None)
+        sites_list[i].pop('positions', None)
+        sites_list[i]['position'] = positions[i]
+
+    return sites_list

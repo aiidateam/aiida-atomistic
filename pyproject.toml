@@ -19,10 +19,10 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Framework :: AiiDA"
 ]
-keywords = ["aiida", "plugin"]
+keywords = ["aiida", "plugin", "atomistic"]
 requires-python = ">=3.7"
 dependencies = [
-    "aiida-core>=2.0,<3",
+    "aiida-core @ git+https://github.com/mikibonacci/aiida-core.git@dev/atomistic",
     "voluptuous",
     "ase",
     "pymatgen>=2022.1.20",
@@ -39,34 +39,26 @@ testing = [
     "coverage[toml]",
     "pytest~=6.0",
     "pytest-cov",
-    "six",
+    "six"
 ]
 pre-commit = [
     "pre-commit~=2.2",
     "pylint~=2.15.10"
 ]
 docs = [
-    'sphinx~=6.2.1',
-    'sphinx-copybutton~=0.5.2',
+    'sphinx>=6.2.1',
+    'sphinx_copybutton~=0.5.2',
     'sphinx-book-theme~=1.0.1',
-    'sphinx-click~=4.4.0',
+    'sphinx_click~=4.4.0',
     'sphinx-design~=0.4.1',
     'sphinxcontrib-details-directive~=0.1.0',
     'sphinx-autoapi~=3.0.0',
     'myst_parser~=1.0.0',
+    'packaging~=24.2',
 ]
 
 [project.entry-points."aiida.data"]
-"atomistic.StructureData" = "aiida_atomistic.data.structure.structure:StructureData"
-
-[project.entry-points."aiida.calculations"]
-"atomistic" = "aiida_atomistic.calculations:DiffCalculation"
-
-[project.entry-points."aiida.parsers"]
-"atomistic" = "aiida_atomistic.parsers:DiffParser"
-
-[project.entry-points."aiida.cmdline.data"]
-"atomistic" = "aiida_atomistic.cli:data_cli"
+"atomistic.structure" = "aiida_atomistic.data.structure.structure:StructureData"
 
 [tool.flit.module]
 name = "aiida_atomistic"

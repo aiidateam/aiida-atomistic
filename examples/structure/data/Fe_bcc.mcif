@@ -100,7 +100,7 @@ _atom_site_type_symbol
 _atom_site_fract_x
 _atom_site_fract_y
 _atom_site_fract_z
-FE1 Fe 0.00000 0.00000 0.00000
+Fe1 Fe 0.00000 0.00000 0.00000
 
 loop_
 _atom_site_moment.label
@@ -108,4 +108,4 @@ _atom_site_moment.crystalaxis_x
 _atom_site_moment.crystalaxis_y
 _atom_site_moment.crystalaxis_z
 _atom_site_moment.symmform
-FE1 0.00000 0.00000 2.50000 0,0,mz
+Fe1 0.00000 0.00000 2.50000 0,0,mz

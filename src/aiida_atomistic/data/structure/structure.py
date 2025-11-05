@@ -1,100 +1,114 @@
-import copy
-import functools
-import json
-import typing as t
-from pydantic import BaseModel, Field, field_validator, PrivateAttr
-import numpy as np
-import warnings
-
-from aiida import orm
-from aiida.common.constants import elements
 from aiida.orm.nodes.data import Data
 
 from aiida_atomistic.data.structure.models import MutableStructureModel, ImmutableStructureModel
-from aiida_atomistic.data.structure.mixin import GetterMixin, SetterMixin
-
-try:
-    import ase  # noqa: F401
-    from ase import io as ase_io
-
-    has_ase = True
-    ASE_ATOMS_TYPE = ase.Atoms
-except ImportError:
-    has_ase = False
-
-    ASE_ATOMS_TYPE = t.Any
-
-try:
-    import pymatgen.core as core  # noqa: F401
-
-    has_pymatgen = True
-    PYMATGEN_MOLECULE = core.structure.Molecule
-    PYMATGEN_STRUCTURE = core.structure.Structure
-except ImportError:
-    has_pymatgen = False
-
-    PYMATGEN_MOLECULE = t.Any
-    PYMATGEN_STRUCTURE = t.Any
-
+from aiida_atomistic.data.structure.setter_mixin import SetterMixin
+from aiida_atomistic.data.structure.getter_mixin import GetterMixin
 
 from aiida_atomistic.data.structure.utils import (
-    _get_valid_cell,
-    _get_valid_pbc,
-    atom_kinds_to_html,
-    calc_cell_volume,
-    create_automatic_kind_name,
-    get_formula,
-    ObservedArray,
-    FrozenList,
-    freeze_nested,
+    compress_properties_by_kind,
+    rebuild_site_lists_from_kind_lists,
+    build_sites_from_expanded_properties,
+    sites_from_kinds,
 )
 
-_MASS_THRESHOLD = 1.0e-3
-# Threshold to check if the sum is one or not
-_SUM_THRESHOLD = 1.0e-6
-# Default cell
-_DEFAULT_CELL = ((0, 0, 0),) * 3
-
-_valid_symbols = tuple(i["symbol"] for i in elements.values())
-_atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
-_atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
-
-_default_values = {
-    "charges": 0,
-    "magmoms": [0, 0, 0],
-}
+import warnings
 
 class StructureData(Data, GetterMixin):
 
-    def __init__(self, **kwargs):
+    _mutable = False
+    _model = ImmutableStructureModel
 
-        self._properties = ImmutableStructureModel(**kwargs)
+    def __init__(self, validate_kinds=True, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
+
+        if sites is not None and kinds is not None:
+            warnings.warn("Provided both `sites` and `kinds` information. Dropping the `sites` information and using only `kinds`.")
+            sites = sites_from_kinds(kinds)
+        elif kinds is not None:
+            sites = sites_from_kinds(kinds)
+
+        self._properties = self._model(sites=sites, **kwargs)
         super().__init__()
 
-        defined_properties = self.get_defined_properties() # exclude the default ones. We do not need to store them into the db.
-        for prop, value in self.properties.model_dump(exclude_defaults=True).items():
-            if prop in defined_properties:
-                self.base.attributes.set(prop, value)
+        if validate_kinds and self.kinds is not None:
+            self.validate_kinds()
+
+        attributes = self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False)
+        if self.properties.kind_names is not None:
+            compressed = compress_properties_by_kind(attributes)
+            attributes.update(compressed)
+
+        attributes.pop("sites", None)
+        attributes.pop("kinds", None)
+
+        for prop, value in attributes.items():
+            self.base.attributes.set(prop, value)
 
     @property
     def properties(self):
         if self.is_stored:
-            return ImmutableStructureModel(**self.base.attributes.all)
+            if "kind_names" in self.base.attributes.all:
+                attribute_lists = rebuild_site_lists_from_kind_lists(self.base.attributes.all)
+                attributes = build_sites_from_expanded_properties(attribute_lists)
+            else:
+                attributes = build_sites_from_expanded_properties(self.base.attributes.all)
+
+            properties = self._model(**attributes)
+            return properties
         else:
             return self._properties
 
-    def to_mutable(self, detect_kinds: bool = False):
-        return StructureDataMutable(**self.to_dict(detect_kinds=detect_kinds))
+    @classmethod
+    def from_builder(cls, mutable_structure, validate_kinds=True):
+        if not isinstance(mutable_structure, StructureBuilder):
+            raise ValueError(f"Input structure should be of type StructureBuilder, not {type(mutable_structure)}")
+        return cls(validate_kinds=validate_kinds, **mutable_structure.to_dict(exclude_kinds=True))
 
-class StructureDataMutable(GetterMixin, SetterMixin):
+    def to_mutable(self,):
+        return StructureBuilder(**self.to_dict())
 
-    def __init__(self, **kwargs):
+    def get_value(self):
+        return StructureBuilder(**self.to_dict())
 
-        self._properties = MutableStructureModel(**kwargs)
+    def __repr__(self) -> str:
+        """Return a concise string representation of the structure."""
+        # Build UUID string without calling super().__repr__() to avoid recursion
+        if self.is_stored:
+            uuid_str = f'<{self.__class__.__name__}: uuid: {self.uuid} (pk: {self.pk})>'
+        else:
+            uuid_str = f'<{self.__class__.__name__}: uuid: {self.uuid} (unstored)>'
+
+        prop_repr_str = self.properties.__repr__()
+        return uuid_str + f'\n {prop_repr_str.replace("ImmutableStructureModel","")}'
+
+    def __str__(self) -> str:
+        """Return a string representation of the structure for print()."""
+        return self.__repr__()
+
+class StructureBuilder(GetterMixin, SetterMixin):
+
+    _mutable = True
+    _model = MutableStructureModel
+
+    def __init__(self, validate_kinds=True, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
+
+        if sites is not None and kinds is not None:
+            warnings.warn("Provided both `sites` and `kinds` information. Dropping the `sites` information and using only `kinds`.")
+            sites = sites_from_kinds(kinds)
+        elif kinds is not None:
+            sites = sites_from_kinds(kinds)
+
+        self._properties = self._model(sites=sites, **kwargs)
+        super().__init__()
 
     @property
     def properties(self):
         return self._properties
 
-    def to_immutable(self, detect_kinds: bool = False):
-        return StructureData(**self.to_dict(detect_kinds=detect_kinds))
+    def __repr__(self) -> str:
+        """Return a concise string representation of the structure."""
+        prop_repr_str = self.properties.__repr__()
+        return super().__repr__() + f'\n {prop_repr_str.replace("MutableStructureModel","")}'
+
+    def __str__(self) -> str:
+        """Return a string representation of the structure for print()."""
+        return self.__repr__()
