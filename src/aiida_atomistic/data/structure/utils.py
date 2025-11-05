@@ -23,7 +23,7 @@ from aiida.engine import calcfunction
 from aiida.orm import List
 
 
-from . import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES, _CONVERSION_PLURAL_SINGULAR
+from .constants import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES, _CONVERSION_PLURAL_SINGULAR
 
 # Threshold used to check if the mass of two different Site objects is the same.
 
@@ -42,7 +42,7 @@ _dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
 class ObservedArray(np.ndarray):
     """
     This is a subclass of numpy.ndarray that allows to observe changes to the array.
-    In this way, full flexibility of StructureDataMutable is achieved and at the same
+    In this way, full flexibility of StructureBuilder is achieved and at the same
     time we can keep track of all the changes.
     """
 
@@ -92,12 +92,32 @@ class ObservedArray(np.ndarray):
         if obj is None:
             return
 
-def efficient_copy(self):
-    # Only copy mutable parts, this is much more efficient than using always copy.deepcopy.
-    return self.__class__(**{
-        k: v if isinstance(v, (str, int, float, tuple)) else copy.deepcopy(v)
-        for k, v in self.items()
-    })
+def efficient_copy(obj):
+    """
+    Efficiently copy an object, only deep-copying mutable parts.
+
+    Handles both dictionaries and lists, as well as other types.
+    """
+    if obj is None:
+        return None
+    elif isinstance(obj, dict):
+        # For dictionaries, only deep-copy mutable values
+        return {
+            k: v if isinstance(v, (str, int, float, tuple, type(None))) else copy.deepcopy(v)
+            for k, v in obj.items()
+        }
+    elif isinstance(obj, list):
+        # For lists, only deep-copy mutable elements
+        return [
+            item if isinstance(item, (str, int, float, tuple, type(None))) else copy.deepcopy(item)
+            for item in obj
+        ]
+    elif isinstance(obj, (str, int, float, tuple, type(None))):
+        # Immutable types don't need copying
+        return obj
+    else:
+        # For other types, use deep copy
+        return copy.deepcopy(obj)
 
 def _get_valid_cell(inputcell):
     """Return the cell in a valid format from a generic input.
@@ -586,7 +606,14 @@ def get_formula(sites, mode="hill", separator=""):
         used to group and/or order the symbols in the formula
     """
 
-    symbol_list = [site.symbol for site in sites]
+    # Convert symbols to strings, handling alloys (where symbol is a list)
+    symbol_list = []
+    for site in sites:
+        if isinstance(site.symbol, list):
+            # For alloys, join the symbols into a single string
+            symbol_list.append(''.join(site.symbol))
+        else:
+            symbol_list.append(site.symbol)
 
     if mode == "group":
         return get_formula_group(symbol_list, separator=separator)
@@ -854,7 +881,10 @@ def check_is_alloy(data):
     """
     new_data = efficient_copy(data)
     if "weight" not in new_data.keys() or new_data.get("weight", None) is None:
-        return new_data
+        if isinstance(new_data["symbol"], list) or re.search(r'[A-Z][a-z]*[A-Z]', new_data["symbol"]):
+            return new_data
+        else:
+            return None
     if len(new_data.get("weight", [1,])) == 1:
         if new_data["symbol"] not in _valid_symbols:
             raise ValueError(f'This is not a valid element: {new_data["symbol"]}')
@@ -862,7 +892,7 @@ def check_is_alloy(data):
     set_symbols_and_weights(new_data)
     return new_data
 
-def check_plugin_support(structure, plugin_properties: set) -> set:
+def check_plugin_unsupported_props(structure, plugin_properties: set) -> set:
     """
     Check if the plugin supports the given properties.
     :param plugin_properties: The supported properties in the plugin.
@@ -870,7 +900,7 @@ def check_plugin_support(structure, plugin_properties: set) -> set:
     :rtype: set
     """
 
-    defined_properties = structure.get_defined_properties()
+    defined_properties = structure.get_defined_properties(exclude_computed=True)
     return defined_properties.difference(plugin_properties)
 
 
@@ -917,10 +947,10 @@ def compress_properties_by_kind(props):
         for prop in site_props:
             if prop == "positions":
                 compressed[prop].append([props[prop][i] for i in site_indices])
-            elif prop in props:
+            elif prop in props and props[prop] is not None:
                 compressed[prop].append(props[prop][site_indices[0]])
             else:
-                compressed.pop(prop)
+                compressed.pop(prop, None)
         compressed["site_indices"].append(site_indices.tolist())
 
     for prop in _GLOBAL_PROPERTIES:
@@ -1021,6 +1051,12 @@ def classify_site_kinds(sites:list, exclude_props:bool=None, tolerance:t.Union[d
             return round(value / tol) * tol
         elif isinstance(value, (int, np.integer)):
             return int(value)
+        elif isinstance(value, list):
+            # Convert lists to tuples (for alloy symbols, weights, etc.)
+            return tuple(value)
+        elif isinstance(value, tuple):
+            # Already a tuple, return as-is
+            return value
         elif value is None:
             return None
         else:
@@ -1047,10 +1083,10 @@ def classify_site_kinds(sites:list, exclude_props:bool=None, tolerance:t.Union[d
         groups[key]['sites'].append(i)
         groups[key]['positions'].append(site['position'])
 
-        # Store the original properties (first occurrence)
+        # Store the original properties (first occurrence) WITHOUT normalization
         if not groups[key]['properties']:
             groups[key]['properties'] = {
-                prop: normalize_value(value, tolerance.get(prop, 1e-3) if isinstance(tolerance, dict) else tolerance) for prop, value in site.items()
+                prop: value for prop, value in site.items()
                 if prop not in exclude_props
             }
 
@@ -1106,7 +1142,7 @@ def sites_from_kinds(kinds):
     positions = []
     for i,kind in enumerate(kinds):
         sites_list += [i]*len(kind['site_indices'])
-        positions += kind['positions']
+        positions += list(kind['positions'])
     num_sites = len(sites_list)
     for i in range(num_sites):
         sites_list[i] = efficient_copy(kinds[sites_list[i]])

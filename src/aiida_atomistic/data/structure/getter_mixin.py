@@ -7,7 +7,7 @@ import itertools
 from aiida import orm
 from aiida.common.constants import elements
 
-from aiida_atomistic.data.structure.site import Site
+from aiida_atomistic.data.structure.site import Site, FrozenSite
 from aiida_atomistic.data.structure.models import MutableStructureModel
 from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
@@ -48,7 +48,7 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
-from . import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES
+from .constants import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES
 
 _DEFAULT_THRESHOLDS = {
             "charges": 0.1,
@@ -88,13 +88,13 @@ class GetterMixin(HubbardGetterMixin):
         return self.properties.formula
     # End redundant properties
 
-    @staticmethod
-    def get_supported_properties():
+    @classmethod
+    def get_supported_properties(cls):
         """
         Get a dictionary of global and site properties that can be set
         for this structure.
         """
-        structure_fields = set(MutableStructureModel.model_fields.keys())
+        structure_fields = set(cls._model.model_fields.keys())
         site_fields = set(Site.model_fields.keys())
 
         return {
@@ -102,7 +102,13 @@ class GetterMixin(HubbardGetterMixin):
             'site': site_fields
         }
 
-    def get_defined_properties(self):
+    @classmethod
+    def get_queryable_properties(cls):
+        fields = cls._model.model_fields
+        computed_fields = cls._model.model_computed_fields
+        return set(fields.keys()).union(computed_fields.keys()).difference({'kinds', 'sites'})
+
+    def get_defined_properties(self, exclude_computed: bool = False):
         """
             Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
 
@@ -110,7 +116,7 @@ class GetterMixin(HubbardGetterMixin):
                 exclude_computed (bool): If False, all properties will be returned, including those computed after the initialization (the pydantic computed fields).
                 exclude_defaults (bool): If True, properties with default values will be excluded from the result.
         """
-        return set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys()).difference(_COMPUTED_PROPERTIES)
+        return set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys()).difference(set(self._model.model_computed_fields.keys()) if exclude_computed else set())
 
     def get_kind_names(self):
         """Return a list of the kind names defined in this structure."""
@@ -144,6 +150,11 @@ class GetterMixin(HubbardGetterMixin):
         if not has_ase:
             raise ImportError("The ASE package cannot be imported.")
 
+        if not cls._mutable:
+            SiteClass = FrozenSite
+        else:
+            SiteClass = Site
+
         # Read the ase structure
         data = {}
         data["cell"] = aseatoms.cell.array.tolist()
@@ -152,7 +163,7 @@ class GetterMixin(HubbardGetterMixin):
         data["sites"] = []
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
-            new_site = Site.from_ase_atom(aseatom=atom)
+            new_site = SiteClass.from_ase_atom(aseatom=atom)
             data["sites"].append(new_site.model_dump(exclude={"kind_name"} if not detect_kinds else None))
 
 
@@ -375,7 +386,6 @@ class GetterMixin(HubbardGetterMixin):
 
         if not check_kinds:
             raise ValueError("The kinds defined in the structure do not match the generated kinds from the sites. Please run the 'generate_kinds' method to see the expected kinds.")
-
 
     # TO methods:
     def to_dict(self, exclude_kinds=False):

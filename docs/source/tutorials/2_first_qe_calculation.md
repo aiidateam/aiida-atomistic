@@ -9,6 +9,7 @@ This guide demonstrates how to use aiida-atomistic structures in computational w
 Ensure you have the necessary packages installed:
 
 ```bash
+pip install aiida-core # for now: `support/atomistic` branch from https://github.com/mikibonacci/aiida-core.git
 pip install aiida-pseudo # for now: `atomistic` branch from https://github.com/mikibonacci/aiida-pseudo.git
 pip install aiida-quantumespresso # for now: `atomistic ` branch from https://github.com/mikibonacci/aiida-quantumespresso.git
 ```
@@ -50,12 +51,26 @@ print(f"Kinds: {structure.kinds}")
 
 **Output:**
 ```
-Created structure: Si2
-Cell volume: 40.03 Angstrom^3
-Kinds: [Kind(symbol='Si', position=None, mass=28.085, charge=None, magmom=None, magnetization=None, weight=None, kind_name='Si0', positions=array([[0.    , 0.    , 0.    ],1.3575, 1.3575, 1.3575]]), site_indices=[0, 1])]
+from aiida import orm, load_profile
+from aiida.engine import run_get_node
+
+from aiida_quantumespresso.workflows.pw.base import PwBaseWorkChain
+from aiida_atomistic import StructureData
+
+from ase.build import bulk
+
+load_profile()
+
+# Create silicon structure
+si_atoms = bulk('Si', 'diamond', a=5.43)
+structure = StructureData.from_ase(si_atoms, detect_kinds=True)
+
+print(f"Created structure: {structure.properties.formula}")
+print(f"Cell volume: {structure.properties.cell_volume:.2f} Angstrom^3")
+print(f"Kinds: {structure.kinds}")
 ```
 
-As you can see, we detected kinds (from the ASE `atom` tags) and we have them defined in our StructureData. This is needed as Quantum ESPRESSO works with kinds.
+As you can see, we detected kinds (from the ASE `atom` tags) and we have them defined in our StructureData. This is needed as Quantum ESPRESSO works **only** with kinds.
 
 Then, we can initialise the WorkChain instance and run the calculation:
 
@@ -81,15 +96,15 @@ run = run_get_node(builder)
 
 ## Adding `tot_charge` in our input
 
-Here below we show a simple example on how to add(remove) charge to the system, and run again the calculation. We basically load the Atoms object using the `StructureDataMutable`, we add charge and we resubmit:
+Here below we show a simple example on how to add(remove) charge to the system, and run again the calculation. We basically load the Atoms object using the `StructureBuilder`, we add charge and we resubmit:
 
 ```python
-structure = StructureDataMutable.from_ase(si_atoms, detect_kinds=True)
+structure = StructureBuilder.from_ase(si_atoms, detect_kinds=True)
 structure.set_tot_charge(1.0)
 
 builder = PwBaseWorkChain.get_builder_from_protocol(
     code=orm.load_code("pw-qe-7.4@localhost"),
-    structure=StructureData.from_mutable(structure),
+    structure=StructureData.from_builder(structure),
     protocol="moderate",
     overrides={
         "pseudo_family": "SSSP/1.3/PBE/efficiency",
@@ -101,12 +116,12 @@ run = run_get_node(builder)
 
 **Output:**
 ```
-09/08/2025 05:35:10 PM <88111> aiida.orm.nodes.process.workflow.workchain.WorkChainNode: [REPORT] [13688|PwBaseWorkChain|run_process]: launching PwCalculation<13693> iteration #1
-09/08/2025 05:35:29 PM <88111> aiida.orm.nodes.process.workflow.workchain.WorkChainNode: [REPORT] [13688|PwBaseWorkChain|results]: work chain completed after 1 iterations
-09/08/2025 05:35:29 PM <88111> aiida.orm.nodes.process.workflow.workchain.WorkChainNode: [REPORT] [13688|PwBaseWorkChain|on_terminated]: remote folders will not be cleaned
+11/04/2025 05:48:46 PM <42782> aiida.orm.nodes.process.workflow.workchain.WorkChainNode: [REPORT] [13784|PwBaseWorkChain|run_process]: launching PwCalculation<13789> iteration #1
+11/04/2025 05:49:09 PM <42782> aiida.orm.nodes.process.workflow.workchain.WorkChainNode: [REPORT] [13784|PwBaseWorkChain|results]: work chain completed after 1 iterations
+11/04/2025 05:49:10 PM <42782> aiida.orm.nodes.process.workflow.workchain.WorkChainNode: [REPORT] [13784|PwBaseWorkChain|on_terminated]: remote folders will not be cleaned
 ```
 
-
+The `from_builder` methods automatically detects the kinds. It is possible to deactivate this by providing `detects_kinds=False` when invoking the method.
 
 ## Next Steps
 

@@ -103,7 +103,7 @@ class SetterMixin(HubbardSetterMixin):
     def set_cell_angles(self, value):
         raise NotImplementedError("This method is not implemented yet")
 
-    def update_site(self, site_indices: t.Union[list[int], int], **kwargs):
+    def update_sites(self, site_indices: t.Union[list[int], int], **kwargs):
         """
         Update the site at the given index.
         """
@@ -122,17 +122,22 @@ class SetterMixin(HubbardSetterMixin):
         Update all sites with the given kind name.
         """
         if not self.kinds:
-            raise ValueError("You cannot update a kind if the structure has no kinds defined. Please use the `update_site` method.")
+            raise ValueError("You cannot update a kind if the structure has no kinds defined. Please use the `update_sites` method.")
 
         kind_indices = [i for i, site in enumerate(self.properties.sites) if site.kind_name == kind_name]
-        self.update_site(kind_indices, **kwargs)
+        self.update_sites(kind_indices, **kwargs)
         return
 
-    def append_atom(self, index=-1, **atom_info):
+    def append_atom(self, atom: t.Union[Site, dict]=None, index=-1):
 
-        new_site = Site(**atom_info)
-        # I look for identical species only if the name is not specified
-        # _kinds = self.kinds
+        if isinstance(atom, dict):
+            new_site = Site(**atom)
+        else:
+            new_site = atom
+
+        if len(self.properties.sites) == 0:
+            self.properties.sites.insert(-1, new_site)
+            return
 
         # check that the matrix is not singular. If it is, raise an error.
         # check to be done in the core.

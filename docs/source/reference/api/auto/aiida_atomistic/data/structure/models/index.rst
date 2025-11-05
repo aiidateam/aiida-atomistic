@@ -30,25 +30,6 @@ Classes
        pbc (Optional[List[bool]]): Periodic boundary conditions in the x, y, and z directions.
        cell (Optional[List[List[float]]]): The cell vectors defining the unit cell of the structure.
 
-   .. py:class:: Config
-
-
-      .. py:attribute:: from_attributes
-         :value: True
-
-
-
-      .. py:attribute:: frozen
-         :value: False
-
-
-
-      .. py:attribute:: arbitrary_types_allowed
-         :value: True
-
-
-
-
    .. py:attribute:: _mutable
       :type: ClassVar[bool]
       :value: True
@@ -61,7 +42,7 @@ Classes
 
 
    .. py:attribute:: cell
-      :type: Union[numpy.ndarray[float]]
+      :type: aiida_atomistic.data.structure.site.NumpyArray
 
 
 
@@ -87,6 +68,10 @@ Classes
 
    .. py:attribute:: custom
       :type: Optional[dict]
+
+
+
+   .. py:attribute:: model_config
 
 
 
@@ -218,9 +203,14 @@ Classes
           List[Tuple[float, ...]]: A list of weight tuples corresponding to each site.
 
 
-   .. py:method:: kinds() -> aiida_atomistic.data.structure.site.FrozenList[aiida_atomistic.data.structure.kind.Kind]
+   .. py:method:: kinds() -> list[aiida_atomistic.data.structure.kind.Kind]
 
       Return the reduced set of kinds, grouping sites that share all properties except positions and site_indices.
+
+
+   .. py:method:: __repr__() -> str
+
+      Return a concise string representation of the structure.
 
 
 
@@ -259,33 +249,29 @@ Classes
        frozen (bool): Flag indicating whether the model is frozen or not.
        arbitrary_types_allowed (bool): Flag indicating whether arbitrary types are allowed or not.
 
-   .. py:class:: Config
-
-
-      .. py:attribute:: from_attributes
-         :value: True
-
-
-
-      .. py:attribute:: frozen
-         :value: True
-
-
-
-      .. py:attribute:: arbitrary_types_allowed
-         :value: True
-
-
-
-
    .. py:attribute:: _mutable
       :value: False
+
+
+
+   .. py:attribute:: pbc
+      :type: list[bool]
 
 
 
    .. py:attribute:: sites
       :type: Optional[list[aiida_atomistic.data.structure.site.FrozenSite]]
 
+
+
+   .. py:attribute:: model_config
+
+
+
+   .. py:method:: freeze_pbc(v)
+      :classmethod:
+
+      Freeze the pbc list to make it immutable.
 
 
    .. py:method:: __setattr__(key, value)

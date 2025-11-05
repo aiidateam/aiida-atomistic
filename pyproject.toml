@@ -19,12 +19,12 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Framework :: AiiDA"
 ]
-keywords = ["aiida", "plugin"]
+keywords = ["aiida", "plugin", "atomistic"]
 requires-python = ">=3.7"
 dependencies = [
-    # "aiida-core @ git+https://github.com/mikibonacci/aiida-core.git@support/atomistic",
-    # "aiida-quantumespresso @ git+https://github.com/mikibonacci/aiida-quantumespresso.git@support/atomistic",
-    "aiida-pseudo==1.5.0",
+    "aiida-core @ git+https://github.com/mikibonacci/aiida-core.git@support/atomistic",
+    "aiida-quantumespresso @ git+https://github.com/mikibonacci/aiida-quantumespresso.git@support/atomistic",
+    "aiida-pseudo @ git+https://github.com/mikibonacci/aiida-pseudo@atomistic",
     "voluptuous",
     "ase",
     "pymatgen>=2022.1.20",
@@ -61,15 +61,6 @@ docs = [
 
 [project.entry-points."aiida.data"]
 "atomistic.structure" = "aiida_atomistic.data.structure.structure:StructureData"
-
-[project.entry-points."aiida.calculations"]
-"atomistic" = "aiida_atomistic.calculations:DiffCalculation"
-
-[project.entry-points."aiida.parsers"]
-"atomistic" = "aiida_atomistic.parsers:DiffParser"
-
-[project.entry-points."aiida.cmdline.data"]
-"atomistic" = "aiida_atomistic.cli:data_cli"
 
 [tool.flit.module]
 name = "aiida_atomistic"

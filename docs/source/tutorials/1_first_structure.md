@@ -2,6 +2,14 @@
 
 In this short tutorial you will learn how to create your first structure, inspect its properties and how to store it in the AiiDA database to then use it in your calculations.
 
+:::{important}
+`aiida-atomistic` provides two structure classes:
+- **`StructureData`**: Immutable structure for AiiDA provenance (cannot be modified after creation)
+- **`StructureBuilder`**: Mutable structure for building and editing, before creating the `StructureData` from it
+
+for more details, please read the [in-depth page on immutability](../in_depth/immutability.md).
+:::
+
 ## Setting Up
 
 First, let's import the necessary modules and load your AiiDA profile:
@@ -14,7 +22,7 @@ import numpy as np
 load_profile()
 
 # Import aiida-atomistic classes
-from aiida_atomistic.data import StructureData, StructureDataMutable
+from aiida_atomistic.data import StructureData
 ```
 
 ### From ASE
@@ -54,7 +62,7 @@ print(f"Symbols: {structure.properties.symbols}")
 **Output:**
 ```
 Formula: Si2
-Cell volume: 40.04 Angstrom^3
+Cell volume: 40.03 Angstrom^3
 Number of sites: 2
 Symbols: ['Si', 'Si']
 ```
@@ -69,7 +77,7 @@ for i, site in enumerate(structure.sites):
 **Output:**
 ```
 Site 0: Si at [0. 0. 0.]
-Site 1: Si at [3.84 1.35764502 1.92]
+Site 1: Si at [1.3575 1.3575 1.3575]
 ```
 
 Information on the supported properties can be obtained by using the `get_supported_properties` method:
@@ -86,18 +94,20 @@ print(f"Defined properties: {defined}")
 
 **Output:**
 ```
-Positions shape: (2, 3)
-Supported properties: {'global': {'tot_magnetization', 'custom', 'sites', 'tot_charge', 'pbc', 'hubbard', 'cell'}, 'site': {'mass', 'weight', 'kind_name', 'magnetization', 'charge', 'symbol', 'position', 'magmom'}}
-Defined properties: {'masses', 'positions', 'symbols', 'sites', 'pbc', 'cell'}
+Supported properties: {'global': {'custom', 'tot_magnetization', 'sites', 'cell', 'hubbard', 'tot_charge', 'pbc'}, 'site': {'magnetization', 'kind_name', 'symbol', 'mass', 'magmom', 'position', 'weight', 'charge'}}
+Defined properties: {'positions', 'symbols', 'masses', 'sites', 'cell', 'kind_names', 'pbc'}
 ```
 
 ## Modifying Structures
 
-For modifications, use `StructureDataMutable` (which is the mutable non-AiiDA version of the `StructureData`):
+For modifications, use `StructureBuilder` (which is the mutable non-AiiDA version of the `StructureData`):
 
 ```python
+# Import StructureBuilder
+from aiida_atomistic.data import StructureBuilder
+
 # Create mutable version
-mutable = StructureDataMutable.from_ase(ase_atoms)
+mutable = StructureBuilder.from_ase(ase_atoms)
 
 print(f"Created mutable structure with {len(mutable.sites)} sites")
 print(f"Initial first site charge: {mutable.sites[0].charge}")
@@ -108,7 +118,7 @@ mutable.sites[0].charge = -1.0
 print(f"Modified first site charge to {mutable.sites[0].charge}")
 
 # Convert back to immutable for storage
-final_structure = StructureData.from_mutable(mutable)
+final_structure = StructureData.from_builder(mutable)
 ```
 
 **Output:**
@@ -149,7 +159,7 @@ Loaded: Si2
 - ✅ **Site-Level Access**: Iterate through individual sites to access atomic positions and properties
 - ✅ **Immutable vs. Mutable**:
     - `StructureData`: Immutable, AiiDA-compatible, database storage
-    - `StructureDataMutable`: Mutable, for modifications, then convert back
+    - `StructureBuilder`: Mutable, for modifications, then convert back
 - ✅ **Database Integration**: Store structures in AiiDA database with full provenance tracking
 - ✅ **Property Discovery**: Use `get_supported_properties()` and `get_defined_properties()` to explore available data
 
@@ -167,7 +177,7 @@ Use your structures in real computational workflows:
 **💡 Recommended Learning Path:**
 1. ✅ **You are here** → Basic structure creation
 3. ⚙️ **Next** → [First QE Calculation](2_first_qe_calculation.md)
-2. 🧲 **Then** → [Magnetic Structures](magnetic_structures.md)
+2. 🧲 **Then** → [Magnetic Structures](../how_to/magnetic_structures.md)
 4. 📊 **Advanced** → [How-to Guides](../how_to/index.html)
 
 Ready to your first calculation with the atomistic StructureData? Let's continue! 🚀

@@ -10,7 +10,6 @@ myst:
 :hidden: true
 
 installation
-tutorials/1_first_structure
 tutorials/index
 ```
 
@@ -18,18 +17,14 @@ tutorials/index
 :hidden: true
 :caption: How to
 
-howto/structure/index
-howto/properties/index
-howto/migration/index
+how_to/index
 ```
 
 ```{toctree}
 :hidden: true
-:caption: Topic guides
-topics/structure/index
-topics/properties/index
-topics/kinds/index
-topics/performance/index
+:caption: In-Depth Guides
+
+in_depth/index
 ```
 
 ```{toctree}
@@ -111,7 +106,7 @@ Step-by-step guides for common tasks and workflows.
 
 +++
 
-```{button-ref} howto/structure/index
+```{button-ref} how_to/index
 :ref-type: doc
 :click-parent:
 :expand:
@@ -122,7 +117,7 @@ To the how-to guides
 ```
 :::
 
-:::{grid-item-card} {fa}`book;mr-1` Topic guides
+:::{grid-item-card} {fa}`book;mr-1` In-depth guides
 :text-align: center
 :shadow: md
 
@@ -130,14 +125,14 @@ In-depth explanations of concepts, implementation and advanced topics.
 
 +++
 
-```{button-ref} topics/structure/index
+```{button-ref} in_depth/index
 :ref-type: doc
 :click-parent:
 :expand:
 :color: primary
 :outline:
 
-To the topic guides
+To the in-depth guides
 ```
 :::
 ::::
@@ -197,7 +192,7 @@ structure = StructureData.from_file('magnetic_structure.mcif')
 
 # From legacy AiiDA StructureData
 legacy_structure = orm.load_node(pk)
-new_structure = StructureData.from_legacy(legacy_structure)
+new_structure = legacy_structure.to_atomistic()
 ```
 
 ## What's New in aiida-atomistic
@@ -226,7 +221,7 @@ aiida-atomistic provides seamless migration tools:
 ```python
 # Convert existing structures
 legacy_structure = orm.load_node(pk)
-new_structure = StructureData.from_legacy(legacy_structure)
+new_structure = legacy_structure.to_atomistic()
 
 # Use in existing workflows
 from aiida_quantumespresso.workflows.pw.base import PwBaseWorkChain
@@ -243,10 +238,10 @@ See our [migration guide](howto/migration/index.md) for detailed instructions.
 
 ### Mutable Structures for Construction
 ```python
-from aiida_atomistic.data.structure import StructureDataMutable
+from aiida_atomistic.data.structure import StructureBuilder
 
 # Create mutable structure for building
-mutable = StructureDataMutable(cell=cell, pbc=pbc)
+mutable = StructureBuilder(cell=cell, pbc=pbc)
 
 # Add atoms with properties
 mutable.append_atom(
@@ -260,7 +255,7 @@ mutable.append_atom(
 mutable.generate_kinds(tolerance={'charge': 1e-3})
 
 # Convert to immutable for storage
-structure = StructureData.from_mutable(mutable)
+structure = StructureData.from_builder(mutable)
 ```
 
 ### Integration with Quantum ESPRESSO

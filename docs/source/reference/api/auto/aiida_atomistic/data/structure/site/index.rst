@@ -23,7 +23,31 @@ Functions
 
 .. autoapisummary::
 
+   aiida_atomistic.data.structure.site._validate_array
+   aiida_atomistic.data.structure.site._serialize_array
    aiida_atomistic.data.structure.site.freeze_nested
+
+
+
+Attributes
+~~~~~~~~~~
+
+.. autoapisummary::
+
+   aiida_atomistic.data.structure.site.NumpyArray
+
+
+.. py:function:: _validate_array(v)
+
+   Convert input to numpy array if it isn't already.
+
+
+.. py:function:: _serialize_array(v)
+
+   Serialize numpy array to list.
+
+
+.. py:data:: NumpyArray
 
 
 
@@ -108,7 +132,7 @@ Functions
 
 
    .. py:attribute:: position
-      :type: Union[numpy.ndarray[float]]
+      :type: NumpyArray
 
 
 
@@ -123,7 +147,7 @@ Functions
 
 
    .. py:attribute:: magmom
-      :type: Optional[numpy.ndarray[float]]
+      :type: Optional[NumpyArray]
 
 
 
@@ -149,6 +173,26 @@ Functions
 
 
    .. py:method:: check_minimal_requirements(data)
+
+
+   .. py:method:: __repr__() -> str
+
+      Return a string representation of the Site.
+
+
+   .. py:method:: get_default_tolerances() -> dict
+      :classmethod:
+
+      Extract default tolerances from field metadata.
+
+      Returns a dictionary mapping property names to their default tolerance values
+      as defined in the json_schema_extra metadata of each field.
+
+      :return: dictionary with property names as keys and tolerance values as floats
+
+      Example:
+          >>> Site.get_default_tolerances()
+          {'position': 1e-06, 'mass': 0.001, 'charge': 0.0001, 'magmom': 0.01, 'magnetization': 0.01, 'weight': 0.0001}
 
 
    .. py:method:: from_ase_atom(aseatom: Optional[ase.Atom] = None, **kwargs) -> dict

@@ -12,17 +12,18 @@ from aiida import orm
 from aiida.common.constants import elements
 from aiida.orm.nodes.data import Data
 
-from aiida_atomistic.data.structure.site import Site, FrozenList, freeze_nested, FrozenSite
+from aiida_atomistic.data.structure.site import Site, FrozenList, freeze_nested, FrozenSite, NumpyArray
 from aiida_atomistic.data.structure.kind import Kind
 
 from aiida_quantumespresso.common.hubbard import Hubbard
 
-from aiida_atomistic.data.structure import (
+from aiida_atomistic.data.structure.constants import (
     _atomic_masses,
     _DEFAULT_CELL,
     _DEFAULT_PBC,
     _DEFAULT_VALUES,
 )
+
 
 class StructureBaseModel(BaseModel):
     """
@@ -37,14 +38,14 @@ class StructureBaseModel(BaseModel):
     pbc: list[bool] = Field(
         default=_DEFAULT_PBC,
         description="Periodic boundary conditions",
-        min_items=3,
-        max_items=3,
+        min_length=3,
+        max_length=3,
     )
 
-    cell: t.Union[np.ndarray[float]] = Field(
+    cell: NumpyArray = Field(
         default=_DEFAULT_CELL,
         description="Lattice vectors",
-        units="Angstrom",
+        json_schema_extra={"units": "Angstrom"},
     )
 
     sites: list[Site] = Field(
@@ -59,11 +60,12 @@ class StructureBaseModel(BaseModel):
 
     custom: t.Optional[dict] = Field(default=None)
 
-    class Config:
-        from_attributes = True
-        frozen = False
-        arbitrary_types_allowed = True
-        #validate_assignment = True
+    model_config = ConfigDict(
+        from_attributes=True,
+        frozen=False,
+        arbitrary_types_allowed=True,
+        #validate_assignment=True
+    )
 
     @field_validator('cell', mode='before')
     @classmethod
@@ -278,7 +280,7 @@ class StructureBaseModel(BaseModel):
 
 
     @computed_field
-    def kinds(self) -> FrozenList[Kind]:
+    def kinds(self) -> list[Kind]:
         """
         Return the reduced set of kinds, grouping sites that share all properties except positions and site_indices.
         """
@@ -305,6 +307,67 @@ class StructureBaseModel(BaseModel):
                 kind_name_set.remove(kind_name)  # Ensure we don't add the same kind multiple
 
         return FrozenList(kinds_list)
+
+    def __repr__(self) -> str:
+        """Return a concise string representation of the structure."""
+        # Basic info
+        nsites = len(self.sites)
+        formula = self.formula
+
+        # PBC info
+        pbc_dims = sum(self.pbc)
+        if pbc_dims == 3:
+            pbc_str = "3D"
+        elif pbc_dims == 2:
+            pbc_str = "2D"
+        elif pbc_dims == 1:
+            pbc_str = "1D"
+        else:
+            pbc_str = "0D"
+
+        # Cell volume
+        volume = self.cell_volume
+
+        parts = [
+            f"formula: {formula}",
+            f"sites: {nsites}",
+            f"dimensionality: {pbc_str}",
+            f"V={volume:.2f} A^3"
+        ]
+
+        # Add magnetic info if present
+        if self.tot_magnetization is not None:
+            parts.append(f"tot_mag={self.tot_magnetization:.2f}")
+        elif any(s.magnetization is not None or s.magmom is not None for s in self.sites):
+            parts.append("magnetic")
+
+        # Add charge info if present
+        if self.tot_charge is not None:
+            parts.append(f"tot_charge={self.tot_charge:.2f}")
+        elif any(s.charge is not None for s in self.sites):
+            parts.append("charged")
+
+        # Add alloy/vacancy info
+        if self.is_alloy:
+            parts.append("alloy")
+        if self.has_vacancies:
+            parts.append("vacancies")
+
+        # First line with summary
+        repr_str = f" | {', '.join(parts)} |"
+
+        # Add sites info (limit to first 5 sites to avoid too long representations)
+        max_sites_to_show = 5
+        if nsites > 0:
+            repr_str += "\n Sites:"
+            for i, site in enumerate(self.sites):
+                if i >= max_sites_to_show:
+                    repr_str += f"\n  ... (+{nsites - max_sites_to_show} more sites)"
+                    break
+                repr_str += f"\n  {site}"
+            repr_str += "\n"
+
+        return repr_str
 
 class MutableStructureModel(StructureBaseModel):
     """
@@ -335,15 +398,31 @@ class ImmutableStructureModel(StructureBaseModel):
     """
     _mutable = False
 
+    pbc: list[bool] = Field(
+        default=_DEFAULT_PBC,
+        description="Periodic boundary conditions",
+        min_length=3,
+        max_length=3,
+    )
+
     sites: t.Optional[list[FrozenSite]] = Field(
         default=None,
         description="List of sites in the structure",
     )
 
-    class Config:
-        from_attributes = True
-        frozen = True
-        arbitrary_types_allowed = True
+    @field_validator('pbc', mode='after')
+    @classmethod
+    def freeze_pbc(cls, v):
+        """Freeze the pbc list to make it immutable."""
+        if not isinstance(v, FrozenList):
+            return FrozenList(v)
+        return v
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        frozen=True,
+        arbitrary_types_allowed=True,
+    )
 
     def __setattr__(self, key, value):
         # Customizing the exception message when trying to mutate attributes

@@ -39,14 +39,20 @@ Classes
 
 
    .. py:attribute:: position
-      :type: Union[numpy.ndarray[float]]
+      :type: Optional[aiida_atomistic.data.structure.site.NumpyArray]
 
 
 
    .. py:attribute:: positions
-      :type: Union[numpy.ndarray[float], list[float]]
+      :type: Optional[aiida_atomistic.data.structure.site.NumpyArray]
 
 
 
    .. py:attribute:: site_indices
       :type: Optional[List[int]]
+
+
+
+   .. py:method:: __repr__() -> str
+
+      Return a string representation of the Kind.

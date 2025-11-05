@@ -10,7 +10,7 @@ from aiida.orm import StructureData as LegacyStructureData
 from aiida_quantumespresso.common.hubbard import Hubbard
 #from aiida_quantumespresso.data.hubbard_structure import HubbardStructureData
 
-from aiida_atomistic.data.structure.structure import StructureData, StructureDataMutable
+from aiida_atomistic.data.structure.structure import StructureData, StructureBuilder
 
 __all__ = (
     'HubbardUtils',
@@ -31,16 +31,16 @@ class HubbardUtils:
 
     def __init__(
         self,
-        hubbard_structure: Union[StructureData, StructureDataMutable]
+        hubbard_structure: Union[StructureData, StructureBuilder]
     ):
         """Set a the `HubbardStructureData` to manipulate."""
-        if isinstance(hubbard_structure, StructureData) or isinstance(hubbard_structure, StructureDataMutable):
+        if isinstance(hubbard_structure, StructureData) or isinstance(hubbard_structure, StructureBuilder):
             self._hubbard_structure = hubbard_structure
         else:
-            raise ValueError(f'input is not of type `StructureData`, `StructureDataMutable`, but `{type(hubbard_structure)}`')
+            raise ValueError(f'input is not of type `StructureData`, `StructureBuilder`, but `{type(hubbard_structure)}`')
 
     @property
-    def hubbard_structure(self) -> Union[StructureData, StructureDataMutable]:
+    def hubbard_structure(self) -> Union[StructureData, StructureBuilder]:
         """Return the HubbardStructureData."""
         return self._hubbard_structure
 
@@ -102,9 +102,9 @@ class HubbardUtils:
         :param filepath: the filepath of the *HUBBARD.dat* to parse
         """
 
-        if not isinstance(self.hubbard_structure, StructureDataMutable):
-            raise ValueError('the input is not of type `StructureDataMutable`, so it cannot be modified. \
-                             You can convert a `StructureData` to a `StructureDataMutable` with the `get_value` method.')
+        if not isinstance(self.hubbard_structure, StructureBuilder):
+            raise ValueError('the input is not of type `StructureBuilder`, so it cannot be modified. \
+                             You can convert a `StructureData` to a `StructureBuilder` with the `get_value` method.')
 
         self.hubbard_structure.clear_hubbard_parameters()
         natoms = len(self.hubbard_structure.properties.sites)
@@ -184,9 +184,9 @@ class HubbardUtils:
         """
         from copy import deepcopy
 
-        if not isinstance(self.hubbard_structure, StructureDataMutable):
-            raise ValueError('the input is not of type `StructureDataMutable`, so it cannot be modified. \
-                             You can convert a `StructureData` to a `StructureDataMutable` with the `get_value` method.')
+        if not isinstance(self.hubbard_structure, StructureBuilder):
+            raise ValueError('the input is not of type `StructureBuilder`, so it cannot be modified. \
+                             You can convert a `StructureData` to a `StructureBuilder` with the `get_value` method.')
 
         structure = self.hubbard_structure  # current
         reordered = structure.clone()  # to be set at the end
@@ -252,7 +252,7 @@ class HubbardUtils:
 
         return indices != list(range(len(indices)))
 
-    def get_hubbard_for_supercell(self, supercell: StructureDataMutable, thr: float = 1e-3, mutable=True) -> Union[StructureData, StructureDataMutable]:
+    def get_hubbard_for_supercell(self, supercell: StructureBuilder, thr: float = 1e-3, mutable=True) -> Union[StructureData, StructureBuilder]:
         """Return the ``HubbbardLegacyStructureData`` for a supercell.
 
         .. note:: the two structure need to be commensurate (no rigid rotations)
@@ -324,7 +324,7 @@ class HubbardUtils:
 
         supercell.properties.hubbard = new_hubbard
 
-        return supercell if mutable else StructureData.from_mutable(supercell)
+        return supercell if mutable else StructureData.from_builder(supercell)
 
 
 def get_supercell_atomic_index(index: int, num_sites: int, translation: List[Tuple[int, int, int]]) -> int:

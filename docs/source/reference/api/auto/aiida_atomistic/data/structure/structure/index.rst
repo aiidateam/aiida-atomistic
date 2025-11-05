@@ -13,7 +13,7 @@ Classes
 .. autoapisummary::
 
    aiida_atomistic.data.structure.structure.StructureData
-   aiida_atomistic.data.structure.structure.StructureDataMutable
+   aiida_atomistic.data.structure.structure.StructureBuilder
 
 
 
@@ -39,7 +39,11 @@ Classes
 
 
 
-   .. py:method:: from_mutable(mutable_structure, validate_kinds=True)
+   .. py:attribute:: _model
+
+
+
+   .. py:method:: from_builder(mutable_structure, validate_kinds=True)
       :classmethod:
 
 
@@ -49,8 +53,18 @@ Classes
    .. py:method:: get_value()
 
 
+   .. py:method:: __repr__() -> str
 
-.. py:class:: StructureDataMutable(validate_kinds=True, sites: list[dict] = None, kinds: list[dict] = None, **kwargs)
+      Return a concise string representation of the structure.
+
+
+   .. py:method:: __str__() -> str
+
+      Return a string representation of the structure for print().
+
+
+
+.. py:class:: StructureBuilder(validate_kinds=True, sites: list[dict] = None, kinds: list[dict] = None, **kwargs)
 
 
    Bases: :py:obj:`aiida_atomistic.data.structure.getter_mixin.GetterMixin`, :py:obj:`aiida_atomistic.data.structure.setter_mixin.SetterMixin`
@@ -60,3 +74,18 @@ Classes
 
    .. py:attribute:: _mutable
       :value: True
+
+
+
+   .. py:attribute:: _model
+
+
+
+   .. py:method:: __repr__() -> str
+
+      Return a concise string representation of the structure.
+
+
+   .. py:method:: __str__() -> str
+
+      Return a string representation of the structure for print().

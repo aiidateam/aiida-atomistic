@@ -11,19 +11,22 @@ from aiida_atomistic.data.structure.utils import (
     sites_from_kinds,
 )
 
+import warnings
+
 class StructureData(Data, GetterMixin):
 
     _mutable = False
+    _model = ImmutableStructureModel
 
     def __init__(self, validate_kinds=True, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
 
         if sites is not None and kinds is not None:
-            raise ValueError("You cannot provide both `sites` and `kinds`. Please provide only one of them.")
-
-        if kinds is not None:
+            warnings.warn("Provided both `sites` and `kinds` information. Dropping the `sites` information and using only `kinds`.")
+            sites = sites_from_kinds(kinds)
+        elif kinds is not None:
             sites = sites_from_kinds(kinds)
 
-        self._properties = ImmutableStructureModel(sites=sites, **kwargs)
+        self._properties = self._model(sites=sites, **kwargs)
         super().__init__()
 
         if validate_kinds and self.kinds is not None:
@@ -49,38 +52,63 @@ class StructureData(Data, GetterMixin):
             else:
                 attributes = build_sites_from_expanded_properties(self.base.attributes.all)
 
-            properties = ImmutableStructureModel(**attributes)
+            properties = self._model(**attributes)
             return properties
         else:
             return self._properties
 
     @classmethod
-    def from_mutable(cls, mutable_structure, validate_kinds=True):
-        if not isinstance(mutable_structure, StructureDataMutable):
-            raise ValueError(f"Input structure should be of type StructureDataMutable, not {type(mutable_structure)}")
+    def from_builder(cls, mutable_structure, validate_kinds=True):
+        if not isinstance(mutable_structure, StructureBuilder):
+            raise ValueError(f"Input structure should be of type StructureBuilder, not {type(mutable_structure)}")
         return cls(validate_kinds=validate_kinds, **mutable_structure.to_dict(exclude_kinds=True))
 
     def to_mutable(self,):
-        return StructureDataMutable(**self.to_dict())
+        return StructureBuilder(**self.to_dict())
 
     def get_value(self):
-        return StructureDataMutable(**self.to_dict())
+        return StructureBuilder(**self.to_dict())
 
-class StructureDataMutable(GetterMixin, SetterMixin):
+    def __repr__(self) -> str:
+        """Return a concise string representation of the structure."""
+        # Build UUID string without calling super().__repr__() to avoid recursion
+        if self.is_stored:
+            uuid_str = f'<{self.__class__.__name__}: uuid: {self.uuid} (pk: {self.pk})>'
+        else:
+            uuid_str = f'<{self.__class__.__name__}: uuid: {self.uuid} (unstored)>'
+
+        prop_repr_str = self.properties.__repr__()
+        return uuid_str + f'\n {prop_repr_str.replace("ImmutableStructureModel","")}'
+
+    def __str__(self) -> str:
+        """Return a string representation of the structure for print()."""
+        return self.__repr__()
+
+class StructureBuilder(GetterMixin, SetterMixin):
 
     _mutable = True
+    _model = MutableStructureModel
 
     def __init__(self, validate_kinds=True, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
 
         if sites is not None and kinds is not None:
-            raise ValueError("You cannot provide both `sites` and `kinds`. Please provide only one of them.")
-
-        if kinds is not None:
+            warnings.warn("Provided both `sites` and `kinds` information. Dropping the `sites` information and using only `kinds`.")
+            sites = sites_from_kinds(kinds)
+        elif kinds is not None:
             sites = sites_from_kinds(kinds)
 
-        self._properties = MutableStructureModel(sites=sites, **kwargs)
+        self._properties = self._model(sites=sites, **kwargs)
         super().__init__()
 
     @property
     def properties(self):
         return self._properties
+
+    def __repr__(self) -> str:
+        """Return a concise string representation of the structure."""
+        prop_repr_str = self.properties.__repr__()
+        return super().__repr__() + f'\n {prop_repr_str.replace("MutableStructureModel","")}'
+
+    def __str__(self) -> str:
+        """Return a string representation of the structure for print()."""
+        return self.__repr__()

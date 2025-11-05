@@ -117,7 +117,7 @@ Attributes
       :abstractmethod:
 
 
-   .. py:method:: update_site(site_indices: Union[list[int], int], **kwargs)
+   .. py:method:: update_sites(site_indices: Union[list[int], int], **kwargs)
 
       Update the site at the given index.
 
@@ -127,7 +127,7 @@ Attributes
       Update all sites with the given kind name.
 
 
-   .. py:method:: append_atom(index=-1, **atom_info)
+   .. py:method:: append_atom(atom: Union[aiida_atomistic.data.structure.site.Site, dict] = None, index=-1)
 
 
    .. py:method:: pop_atom(index=-1)

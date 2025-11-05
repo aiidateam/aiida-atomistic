@@ -97,14 +97,14 @@ myst_enable_extensions = [
 myst_substitutions = {
     'aiida_logo': '<img src="../_static/logo_aiida.svg" alt="aiida" class="aiida-logo">',
     'StructureData': '{class}`~aiida_atomistic.data.structure.structure.StructureData`',
-    'StructureDataMutable': '{class}`~aiida_atomistic.data.structure.structure.StructureDataMutable`',
+    'StructureBuilder': '{class}`~aiida_atomistic.data.structure.structure.StructureBuilder`',
     'Site': '{class}`~aiida_atomistic.data.structure.site.Site`',
     'Kind': '{class}`~aiida_atomistic.data.structure.kind.Kind`',
     'LegacyStructureData': '{class}`~aiida.orm.StructureData`',
     'from_ase': '{meth}`~aiida_atomistic.data.structure.structure.StructureData.from_ase`',
     'from_pymatgen': '{meth}`~aiida_atomistic.data.structure.structure.StructureData.from_pymatgen`',
     'from_file': '{meth}`~aiida_atomistic.data.structure.structure.StructureData.from_file`',
-    'from_legacy': '{meth}`~aiida_atomistic.data.structure.structure.StructureData.from_legacy`',
+    'legacy_structure.to_atomistic()': '{meth}`~aiida_atomistic.data.structure.structure.StructureData.legacy_structure.to_atomistic()`',
 }
 
 # -- Options for HTML output ----------------------------------------------
@@ -119,6 +119,8 @@ html_theme_options = {
     'twitter_url': 'https://twitter.com/aiidateam',
     'use_edit_page_button': True,
     'navigation_with_keys': False,
+    'show_navbar_depth': 2,  # Show 2 levels in navbar
+    'show_toc_level': 2,  # Show 2 levels in right sidebar TOC
     'logo': {
         'text': 'AiiDA Atomistic',
         'image_light': '_static/logo_aiida_atomistic-light.png',

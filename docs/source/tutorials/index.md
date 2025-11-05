@@ -19,7 +19,7 @@ Our tutorials are designed to take you from beginner to advanced user:
 
 Learn the fundamentals of creating and manipulating atomic structures:
 
-- ✅ Import `StructureData` and `StructureDataMutable` classes
+- ✅ Import `StructureData` and `StructureBuilder` classes
 - ✅ Convert from ASE structures
 - ✅ Explore structural properties and site information
 - ✅ Modify structures with the mutable interface

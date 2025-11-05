@@ -33,13 +33,13 @@ Functions
 
 
 
-.. py:class:: HubbardUtils(hubbard_structure: Union[aiida_atomistic.data.structure.structure.StructureData, aiida_atomistic.data.structure.structure.StructureDataMutable])
+.. py:class:: HubbardUtils(hubbard_structure: Union[aiida_atomistic.data.structure.structure.StructureData, aiida_atomistic.data.structure.structure.StructureBuilder])
 
 
    Utility class for handling `HubbardStructureData` for QuantumESPRESSO.
 
    .. py:property:: hubbard_structure
-      :type: Union[aiida_atomistic.data.structure.structure.StructureData, aiida_atomistic.data.structure.structure.StructureDataMutable]
+      :type: Union[aiida_atomistic.data.structure.structure.StructureData, aiida_atomistic.data.structure.structure.StructureBuilder]
 
       Return the HubbardStructureData.
 
@@ -82,7 +82,7 @@ Functions
       Return whether the atoms should be reordered for an ``hp.x`` calculation.
 
 
-   .. py:method:: get_hubbard_for_supercell(supercell: aiida_atomistic.data.structure.structure.StructureDataMutable, thr: float = 0.001, mutable=True) -> Union[aiida_atomistic.data.structure.structure.StructureData, aiida_atomistic.data.structure.structure.StructureDataMutable]
+   .. py:method:: get_hubbard_for_supercell(supercell: aiida_atomistic.data.structure.structure.StructureBuilder, thr: float = 0.001, mutable=True) -> Union[aiida_atomistic.data.structure.structure.StructureData, aiida_atomistic.data.structure.structure.StructureBuilder]
 
       Return the ``HubbbardLegacyStructureData`` for a supercell.
 

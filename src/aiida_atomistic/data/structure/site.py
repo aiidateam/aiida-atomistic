@@ -2,7 +2,9 @@ import numpy as np
 
 import typing as t
 import re
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from typing import Annotated
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator, BeforeValidator, PlainSerializer, WithJsonSchema
+from pydantic_core import core_schema
 
 try:
     import ase  # noqa: F401
@@ -16,12 +18,33 @@ except ImportError:
 
 from plumpy.utils import AttributesFrozendict
 
-from . import (
+from .constants import (
     _atomic_masses,
     _MAGMOM_THRESHOLD,
     _SUM_THRESHOLD,
     _valid_symbols,
 )
+
+# Helper to make numpy arrays work with Pydantic JSON schema
+def _validate_array(v):
+    """Convert input to numpy array if it isn't already."""
+    if isinstance(v, np.ndarray):
+        return v
+    return np.array(v)
+
+def _serialize_array(v):
+    """Serialize numpy array to list."""
+    if isinstance(v, np.ndarray):
+        return v.tolist()
+    return v
+
+# Type alias for numpy arrays that works with Pydantic
+NumpyArray = Annotated[
+    np.ndarray,
+    BeforeValidator(_validate_array),
+    PlainSerializer(_serialize_array),
+    WithJsonSchema({'type': 'array', 'items': {'type': 'number'}}),
+]
 
 def freeze_nested(obj):
     """
@@ -79,12 +102,30 @@ class Site(BaseModel):
         )
 
     symbol: t.Union[str, t.List[str]] # validation is done in the check_is_alloy
-    position: t.Union[np.ndarray[float]] = Field(min_length=3, max_length=3)
-    mass: t.Optional[float] = Field(gt=0)
-    charge: t.Optional[float] = Field(default=None)
-    magmom: t.Optional[np.ndarray[float]] = Field(default=None)
-    magnetization: t.Optional[float] = Field(default=None)
-    weight: t.Optional[t.Tuple[float, ...]] = Field(default=None)
+    position: NumpyArray = Field(
+        min_length=3,
+        max_length=3,
+    )
+    mass: t.Optional[float] = Field(
+        gt=0,
+        json_schema_extra={"tolerance": 1e-3}
+    )
+    charge: t.Optional[float] = Field(
+        default=None,
+        json_schema_extra={"tolerance": 1e-2}
+    )
+    magmom: t.Optional[NumpyArray] = Field(
+        default=None,
+        json_schema_extra={"tolerance": 1e-2}
+    )
+    magnetization: t.Optional[float] = Field(
+        default=None,
+        json_schema_extra={"tolerance": 1e-2}
+    )
+    weight: t.Optional[t.Tuple[float, ...]] = Field(
+        default=None,
+        json_schema_extra={"tolerance": 1e-2}
+    )
     kind_name: t.Optional[str] = Field(default=None)
 
 
@@ -107,6 +148,8 @@ class Site(BaseModel):
         # we have an alloy (i.e. more than one element for the given site)
         alloy_detector = check_is_alloy(data)
         if alloy_detector:
+            if "weight" not in data:
+                raise ValueError("For alloy sites, the 'weight' property must be specified.")
             data.update(alloy_detector)
 
         #if more than one is specified, between magmoms, magnetizations and tot_magnetization, raise
@@ -130,6 +173,27 @@ class Site(BaseModel):
                 data[prop] = freeze_nested(data[prop])
 
         return data
+
+    def __repr__(self) -> str:
+        """Return a string representation of the Site."""
+        symbol_str = self.symbol if isinstance(self.symbol, str) else '/'.join(self.symbol)
+        pos_str = f"[{self.position[0]:.3f}, {self.position[1]:.3f}, {self.position[2]:.3f}]"
+        parts = [f"{symbol_str} @ {pos_str}"]
+
+        if self.kind_name and self.kind_name != self.symbol:
+            parts.append(f"kind={self.kind_name}")
+        if self.is_alloy and self.weight:
+            weight_str = '/'.join(f"{w:.2f}" for w in self.weight)
+            parts.append(f"weight={weight_str}")
+        if self.charge is not None:
+            parts.append(f"charge={self.charge:.2f}")
+        if self.magnetization is not None:
+            parts.append(f"magnetization={self.magnetization:.2f}")
+        elif self.magmom is not None:
+            magmom_str = f"[{self.magmom[0]:.2f}, {self.magmom[1]:.2f}, {self.magmom[2]:.2f}]"
+            parts.append(f"magmom={magmom_str}")
+
+        return f"Site({', '.join(parts)})"
 
     @property
     def is_alloy(self):
@@ -158,6 +222,25 @@ class Site(BaseModel):
         if self.weight is None:
             return False
         return not 1.0 - sum(self.weight) < _SUM_THRESHOLD
+
+    @classmethod
+    def get_default_tolerances(cls) -> dict:
+        """Extract default tolerances from field metadata.
+
+        Returns a dictionary mapping property names to their default tolerance values
+        as defined in the json_schema_extra metadata of each field.
+
+        :return: dictionary with property names as keys and tolerance values as floats
+
+        Example:
+            >>> Site.get_default_tolerances()
+            {'position': 1e-06, 'mass': 0.001, 'charge': 0.0001, 'magmom': 0.01, 'magnetization': 0.01, 'weight': 0.0001}
+        """
+        tolerances = {}
+        for name, field in cls.model_fields.items():
+            if field.json_schema_extra and "tolerance" in field.json_schema_extra:
+                tolerances[name] = field.json_schema_extra["tolerance"]
+        return tolerances
 
     @classmethod
     def from_ase_atom(

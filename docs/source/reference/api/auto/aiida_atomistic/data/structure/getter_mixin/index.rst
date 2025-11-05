@@ -103,13 +103,17 @@ Attributes
 
 
    .. py:method:: get_supported_properties()
-      :staticmethod:
+      :classmethod:
 
       Get a dictionary of global and site properties that can be set
       for this structure.
 
 
-   .. py:method:: get_defined_properties()
+   .. py:method:: get_queryable_properties()
+      :classmethod:
+
+
+   .. py:method:: get_defined_properties(exclude_computed: bool = False)
 
       Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
 

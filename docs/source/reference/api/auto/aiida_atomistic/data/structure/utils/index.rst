@@ -50,7 +50,7 @@ Functions
    aiida_atomistic.data.structure.utils.create_automatic_kind_name
    aiida_atomistic.data.structure.utils.set_symbols_and_weights
    aiida_atomistic.data.structure.utils.check_is_alloy
-   aiida_atomistic.data.structure.utils.check_plugin_support
+   aiida_atomistic.data.structure.utils.check_plugin_unsupported_props
    aiida_atomistic.data.structure.utils.order_k
    aiida_atomistic.data.structure.utils.compress_properties_by_kind
    aiida_atomistic.data.structure.utils.rebuild_site_lists_from_kind_lists
@@ -112,7 +112,7 @@ Attributes
    Bases: :py:obj:`numpy.ndarray`
 
    This is a subclass of numpy.ndarray that allows to observe changes to the array.
-   In this way, full flexibility of StructureDataMutable is achieved and at the same
+   In this way, full flexibility of StructureBuilder is achieved and at the same
    time we can keep track of all the changes.
 
    .. py:method:: __setitem__(index, value)
@@ -144,7 +144,11 @@ Attributes
 
 
 
-.. py:function:: efficient_copy(self)
+.. py:function:: efficient_copy(obj)
+
+   Efficiently copy an object, only deep-copying mutable parts.
+
+   Handles both dictionaries and lists, as well as other types.
 
 
 .. py:function:: _get_valid_cell(inputcell)
@@ -463,7 +467,7 @@ Attributes
    :return: True if the data is an alloy, False otherwise.
 
 
-.. py:function:: check_plugin_support(structure, plugin_properties: set) -> set
+.. py:function:: check_plugin_unsupported_props(structure, plugin_properties: set) -> set
 
    Check if the plugin supports the given properties.
    :param plugin_properties: The supported properties in the plugin.
