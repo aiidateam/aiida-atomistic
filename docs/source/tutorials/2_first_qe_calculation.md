@@ -9,9 +9,9 @@ This guide demonstrates how to use aiida-atomistic structures in computational w
 Ensure you have the necessary packages installed:
 
 ```bash
-pip install aiida-core # for now: `support/atomistic` branch from https://github.com/mikibonacci/aiida-core.git
-pip install aiida-pseudo # for now: `atomistic` branch from https://github.com/mikibonacci/aiida-pseudo.git
-pip install aiida-quantumespresso # for now: `atomistic ` branch from https://github.com/mikibonacci/aiida-quantumespresso.git
+pip install aiida-core # for now: `dev/atomistic` branch from https://github.com/mikibonacci/aiida-core.git
+pip install aiida-pseudo # for now: `dev/atomistic` branch from https://github.com/mikibonacci/aiida-pseudo.git
+pip install aiida-quantumespresso # for now: `dev/atomistic ` branch from https://github.com/mikibonacci/aiida-quantumespresso.git
 ```
 
 And configure your Quantum ESPRESSO code:

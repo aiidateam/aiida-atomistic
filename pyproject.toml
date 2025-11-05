@@ -22,9 +22,7 @@ classifiers = [
 keywords = ["aiida", "plugin", "atomistic"]
 requires-python = ">=3.7"
 dependencies = [
-    "aiida-core @ git+https://github.com/mikibonacci/aiida-core.git@support/atomistic",
-    "aiida-quantumespresso @ git+https://github.com/mikibonacci/aiida-quantumespresso.git@support/atomistic",
-    "aiida-pseudo @ git+https://github.com/mikibonacci/aiida-pseudo@atomistic",
+    "aiida-core @ git+https://github.com/mikibonacci/aiida-core.git@dev/atomistic",
     "voluptuous",
     "ase",
     "pymatgen>=2022.1.20",
