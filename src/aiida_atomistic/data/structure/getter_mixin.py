@@ -13,7 +13,7 @@ from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
 )
 
-from aiida_atomistic.data.structure.utils import classify_site_kinds, check_kinds_match, efficient_copy
+from aiida_atomistic.data.structure.utils import classify_site_kinds, check_kinds_match
 
 try:
     import ase  # noqa: F401
@@ -397,7 +397,7 @@ class GetterMixin(HubbardGetterMixin):
             :return: The structure as a dictionary.
             :rtype: dict
             """
-            dict_repr = efficient_copy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False, exclude={'kinds'} if exclude_kinds else {}))
+            dict_repr = copy.deepcopy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False, exclude={'kinds'} if exclude_kinds else {}))
 
             return dict_repr
 
