@@ -4,7 +4,6 @@ import pytest
 
 pytest_plugins = ["aiida.manage.tests.pytest_fixtures"]
 
-
 @pytest.fixture(scope="function", autouse=True)
 def clear_database_auto(clear_database):  # pylint: disable=unused-argument
     """Automatically clear database in between tests."""
@@ -64,22 +63,6 @@ def example_dumped_structure_dict():
                    'mass': 63.546,
                    'charge': 1.0,
                    'kind_name': 'Cu1'}],
-        'cell_volume': 11.664000000000001,
-        'dimensionality': {'dim': 3, 'label': 'volume', 'value': 11.664000000000001},
-        'formula': 'Cu',
-        'is_alloy': False,
-        'has_vacancies': False,
-        'positions': np.array([[0., 0., 0.]]),
-        'kind_names': ['Cu1'],
-        'symbols': ['Cu'],
-        'masses': np.array([63.546]),
-        'charges': np.array([1.]),
-        'kinds': [{'symbol': 'Cu',
-                   'mass': 63.546,
-                   'charge': 1.0,
-                   'kind_name': 'Cu1',
-                   'positions': np.array([[0., 0., 0.]]),
-                   'site_indices': [0]}]
     }
 
 

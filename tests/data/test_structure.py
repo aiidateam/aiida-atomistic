@@ -3,7 +3,6 @@ import numpy as np
 import pytest
 
 from aiida_atomistic.data.structure.structure import StructureData, StructureBuilder
-from aiida_atomistic.data.structure.site import Site, FrozenSite
 
 from pydantic import ValidationError
 
@@ -262,7 +261,42 @@ def test_model_validator(example_wrong_structure_dict,example_nomass_structure_d
         assert np.allclose(structure.properties.masses, [63.546])
         assert structure.properties.sites[0].mass == 63.546
 
+def test_roundtrips(complex_example_structure_dict_for_kinds):
 
+    #builder -> atomistic -> builder
+    b = StructureBuilder(**complex_example_structure_dict_for_kinds)
+    s = StructureData.from_builder(b)
+    b2 = s.to_builder()
+
+    assert s.to_dict() == b2.to_dict()
+    assert b.to_dict() == b2.to_dict()
+    assert s.to_dict() == b.to_dict()
+
+    #atomistic -> builder -> atomistic
+    s = StructureData(**complex_example_structure_dict_for_kinds)
+    b = StructureBuilder.from_aiida(b)
+    s2 = b.to_aiida()
+
+    assert s.to_dict() == s2.to_dict()
+    assert b.to_dict() == s2.to_dict()
+    assert s.to_dict() == b.to_dict()
+
+def test_from_legacy():
+    """Test conversion from legacy AiiDA StructureData to atomistic StructureData.
+
+    The aiida_profile fixture ensures the AiiDA database is available.
+    """
+    from aiida_atomistic.data.structure.utils_orm import from_legacy_to_atomistic
+    from aiida.orm import StructureData as LegacyStructureData
+
+    legacy = LegacyStructureData(cell=[[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]])
+    legacy.append_atom(symbols='H', position=[0.0, 0.0, 0.0], mass=1.008, name='H1')
+    legacy.append_atom(symbols='O', position=[0.0, 0.0, 1.0], mass=15.999, name='O1')
+    s = from_legacy_to_atomistic(legacy, metadata={'store_provenance': False})
+
+    assert np.allclose(legacy.cell, s.cell)
+    assert np.allclose(legacy.pbc, s.pbc)
+    assert legacy.get_kind_names() == s.properties.kind_names
 
 ## Test the get_kinds() method.
 
@@ -327,8 +361,8 @@ def test_from_kinds(example_structure_dict_for_kinds, complex_example_structure_
         # Check magmoms array comparison
         expected_magmoms = [
             [1.5, 2.5981, 0.0],
-            [1.5, 2.5981, 0.0],
             [-3.0, 0.0, 0.0],
+            [1.5, 2.5981, 0.0],
             [-3.0, 0.0, 0.0],
             [1.5, -2.5981, 0.0],
             [1.5, -2.5981, 0.0],

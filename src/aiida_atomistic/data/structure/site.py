@@ -168,8 +168,9 @@ class Site(BaseModel):
         #if "kind_name" not in data:
         #    data["kind_name"] = data["symbol"]
 
-        for prop in data.keys():
-            if cls._mutable:
+
+        if cls._mutable:
+            for prop in data.keys():
                 data[prop] = freeze_nested(data[prop])
 
         return data

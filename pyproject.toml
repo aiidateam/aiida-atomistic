@@ -26,7 +26,8 @@ dependencies = [
     "voluptuous",
     "ase",
     "pymatgen>=2022.1.20",
-    "pydantic>=2.6"
+    "pydantic>=2.6",
+    "scipy>=1.10",
 ]
 
 [project.urls]

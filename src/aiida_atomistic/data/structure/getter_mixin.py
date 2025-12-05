@@ -13,7 +13,7 @@ from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
 )
 
-from aiida_atomistic.data.structure.utils import classify_site_kinds, check_kinds_match, efficient_copy
+from aiida_atomistic.data.structure.utils import classify_site_kinds, check_kinds_match
 
 try:
     import ase  # noqa: F401
@@ -388,16 +388,15 @@ class GetterMixin(HubbardGetterMixin):
             raise ValueError("The kinds defined in the structure do not match the generated kinds from the sites. Please run the 'generate_kinds' method to see the expected kinds.")
 
     # TO methods:
-    def to_dict(self, exclude_kinds=False):
+    def to_dict(self):
             """
             Convert the structure to a dictionary representation.
 
-            :param detect_kinds: Whether to detect and include the kinds of the structure.
-            :type detect_kinds: bool, optional
             :return: The structure as a dictionary.
             :rtype: dict
             """
-            dict_repr = efficient_copy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False, exclude={'kinds'} if exclude_kinds else {}))
+            exclude = set(self.properties.model_computed_fields.keys())
+            dict_repr = copy.deepcopy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False, exclude=exclude))
 
             return dict_repr
 

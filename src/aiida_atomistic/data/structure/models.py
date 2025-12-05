@@ -64,6 +64,7 @@ class StructureBaseModel(BaseModel):
         from_attributes=True,
         frozen=False,
         arbitrary_types_allowed=True,
+        extra='forbid',
         #validate_assignment=True
     )
 
@@ -116,9 +117,9 @@ class StructureBaseModel(BaseModel):
 
         if v is None:
             return v
-        else:
-            # test if they can be converted to Site
-            sites = [Site.model_validate(site) if not isinstance(site, Site) else site for site in v]
+        # else:
+        #     # test if they can be converted to Site
+        #     sites = [Site.model_validate(site) if not isinstance(site, Site) else site for site in v]
 
         _check_valid_sites(v)
 
@@ -291,20 +292,34 @@ class StructureBaseModel(BaseModel):
             #raise ValueError("Kind names must be defined to access kinds.")
             return None
 
+        # Mapping of kind_name -> site indices
+        kind_to_indices = defaultdict(list)
+        for i, name in enumerate(self.kind_names):
+            kind_to_indices[name].append(i)
+
+        positions_array = self.positions
+
         kinds_list = []
-        kind_name_set = set(self.kind_names)
-        for idx, site in enumerate(self.sites):
+        seen_kinds = set()
+
+        for site in self.sites:
             kind_name = site.kind_name if site.kind_name else site.symbol
-            if kind_name in kind_name_set:
-                site_indices = [i for i, name in enumerate(self.kind_names) if name == kind_name]
-                positions=np.array([self.positions[i] for i in site_indices])
-                kind = Kind(
-                    **site.model_dump(exclude={'position'}),
-                    site_indices=site_indices,
-                    positions=positions,
-                )
-                kinds_list.append(kind)
-                kind_name_set.remove(kind_name)  # Ensure we don't add the same kind multiple
+
+            # Skip if we've already processed this kind
+            if kind_name in seen_kinds:
+                continue
+
+            seen_kinds.add(kind_name)
+            site_indices = kind_to_indices[kind_name]
+            positions = positions_array[site_indices]
+
+            kind = Kind(
+                **site.model_dump(exclude={'position','kind_name'}),
+                site_indices=site_indices,
+                positions=positions,
+                kind_name=kind_name
+            )
+            kinds_list.append(kind)
 
         return FrozenList(kinds_list)
 
