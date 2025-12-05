@@ -171,7 +171,7 @@ By default, `StructureData` validates kinds on creation:
 
 ```python
 # This validates that sites with the same kind_name have identical properties
-structure = StructureData(**structure_dict, validate_kinds=True)  # Default
+structure = StructureData(**structure_dict, validate_kinds=True)  # Default is False
 ```
 
 If validation fails, you'll get an error:
@@ -211,7 +211,7 @@ In some cases, you may want to skip validation:
 
 ```python
 # Skip validation on creation
-structure = StructureData(**structure_dict, validate_kinds=False)
+structure = StructureData(**structure_dict, validate_kinds=False) # Default behavior
 ```
 
 :::{warning}

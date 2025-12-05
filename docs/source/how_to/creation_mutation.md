@@ -270,20 +270,19 @@ Magnetic moments:
 [[0.  0.  2.5]]
 ```
 
-### From Legacy AiiDA StructureData
+### Backward compatibility: from Legacy orm.StructureData
 
-Migrate from the legacy AiiDA StructureData:
+It is possible to migrate from the old `orm.StructureData` to the new `aiida-atomistic` `StructureData`:
 
 ```python
-from aiida import orm
-from aiida_atomistic.data.structure import StructureData
+from aiida.orm import StructureData as LegacyStructureData
+from aiida_atomistic.data.structure.utils_orm import from_legacy_to_atomistic
 
-# Load legacy structure
-legacy_structure = orm.StructureData()
-legacy_structure.append_atom(symbols='C', position=(0.0, 0.0, 0.0))
+legacy = LegacyStructureData(cell=[[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]])
+legacy.append_atom(symbols='H', position=[0.0, 0.0, 0.0], mass=1.008, name='H1')
+legacy.append_atom(symbols='O', position=[0.0, 0.0, 1.0], mass=15.999, name='O1')
 
-# Convert to new format
-new_structure = legacy_structure.to_atomistic()
+s = from_legacy_to_atomistic(legacy_structure=legacy, metadata={'store_provenance': True}) # no need to define metadata, default is already True.
 ```
 
 ## Modifying Structures
@@ -292,7 +291,7 @@ new_structure = legacy_structure.to_atomistic()
 `StructureData` is **immutable** and cannot be modified. Use `StructureBuilder` for modifications.
 :::
 
-### Creating a Mutable Structure
+### Creating a Mutable Structure: the `StructureBuilder`
 
 ```python
 from aiida_atomistic.data.structure import StructureBuilder
@@ -436,17 +435,20 @@ print(f"Magmoms after removal: {mutable.properties.magmoms}")  # None
 - See the full list of properties in the [Site API documentation](../reference/api/auto/aiida_atomistic/data/structure/site/index.rst)
 :::
 
-### Converting Between Mutable and Immutable
+## Conversion Between `StructureBuilder` and `StructureData` (and viceversa)
+
+The `StructureBuilder` object is a pure python class, any instance of it needs to be converted into the `StructureData` before being used in an AiiDA process.
+It is possible to seamlessly convert between `StructureBuilder` and `StructureData` (and viceversa) using the defined `to_*` and `from_*` methods:
 
 ```python
-# Mutable → Immutable (for storage in AiiDA)
-immutable = StructureData(**mutable.to_dict())
+# StructureBuilder → StructureData (for storage in AiiDA)
+structuredata = structurebuilder.to_aiida()
+structuredata = StructureData.from_builder(structurebuilder)
 
 # Immutable → Mutable (for editing)
-mutable_copy = StructureBuilder(**immutable.to_dict())
+structurebuilder = structuredata.to_builder()
+structurebuilder = StructureBuilder.from_aiida(structuredata)
 
-# Or use get_value()
-mutable_copy2 = immutable.get_value()
 ```
 
 ## Generating Kinds Automatically

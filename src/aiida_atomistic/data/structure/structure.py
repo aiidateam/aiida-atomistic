@@ -18,7 +18,7 @@ class StructureData(Data, GetterMixin):
     _mutable = False
     _model = ImmutableStructureModel
 
-    def __init__(self, validate_kinds=True, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
+    def __init__(self, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
 
         if sites is not None and kinds is not None:
             warnings.warn("Provided both `sites` and `kinds` information. Dropping the `sites` information and using only `kinds`.")
@@ -29,8 +29,8 @@ class StructureData(Data, GetterMixin):
         self._properties = self._model(sites=sites, **kwargs)
         super().__init__()
 
-        if validate_kinds and self.kinds is not None:
-            self.validate_kinds()
+        #if validate_kinds:
+        #    if self.kinds is not None: self.validate_kinds()
 
         attributes = self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False)
         if self.properties.kind_names is not None:
@@ -58,15 +58,13 @@ class StructureData(Data, GetterMixin):
             return self._properties
 
     @classmethod
-    def from_builder(cls, mutable_structure, validate_kinds=True):
-        if not isinstance(mutable_structure, StructureBuilder):
-            raise ValueError(f"Input structure should be of type StructureBuilder, not {type(mutable_structure)}")
-        return cls(validate_kinds=validate_kinds, **mutable_structure.to_dict(exclude_kinds=True))
+    def from_builder(cls, builder: 'StructureBuilder'):
+        from aiida_atomistic.data.structure.structure import StructureBuilder
+        if not isinstance(builder, StructureBuilder):
+            raise ValueError(f"Input builder should be of type StructureBuilder, not {type(builder)}")
+        return cls(**builder.to_dict())
 
-    def to_mutable(self,):
-        return StructureBuilder(**self.to_dict())
-
-    def get_value(self):
+    def to_builder(self) -> 'StructureBuilder':
         return StructureBuilder(**self.to_dict())
 
     def __repr__(self) -> str:
@@ -89,7 +87,7 @@ class StructureBuilder(GetterMixin, SetterMixin):
     _mutable = True
     _model = MutableStructureModel
 
-    def __init__(self, validate_kinds=True, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
+    def __init__(self, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
 
         if sites is not None and kinds is not None:
             warnings.warn("Provided both `sites` and `kinds` information. Dropping the `sites` information and using only `kinds`.")
@@ -103,6 +101,15 @@ class StructureBuilder(GetterMixin, SetterMixin):
     @property
     def properties(self):
         return self._properties
+
+    @classmethod
+    def from_aiida(cls, aiida: 'StructureData'):
+        if not isinstance(aiida, StructureBuilder):
+            raise ValueError(f"Input aiida should be of type StructureBuilder, not {type(aiida)}")
+        return cls(**aiida.to_dict())
+
+    def to_aiida(self) -> 'StructureData':
+        return StructureData(**self.to_dict())
 
     def __repr__(self) -> str:
         """Return a concise string representation of the structure."""

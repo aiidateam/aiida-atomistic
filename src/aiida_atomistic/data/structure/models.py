@@ -64,6 +64,7 @@ class StructureBaseModel(BaseModel):
         from_attributes=True,
         frozen=False,
         arbitrary_types_allowed=True,
+        extra='forbid',
         #validate_assignment=True
     )
 
@@ -313,9 +314,10 @@ class StructureBaseModel(BaseModel):
             positions = positions_array[site_indices]
 
             kind = Kind(
-                **site.model_dump(exclude={'position'}),
+                **site.model_dump(exclude={'position','kind_name'}),
                 site_indices=site_indices,
                 positions=positions,
+                kind_name=kind_name
             )
             kinds_list.append(kind)
 
