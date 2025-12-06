@@ -835,19 +835,6 @@ def atom_kinds_to_html(atom_kind):
 
     return html_formula
 
-
-def create_automatic_kind_name(symbols, weights):
-    """Create a string obtained with the symbols appended one
-    after the other, without spaces, in alphabetical order;
-    if the site has a vacancy, a X is appended at the end too.
-    """
-    sorted_symbol_list = list(set(symbols))
-    sorted_symbol_list.sort()  # In-place sort
-    name_string = "".join(sorted_symbol_list)
-    if has_vacancies(weights):
-        name_string += "X"
-    return name_string
-
 def set_symbols_and_weights(new_data):
         """Set the chemical symbols and the weights for the site.
 

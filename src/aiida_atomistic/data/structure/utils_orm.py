@@ -4,7 +4,7 @@ from aiida_atomistic.data.structure.structure import StructureData
 from aiida.orm import StructureData as LegacyStructureData
 
 @calcfunction
-def from_legacy_to_atomistic(legacy_structure: 'LegacyStructureData') -> 'StructureData':
+def from_legacy_to_atomistic(legacy_structure: LegacyStructureData) -> StructureData:
 
     """Convert a legacy AiiDA StructureData to the new atomistic StructureData.
 

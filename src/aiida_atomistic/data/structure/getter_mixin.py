@@ -13,7 +13,9 @@ from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
 )
 
-from aiida_atomistic.data.structure.utils import classify_site_kinds, check_kinds_match
+from aiida.engine import calcfunction
+
+from aiida_atomistic.data.structure.utils import check_kinds_match
 
 try:
     import ase  # noqa: F401
@@ -120,10 +122,12 @@ class GetterMixin(HubbardGetterMixin):
 
     def get_kind_names(self):
         """Return a list of the kind names defined in this structure."""
-        return list(set(self.properties.kind_names))
+        return None if self.properties.kind_names is None else list(set(self.properties.kind_names))
 
     def get_kind(self, kind_name: str = None):
         """Return a given kind."""
+        if not self.kinds:
+            return None
         for kind in self.kinds:
             if kind.kind_name == kind_name:
                 return kind
@@ -144,7 +148,7 @@ class GetterMixin(HubbardGetterMixin):
     def from_ase(
         cls,
         aseatoms: ASE_ATOMS_TYPE,
-        detect_kinds: bool = False):
+    ):
         """Load the structure from a ASE object"""
 
         if not has_ase:
@@ -164,7 +168,7 @@ class GetterMixin(HubbardGetterMixin):
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
             new_site = SiteClass.from_ase_atom(aseatom=atom)
-            data["sites"].append(new_site.model_dump(exclude={"kind_name"} if not detect_kinds else None))
+            data["sites"].append(new_site.model_dump())
 
 
         structure = cls(**data)
@@ -176,7 +180,6 @@ class GetterMixin(HubbardGetterMixin):
         cls,
         filename,
         format="cif",
-        detect_kinds: bool = False,
         **kwargs):
         """Load the structure from a file."""
 
@@ -185,16 +188,15 @@ class GetterMixin(HubbardGetterMixin):
             from pymatgen.io.cif import CifParser
             parser  = CifParser(filename)
             mcif_structure   = parser.get_structures(**kwargs)[0]
-            return cls.from_pymatgen(pymatgen_obj=mcif_structure, detect_kinds=detect_kinds)
+            return cls.from_pymatgen(pymatgen_obj=mcif_structure)
         else:
             ase_read = ase_io.read(filename, format=format, **kwargs)
-            return cls.from_ase(aseatoms=ase_read, detect_kinds=detect_kinds)
+            return cls.from_ase(aseatoms=ase_read)
 
     @classmethod
     def from_pymatgen(
         cls,
         pymatgen_obj: t.Union[PYMATGEN_MOLECULE, PYMATGEN_STRUCTURE],
-        detect_kinds: bool = False,
         **kwargs,
     ):
         """Load the structure from a pymatgen object.
@@ -206,9 +208,9 @@ class GetterMixin(HubbardGetterMixin):
             raise ImportError("The pymatgen package cannot be imported.")
 
         if isinstance(pymatgen_obj, PYMATGEN_MOLECULE):
-            structure = cls._from_pymatgen_molecule(pymatgen_obj, detect_kinds=detect_kinds)
+            structure = cls._from_pymatgen_molecule(pymatgen_obj, **kwargs)
         else:
-            structure = cls._from_pymatgen_structure(pymatgen_obj, detect_kinds=detect_kinds)
+            structure = cls._from_pymatgen_structure(pymatgen_obj, **kwargs)
 
         return structure
 
@@ -217,7 +219,6 @@ class GetterMixin(HubbardGetterMixin):
         cls,
         mol: PYMATGEN_MOLECULE,
         margin=5,
-        detect_kinds: bool = False,
         ):
         """Load the structure from a pymatgen Molecule object.
 
@@ -238,7 +239,7 @@ class GetterMixin(HubbardGetterMixin):
             - min(x.coords.tolist()[2] for x in mol.properties.sites)
             + 2 * margin,
         ]
-        structure = cls._from_pymatgen_structure(mol.get_boxed_structure(*box), detect_kinds=detect_kinds)
+        structure = cls._from_pymatgen_structure(mol.get_boxed_structure(*box))
         structure.properties.pbc = [False, False, False]
 
         return structure
@@ -247,7 +248,6 @@ class GetterMixin(HubbardGetterMixin):
     def _from_pymatgen_structure(
         cls,
         struct: PYMATGEN_STRUCTURE,
-        detect_kinds: bool = False,
         ):
         """Load the structure from a pymatgen Structure object.
 
@@ -350,33 +350,6 @@ class GetterMixin(HubbardGetterMixin):
 
         return structure
 
-    # method for the kinds generation and validation
-    def generate_kinds(self, tolerance:t.Union[dict, float]=1e-3):
-        sites = self.to_dict()['sites']
-        groups = classify_site_kinds(sites, tolerance=tolerance)
-        kinds = []
-        kind_names = []
-        for i, (key, group) in enumerate(groups.items()):
-            for l in range(i+1):
-                kind_name = f"{group['properties']['symbol']}{l+1}"
-                if kind_name not in kind_names:
-                    kind_names.append(kind_name)
-                    break
-                else:
-                    continue
-
-            site_indices = group['sites']
-            properties = group['properties']
-            positions = group['positions']
-            properties['kind_name'] = kind_name
-            kind = {
-                'site_indices': site_indices,
-                'positions': positions,
-                **properties
-            }
-            kinds.append(kind)
-        return kinds
-
     def validate_kinds(self,):
         if not self.kinds:
             raise ValueError("No kinds defined in the structure.")
@@ -385,9 +358,30 @@ class GetterMixin(HubbardGetterMixin):
         check_kinds = check_kinds_match(self, generated_kinds)
 
         if not check_kinds:
-            raise ValueError("The kinds defined in the structure do not match the generated kinds from the sites. Please run the 'generate_kinds' method to see the expected kinds.")
+            raise ValueError("The kinds defined in the structure do not match the generated kinds from the sites. Please run the 'to_kinds' method to see the expected kinds.")
 
     # TO methods:
+    def to_kinds(self, tolerance:t.Union[dict, float]=1e-3, store_provenance: bool=True):
+        """
+        Convert the structure to a kinds-based representation.
+
+        :param tolerance: Tolerance for grouping sites into kinds. Can be a float or a dictionary specifying tolerances for specific properties.
+        :type tolerance: float or dict, optional
+        :type store_provenance: bool, optional
+        :return: The structure as a dictionary with kinds.
+        :rtype: dict
+        """
+
+        from aiida_atomistic.data.structure.utils_kinds import to_kinds as to_kinds_function
+        from aiida_atomistic.data.structure.structure import StructureBuilder, StructureData
+
+        if isinstance(self, StructureBuilder):
+            return to_kinds_function(self, tolerance=tolerance)
+        elif isinstance(self, StructureData):
+            from aiida.engine import calcfunction
+            return calcfunction(to_kinds_function)(self, tolerance=orm.Dict(tolerance) if isinstance(tolerance, dict) else orm.Float(tolerance), metadata={'store_provenance': store_provenance})
+
+
     def to_dict(self):
             """
             Convert the structure to a dictionary representation.
@@ -400,23 +394,7 @@ class GetterMixin(HubbardGetterMixin):
 
             return dict_repr
 
-    def to_kinds_based(self, tolerance:t.Union[dict, float]=1e-3):
-        """
-        Convert the structure to a kinds-based representation.
-
-        :param tolerance: Tolerance for grouping sites into kinds. Can be a float or a dictionary specifying tolerances for specific properties.
-        :type tolerance: float or dict, optional
-        :return: The structure as a dictionary with kinds.
-        :rtype: dict
-        """
-        dict_repr = self.to_dict(exclude_kinds=True)
-        dict_repr['kinds'] = self.generate_kinds(tolerance=tolerance)
-        dict_repr.pop('sites', None)
-
-        return self.__class__(**dict_repr)
-
-
-    def get_cif(self, converter="ase", store=False, **kwargs):
+    def to_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.
 
         :param converter: specify the converter. Default 'ase'.
@@ -482,8 +460,6 @@ class GetterMixin(HubbardGetterMixin):
         raise ValueError(
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
-
-
 
     def to_ase(self):
         """Get the ASE object.
