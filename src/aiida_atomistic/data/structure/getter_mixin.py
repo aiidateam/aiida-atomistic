@@ -2,20 +2,14 @@ import copy
 import json
 import typing as t
 import numpy as np
-import itertools
 
 from aiida import orm
 from aiida.common.constants import elements
 
 from aiida_atomistic.data.structure.site import Site, FrozenSite
-from aiida_atomistic.data.structure.models import MutableStructureModel
 from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
 )
-
-from aiida.engine import calcfunction
-
-from aiida_atomistic.data.structure.utils import check_kinds_match
 
 try:
     import ase  # noqa: F401
@@ -350,23 +344,40 @@ class GetterMixin(HubbardGetterMixin):
 
         return structure
 
-    def validate_kinds(self,):
+    def validate_kinds(self, threshold: dict = {}):
+        """Validate that the kinds defined in the structure match the ones generated from the sites.
+        :param threshold: Threshold for grouping sites into kinds. Should be a dictionary specifying thresholds for specific properties.
+        :type threshold: dict, optional. The default values are taken from Site.get_default_thresholds()
+
+        :raises ValueError: if the kinds defined in the structure do not match the ones generated from the sites.
+        """
+
+        from aiida_atomistic.data.structure.utils_kinds import generate_kinds, check_kinds_match
+
         if not self.kinds:
             raise ValueError("No kinds defined in the structure.")
 
-        generated_kinds = self.generate_kinds()
-        check_kinds = check_kinds_match(self, generated_kinds)
+        # defaul thresholds
+        all_thresholds = Site.get_default_thresholds()
+
+        # update the thresholds with the user-defined ones
+        all_thresholds.update(threshold)
+
+        kinds = generate_kinds(self, threshold=all_thresholds)
+        check_kinds = check_kinds_match(self, kinds)
 
         if not check_kinds:
             raise ValueError("The kinds defined in the structure do not match the generated kinds from the sites. Please run the 'to_kinds' method to see the expected kinds.")
 
+        return True
+
     # TO methods:
-    def to_kinds(self, tolerance:t.Union[dict, float]=1e-3, store_provenance: bool=True):
+    def to_kinds(self, threshold: dict = {}, store_provenance: bool=True):
         """
         Convert the structure to a kinds-based representation.
 
-        :param tolerance: Tolerance for grouping sites into kinds. Can be a float or a dictionary specifying tolerances for specific properties.
-        :type tolerance: float or dict, optional
+        :param threshold: Threshold for grouping sites into kinds. Should be a dictionary specifying thresholds for specific properties.
+        :type threshold: dict, optional. The default values are taken from Site.get_default_thresholds()
         :type store_provenance: bool, optional
         :return: The structure as a dictionary with kinds.
         :rtype: dict
@@ -375,11 +386,17 @@ class GetterMixin(HubbardGetterMixin):
         from aiida_atomistic.data.structure.utils_kinds import to_kinds as to_kinds_function
         from aiida_atomistic.data.structure.structure import StructureBuilder, StructureData
 
+        # defaul thresholds
+        all_thresholds = Site.get_default_thresholds()
+
+        # update the thresholds with the user-defined ones
+        all_thresholds.update(threshold)
+
         if isinstance(self, StructureBuilder):
-            return to_kinds_function(self, tolerance=tolerance)
+            return to_kinds_function(self, threshold=all_thresholds)
         elif isinstance(self, StructureData):
             from aiida.engine import calcfunction
-            return calcfunction(to_kinds_function)(self, tolerance=orm.Dict(tolerance) if isinstance(tolerance, dict) else orm.Float(tolerance), metadata={'store_provenance': store_provenance})
+            return calcfunction(to_kinds_function)(self, threshold=orm.Dict(all_thresholds), metadata={'store_provenance': store_provenance})
 
 
     def to_dict(self):

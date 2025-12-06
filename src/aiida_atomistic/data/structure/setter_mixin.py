@@ -1,17 +1,12 @@
-import copy
-import json
 import typing as t
 import numpy as np
-import itertools
 
-from aiida import orm
 from aiida.common.constants import elements
 
 from aiida_atomistic.data.structure.site import Site
 from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardSetterMixin
 )
-from aiida_atomistic.data.structure.kind import Kind
 
 try:
     import ase  # noqa: F401

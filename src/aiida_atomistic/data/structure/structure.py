@@ -4,13 +4,6 @@ from aiida_atomistic.data.structure.models import MutableStructureModel, Immutab
 from aiida_atomistic.data.structure.setter_mixin import SetterMixin
 from aiida_atomistic.data.structure.getter_mixin import GetterMixin
 
-from aiida_atomistic.data.structure.utils import (
-    compress_properties_by_kind,
-    rebuild_site_lists_from_kind_lists,
-    build_sites_from_expanded_properties,
-    sites_from_kinds,
-)
-
 import warnings
 
 class StructureData(Data, GetterMixin):
@@ -19,6 +12,8 @@ class StructureData(Data, GetterMixin):
     _model = ImmutableStructureModel
 
     def __init__(self, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
+
+        from aiida_atomistic.data.structure.utils_kinds import sites_from_kinds
 
         if sites is not None and kinds is not None:
             warnings.warn("Provided both `sites` and `kinds` information. Dropping the `sites` information and using only `kinds`.")
@@ -34,6 +29,7 @@ class StructureData(Data, GetterMixin):
 
         attributes = self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False)
         if self.properties.kind_names is not None:
+            from aiida_atomistic.data.structure.utils_kinds import compress_properties_by_kind
             compressed = compress_properties_by_kind(attributes)
             attributes.update(compressed)
 
@@ -46,7 +42,9 @@ class StructureData(Data, GetterMixin):
     @property
     def properties(self):
         if self.is_stored:
+            from aiida_atomistic.data.structure.utils import build_sites_from_expanded_properties
             if "kind_names" in self.base.attributes.all:
+                from aiida_atomistic.data.structure.utils_kinds import rebuild_site_lists_from_kind_lists
                 attribute_lists = rebuild_site_lists_from_kind_lists(self.base.attributes.all)
                 attributes = build_sites_from_expanded_properties(attribute_lists)
             else:
@@ -88,6 +86,8 @@ class StructureBuilder(GetterMixin, SetterMixin):
     _model = MutableStructureModel
 
     def __init__(self, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
+
+        from aiida_atomistic.data.structure.utils_kinds import sites_from_kinds
 
         if sites is not None and kinds is not None:
             warnings.warn("Provided both `sites` and `kinds` information. Dropping the `sites` information and using only `kinds`.")

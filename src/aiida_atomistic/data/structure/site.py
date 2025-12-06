@@ -108,23 +108,23 @@ class Site(BaseModel):
     )
     mass: t.Optional[float] = Field(
         gt=0,
-        json_schema_extra={"tolerance": 1e-3}
+        json_schema_extra={"threshold": 1e-3}
     )
     charge: t.Optional[float] = Field(
         default=None,
-        json_schema_extra={"tolerance": 1e-2}
+        json_schema_extra={"threshold": 1e-2}
     )
     magmom: t.Optional[NumpyArray] = Field(
         default=None,
-        json_schema_extra={"tolerance": 1e-2}
+        json_schema_extra={"threshold": 1e-2}
     )
     magnetization: t.Optional[float] = Field(
         default=None,
-        json_schema_extra={"tolerance": 1e-2}
+        json_schema_extra={"threshold": 1e-2}
     )
     weight: t.Optional[t.Tuple[float, ...]] = Field(
         default=None,
-        json_schema_extra={"tolerance": 1e-2}
+        json_schema_extra={"threshold": 1e-2}
     )
     kind_name: t.Optional[str] = Field(default=None)
 
@@ -225,23 +225,23 @@ class Site(BaseModel):
         return not 1.0 - sum(self.weight) < _SUM_THRESHOLD
 
     @classmethod
-    def get_default_tolerances(cls) -> dict:
-        """Extract default tolerances from field metadata.
+    def get_default_thresholds(cls) -> dict:
+        """Extract default thresholds from field metadata.
 
-        Returns a dictionary mapping property names to their default tolerance values
+        Returns a dictionary mapping property names to their default threshold values
         as defined in the json_schema_extra metadata of each field.
 
-        :return: dictionary with property names as keys and tolerance values as floats
+        :return: dictionary with property names as keys and threshold values as floats
 
         Example:
-            >>> Site.get_default_tolerances()
+            >>> Site.get_default_thresholds()
             {'position': 1e-06, 'mass': 0.001, 'charge': 0.0001, 'magmom': 0.01, 'magnetization': 0.01, 'weight': 0.0001}
         """
-        tolerances = {}
+        thresholds = {}
         for name, field in cls.model_fields.items():
-            if field.json_schema_extra and "tolerance" in field.json_schema_extra:
-                tolerances[name] = field.json_schema_extra["tolerance"]
-        return tolerances
+            if field.json_schema_extra and "threshold" in field.json_schema_extra:
+                thresholds[name] = field.json_schema_extra["threshold"]
+        return thresholds
 
     @classmethod
     def from_ase_atom(
