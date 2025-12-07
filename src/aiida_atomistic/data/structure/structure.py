@@ -45,8 +45,8 @@ class StructureData(Data, GetterMixin):
             from aiida_atomistic.data.structure.utils import build_sites_from_expanded_properties
             if "kind_names" in self.base.attributes.all:
                 from aiida_atomistic.data.structure.utils_kinds import rebuild_site_lists_from_kind_lists
-                attribute_lists = rebuild_site_lists_from_kind_lists(self.base.attributes.all)
-                attributes = build_sites_from_expanded_properties(attribute_lists)
+                attribute_lists_dict = rebuild_site_lists_from_kind_lists(self.base.attributes.all)
+                attributes = build_sites_from_expanded_properties(attribute_lists_dict)
             else:
                 attributes = build_sites_from_expanded_properties(self.base.attributes.all)
 

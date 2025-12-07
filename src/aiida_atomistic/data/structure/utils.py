@@ -911,6 +911,9 @@ def order_k(k):
 def build_sites_from_expanded_properties(expanded):
     """
     Build the structure dictionary from expanded site-wise lists of properties.
+
+    Expanded is a dictionary where each key corresponds to a property and the value is a list of values for each site,
+    i.e. the format on which we store the properties in the database.
     """
 
     # Use all keys except positions if you want to exclude arrays, or specify your own
