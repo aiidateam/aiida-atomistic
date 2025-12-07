@@ -122,6 +122,13 @@ class StructureBaseModel(BaseModel):
             return freeze_nested(v)
         return v
 
+    @field_validator('custom', mode='after')
+    def freeze_custom(cls, v):
+        """Freeze the list of sites if the structure is immutable."""
+        if not cls._mutable and v is not None:
+            return freeze_nested(v)
+        return v
+
     # computed properties
     @computed_field
     def cell_volume(self) -> float:
@@ -379,5 +386,5 @@ class ImmutableStructureModel(StructureBaseModel):
     def __setattr__(self, key, value):
         # Customizing the exception message when trying to mutate attributes
         if key in self.model_fields:
-            raise ValueError("The AiiDA `StructureData` is immutable. You can create a mutable copy of it using its `get_value` method.")
+            raise ValueError("The AiiDA `StructureData` is immutable. You can create a mutable copy of it using its `to_builder` method.")
         super().__setattr__(key, value)
