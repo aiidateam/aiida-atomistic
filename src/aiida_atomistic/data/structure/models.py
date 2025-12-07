@@ -122,6 +122,13 @@ class StructureBaseModel(BaseModel):
             return freeze_nested(v)
         return v
 
+    @field_validator('custom', mode='after')
+    def freeze_custom(cls, v):
+        """Freeze the list of sites if the structure is immutable."""
+        if not cls._mutable and v is not None:
+            return freeze_nested(v)
+        return v
+
     # computed properties
     @computed_field
     def cell_volume(self) -> float:
@@ -314,65 +321,12 @@ class StructureBaseModel(BaseModel):
         return FrozenList(kinds_list)
 
     def __repr__(self) -> str:
-        """Return a concise string representation of the structure."""
-        # Basic info
-        nsites = len(self.sites)
-        formula = self.formula
+        from pprint import pformat
+        pformatted = pformat(self.model_dump())
+        return f"StructureModel({pformatted})"
 
-        # PBC info
-        pbc_dims = sum(self.pbc)
-        if pbc_dims == 3:
-            pbc_str = "3D"
-        elif pbc_dims == 2:
-            pbc_str = "2D"
-        elif pbc_dims == 1:
-            pbc_str = "1D"
-        else:
-            pbc_str = "0D"
-
-        # Cell volume
-        volume = self.cell_volume
-
-        parts = [
-            f"formula: {formula}",
-            f"sites: {nsites}",
-            f"dimensionality: {pbc_str}",
-            f"V={volume:.2f} A^3"
-        ]
-
-        # Add magnetic info if present
-        if self.tot_magnetization is not None:
-            parts.append(f"tot_mag={self.tot_magnetization:.2f}")
-        elif any(s.magnetization is not None or s.magmom is not None for s in self.sites):
-            parts.append("magnetic")
-
-        # Add charge info if present
-        if self.tot_charge is not None:
-            parts.append(f"tot_charge={self.tot_charge:.2f}")
-        elif any(s.charge is not None for s in self.sites):
-            parts.append("charged")
-
-        # Add alloy/vacancy info
-        if self.is_alloy:
-            parts.append("alloy")
-        if self.has_vacancies:
-            parts.append("vacancies")
-
-        # First line with summary
-        repr_str = f" | {', '.join(parts)} |"
-
-        # Add sites info (limit to first 5 sites to avoid too long representations)
-        max_sites_to_show = 5
-        if nsites > 0:
-            repr_str += "\n Sites:"
-            for i, site in enumerate(self.sites):
-                if i >= max_sites_to_show:
-                    repr_str += f"\n  ... (+{nsites - max_sites_to_show} more sites)"
-                    break
-                repr_str += f"\n  {site}"
-            repr_str += "\n"
-
-        return repr_str
+    def __str__(self):
+        return self.__repr__()
 
 class MutableStructureModel(StructureBaseModel):
     """
@@ -432,5 +386,5 @@ class ImmutableStructureModel(StructureBaseModel):
     def __setattr__(self, key, value):
         # Customizing the exception message when trying to mutate attributes
         if key in self.model_fields:
-            raise ValueError("The AiiDA `StructureData` is immutable. You can create a mutable copy of it using its `get_value` method.")
+            raise ValueError("The AiiDA `StructureData` is immutable. You can create a mutable copy of it using its `to_builder` method.")
         super().__setattr__(key, value)

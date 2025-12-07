@@ -67,13 +67,16 @@ class StructureData(Data, GetterMixin):
 
     def __repr__(self) -> str:
         """Return a concise string representation of the structure."""
+
+        from aiida_atomistic.data.structure.utils import get_structure_repr
+
         # Build UUID string without calling super().__repr__() to avoid recursion
         if self.is_stored:
             uuid_str = f'<{self.__class__.__name__}: uuid: {self.uuid} (pk: {self.pk})>'
         else:
             uuid_str = f'<{self.__class__.__name__}: uuid: {self.uuid} (unstored)>'
 
-        prop_repr_str = self.properties.__repr__()
+        prop_repr_str = get_structure_repr(self)
         return uuid_str + f'\n {prop_repr_str.replace("ImmutableStructureModel","")}'
 
     def __str__(self) -> str:
@@ -113,7 +116,10 @@ class StructureBuilder(GetterMixin, SetterMixin):
 
     def __repr__(self) -> str:
         """Return a concise string representation of the structure."""
-        prop_repr_str = self.properties.__repr__()
+
+        from aiida_atomistic.data.structure.utils import get_structure_repr
+
+        prop_repr_str = get_structure_repr(self)
         return super().__repr__() + f'\n {prop_repr_str.replace("MutableStructureModel","")}'
 
     def __str__(self) -> str:

@@ -27,3 +27,9 @@ structure_dict = {
 structure = StructureData(**structure_dict)
 print(structure.properties.custom["my_special_property"])
 ```
+
+To add a custom properties on an already initialised `StructureBuilder`, you can directly define `structure.properties.custom` or use the `set_custom` method.
+In the latter case, if `structure.properties.custom` is already defined, it will be updated with the new values provided in the `set_custom` method, but other keys will not be removed.
+
+To delete a set of defined custom properties, use the `remove_custom` method, passing as input a list of keys (strings). To remove the entire custom dictionary, you
+can call the same method without specifying any input parameter.

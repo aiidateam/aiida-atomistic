@@ -341,3 +341,36 @@ class TestSetterRemoverWorkflow:
         # Verify charges are not present
         assert immutable.properties.charges is None
         assert 'charges' not in immutable.get_defined_properties()
+
+class TestCustomPropertySettersRemovers:
+    """Test setter and remover methods for custom properties in StructureBuilder."""
+
+    def test_set_then_remove_charges(self):
+        """Test setting charges and then removing them."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]},
+            ],
+            custom = {'first_custom_property': 'Hello'}
+        )
+
+
+        # Initially only one custom property
+        assert structure.properties.custom == {'first_custom_property': 'Hello'}
+        ## testing also for StructureData
+        structuredata = structure.to_aiida()
+        assert structuredata.properties.custom == {'first_custom_property': 'Hello'}
+
+        # Set another property
+        structure.set_custom({'second_custom_property': "World"})
+        assert structure.properties.custom == {'first_custom_property': 'Hello', 'second_custom_property': 'World'}
+
+        # Remove custom properties: first only one, then the whole dictionary
+        structure.remove_custom(['first_custom_property'])
+        assert structure.properties.custom == {'second_custom_property': 'World'}
+
+        structure.remove_custom()
+        assert structure.properties.custom is None

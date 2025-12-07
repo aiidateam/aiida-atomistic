@@ -162,7 +162,6 @@ class SetterMixin(HubbardSetterMixin):
         del self.properties.sites
         return
 
-
     def remove_property(self, property_name):
         """Clear the given property."""
 
@@ -256,4 +255,28 @@ class SetterMixin(HubbardSetterMixin):
             raise ValueError(f"The length of the kind_names list ({len(value)}) does not match the number of sites ({len(self.properties.sites)}).")
         for site, kind_name in zip(self.properties.sites, value):
             site.kind_name = kind_name
+        return
+
+    def set_custom(self, value: dict):
+        """Set the custom properties."""
+        if not self.properties.custom:
+            self.properties.custom = {}
+        self.properties.custom.update(value)
+        return
+
+    def remove_custom(self, keys: t.List[str] = None):
+        """Remove the custom properties.
+
+        If keys is None, remove all custom properties.
+        If keys is provided, remove only the specified keys.
+        """
+
+        if not self.properties.custom:
+            return
+        if keys:
+            for key in keys:
+                if key in self.properties.custom:
+                    del self.properties.custom[key]
+        else:
+            self.remove_property('custom')
         return

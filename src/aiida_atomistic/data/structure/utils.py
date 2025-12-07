@@ -936,3 +936,65 @@ def build_sites_from_expanded_properties(expanded):
     structure_dict["sites"] = sites
 
     return structure_dict
+
+def get_structure_repr(structure):
+    """Return a concise string representation of the structure."""
+
+    # Basic info
+    nsites = len(structure.properties.sites)
+    formula = structure.properties.formula
+
+    # PBC info
+    pbc_dims = sum(structure.properties.pbc)
+    if pbc_dims == 3:
+        pbc_str = "3D"
+    elif pbc_dims == 2:
+        pbc_str = "2D"
+    elif pbc_dims == 1:
+        pbc_str = "1D"
+    else:
+        pbc_str = "0D"
+
+    # Cell volume
+    volume = structure.properties.cell_volume
+
+    parts = [
+        f"formula: {formula}",
+        f"sites: {nsites}",
+        f"dimensionality: {pbc_str}",
+        f"V={volume:.2f} A^3"
+    ]
+
+    # Add magnetic info if present
+    if structure.properties.tot_magnetization is not None:
+        parts.append(f"tot_mag={structure.properties.tot_magnetization:.2f}")
+    elif any(s.magnetization is not None or s.magmom is not None for s in structure.properties.sites):
+        parts.append("magnetic")
+
+    # Add charge info if present
+    if structure.properties.tot_charge is not None:
+        parts.append(f"tot_charge={structure.properties.tot_charge:.2f}")
+    elif any(s.charge is not None for s in structure.properties.sites):
+        parts.append("charged")
+
+    # Add alloy/vacancy info
+    if structure.properties.is_alloy:
+        parts.append("alloy")
+    if structure.properties.has_vacancies:
+        parts.append("vacancies")
+
+    # First line with summary
+    repr_str = f" | {', '.join(parts)} |"
+
+    # Add sites info (limit to first 5 sites to avoid too long representations)
+    max_sites_to_show = 5
+    if nsites > 0:
+        repr_str += "\n Sites:"
+        for i, site in enumerate(structure.properties.sites):
+            if i >= max_sites_to_show:
+                repr_str += f"\n  ... (+{nsites - max_sites_to_show} more sites)"
+                break
+            repr_str += f"\n  {site}"
+        repr_str += "\n"
+
+    return repr_str
