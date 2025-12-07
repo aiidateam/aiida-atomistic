@@ -84,18 +84,16 @@ Information on the supported properties can be obtained by using the `get_suppor
 
 ```python
 # Get all supported properties
-supported = structure.get_supported_properties()
+supported = StructureData.get_supported_properties()
 print(f"Supported properties: {supported}")
+```
 
+In a similar way, it is possible to see the properties which are defined for a given `StructureData` instance:
+
+```python
 # Get defined properties in this structure
 defined = structure.get_defined_properties()
 print(f"Defined properties: {defined}")
-```
-
-**Output:**
-```
-Supported properties: {'global': {'custom', 'tot_magnetization', 'sites', 'cell', 'hubbard', 'tot_charge', 'pbc'}, 'site': {'magnetization', 'kind_name', 'symbol', 'mass', 'magmom', 'position', 'weight', 'charge'}}
-Defined properties: {'positions', 'symbols', 'masses', 'sites', 'cell', 'kind_names', 'pbc'}
 ```
 
 ## Modifying Structures

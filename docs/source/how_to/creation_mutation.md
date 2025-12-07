@@ -108,18 +108,6 @@ Number of sites: 4
 Kinds: {'Fe1', 'O1'}
 ```
 
-**Advantages of kinds-based format:**
-- More compact for structures with many equivalent atoms
-- Explicit grouping of atoms with same properties
-- Matches the internal storage format used by AiiDA
-- Useful when migrating from legacy `orm.StructureData`
-
-**When to use:**
-- Structures with many atoms of the same type and properties
-- Converting from legacy AiiDA format
-- When you already have kind information from calculations
-- Large structures where compactness matters
-
 ### From ASE
 
 Convert ASE Atoms objects to StructureData:
