@@ -224,12 +224,12 @@ Charges: [2. 0.]
 
 ### From Files
 
-Load structures from various file formats:
+Load structures from various file formats, via the `from_file` method. It is possible to specify the parser engine between "ase" and "pymatgen".If the file is not a .cif or .mcif, the default is ase. To change it, you can pass the `parser="pymatgen"` input parameters to the method.
 
 #### From CIF
 
 ```python
-# From CIF file
+# From CIF file ()
 structure = StructureData.from_file('path/to/your/structure.cif')
 print(f"Loaded from CIF: {structure.properties.formula}")
 ```
@@ -587,7 +587,7 @@ Total charge: -1.0
 
 ```python
 # Load existing structure
-original = StructureData.from_file('structure.cif')
+original = StructureData.from_file('structure.cif', parser='pymatgen')
 
 # Create mutable copy
 mutable = StructureBuilder(**original.to_dict())

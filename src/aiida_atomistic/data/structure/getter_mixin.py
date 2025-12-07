@@ -174,10 +174,14 @@ class GetterMixin(HubbardGetterMixin):
         cls,
         filename,
         format="cif",
+        parser:str="ase",
         **kwargs):
-        """Load the structure from a file."""
+        """Load the structure from a file.
 
-        if format == 'mcif' or '.mcif' in filename:
+        It is possible to specify the parser between ase or pymatgen, default is ase.
+        """
+
+        if format == 'mcif' or '.mcif' in filename or parser == "pymatgen":
             # in this case, we use pymatgen parser, because the ase one does not work properly for now.
             from pymatgen.io.cif import CifParser
             parser  = CifParser(filename)
