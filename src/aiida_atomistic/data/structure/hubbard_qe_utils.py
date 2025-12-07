@@ -5,8 +5,6 @@ from itertools import product
 import os
 from typing import List, Tuple, Union
 
-from aiida.orm import StructureData as LegacyStructureData
-
 from aiida_quantumespresso.common.hubbard import Hubbard
 #from aiida_quantumespresso.data.hubbard_structure import HubbardStructureData
 

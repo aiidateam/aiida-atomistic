@@ -1,16 +1,8 @@
-import copy
-import functools
-import json
 import typing as t
 from pydantic import BaseModel, Field, field_validator, ConfigDict, computed_field, model_validator
 import numpy as np
-import warnings
 
 from collections import defaultdict
-
-from aiida import orm
-from aiida.common.constants import elements
-from aiida.orm.nodes.data import Data
 
 from aiida_atomistic.data.structure.site import Site, FrozenList, freeze_nested, FrozenSite, NumpyArray
 from aiida_atomistic.data.structure.kind import Kind
@@ -18,12 +10,10 @@ from aiida_atomistic.data.structure.kind import Kind
 from aiida_quantumespresso.common.hubbard import Hubbard
 
 from aiida_atomistic.data.structure.constants import (
-    _atomic_masses,
     _DEFAULT_CELL,
     _DEFAULT_PBC,
     _DEFAULT_VALUES,
 )
-
 
 class StructureBaseModel(BaseModel):
     """

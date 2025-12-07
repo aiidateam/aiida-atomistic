@@ -1,18 +1,5 @@
-import numpy as np
-
 import typing as t
-import re
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
-
-try:
-    import ase  # noqa: F401
-except ImportError:
-    pass
-
-try:
-    import pymatgen.core as core  # noqa: F401
-except ImportError:
-    pass
+from pydantic import Field
 
 from aiida_atomistic.data.structure.site import FrozenSite, NumpyArray
 
