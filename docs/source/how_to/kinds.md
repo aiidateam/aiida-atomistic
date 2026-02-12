@@ -53,7 +53,7 @@ new_structure = structure.to_kinds()
 the `new_structure` object will be an instance of the same class as the starting object.
 In the case of the AiiDA `StructureData`, the new structure will be stored in the database (and created by means of a `calcfunction`) to preserve provenance. It is possible to skip the provenance by providing the `store_provenance=False` input parameter (e.g.: `new_structure = structure.to_kinds(store_provenance=False)`).
 
-### Thresolds for kinds detection
+### Thresholds for kinds detection
 
 Thresholds control how strictly properties must match for sites to be considered the same kind.
 Each property in the `Site` model has a default threshold value stored in its field metadata.
