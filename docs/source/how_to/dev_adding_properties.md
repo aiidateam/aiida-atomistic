@@ -110,9 +110,9 @@ _DEFAULT_VALUES = {
 If the property should be accessible as an array, add a computed field in `models.py`:
 
 ```python
-@computed_field
+@computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed"})
 @property
-def new_site_property(self) -> t.Optional[np.ndarray]:
+def new_site_properties(self) -> t.Optional[np.ndarray]:
     """
     Return the new_site_property values of all sites as a numpy array.
 
@@ -129,8 +129,117 @@ def new_site_property(self) -> t.Optional[np.ndarray]:
 ```
 
 :::{note}
-The computed field name is typically the plural form of the site property name (e.g., `new_site_property` → `new_site_property`). This allows accessing all values at once as an array.
+The computed field name is typically the plural form of the site property name (e.g., `new_site_property` → `new_site_properties`). This allows accessing all values at once as an array.
 :::
+
+#### Storage Metadata
+
+The `json_schema_extra` parameter controls how the property is stored:
+
+**For repository-based storage (`StructureDataRepository`):**
+
+| Metadata Key | Values | Purpose |
+|--------------|--------|---------|
+| `store_in` | `"npz"`, `"repo"`, `"repository"` | Store in repository `.npz` file |
+|  | `"db"`, `"attribute"`, `"attributes"` | Store in database attributes (queryable) |
+| `property_type` | `"global"`, `"computed"`, `"internal"` | Classification |
+
+**Examples:**
+
+```python
+# Store array in repository (efficient for large arrays)
+@computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed"})
+@property
+def positions(self) -> np.ndarray:
+    return np.array([site.position for site in self.sites])
+
+# Store metadata in database (queryable)
+@computed_field(json_schema_extra={"store_in": "db", "property_type": "computed"})
+@property
+def formula(self) -> str:
+    return self._compute_formula()
+
+# Not stored, computed on-the-fly
+@computed_field(json_schema_extra={"property_type": "computed"})
+@property
+def kinds(self) -> list[Kind]:
+    return self._compute_kinds()
+```
+
+**Decision Guide:**
+
+- **Use `store_in="npz"`** for:
+  - Large numeric arrays (positions, charges, magmoms)
+  - Site-level properties with many atoms
+  - Properties not needed for queries
+
+- **Use `store_in="db"`** for:
+  - Queryable metadata (formula, volume, statistics)
+  - Small properties used in searches
+  - Properties needed for filtering
+
+- **Omit `store_in`** for:
+  - Properties reconstructed from other data (kinds)
+  - Internal representations
+  - Expensive computations done on-demand
+
+See [Storage Backends](../in_depth/storage_backends.md) for more details.
+
+#### Singular Form Metadata (Required for Site-Array Properties)
+
+:::{important}
+**For all computed fields that represent site-level properties (plural arrays), you MUST include `singular_form` in the metadata.**
+:::
+
+The `singular_form` metadata tells the loading mechanism how to map the plural array property back to individual site properties:
+
+```python
+@computed_field(
+    json_schema_extra={
+        "store_in": "repository",
+        "property_type": "computed",
+        "singular_form": "new_site_property"  # ← REQUIRED for site arrays
+    }
+)
+@property
+def new_site_properties(self) -> t.Optional[np.ndarray]:
+    """Array of new_site_property values from all sites."""
+    return np.array([site.new_site_property for site in self.sites])
+```
+
+**Why is this needed?**
+
+When a structure is loaded from the database, the system reconstructs the sites from stored arrays:
+1. Loads `new_site_properties` array: `[1.5, 2.3, 4.1]`
+2. Checks metadata for `singular_form`: `"new_site_property"`
+3. Creates sites with: `{"position": [...], "new_site_property": 1.5}`, etc.
+
+**Without `singular_form`:**
+- ❌ Loading fails with `KeyError`
+- ❌ Sites are not properly reconstructed
+- ❌ Properties are lost after storing/loading
+
+**Common Examples:**
+
+| Plural Property | `singular_form` Value |
+|----------------|----------------------|
+| `positions` | `"position"` |
+| `symbols` | `"symbol"` |
+| `masses` | `"mass"` |
+| `charges` | `"charge"` |
+| `magmoms` | `"magmom"` |
+| `magnetizations` | `"magnetization"` |
+| `weights` | `"weight"` |
+| `kind_names` | `"kind_name"` |
+| `new_site_properties` | `"new_site_property"` |
+
+**When NOT to include `singular_form`:**
+
+Properties that don't map to site-level fields:
+- `formula` (global string)
+- `n_sites` (count)
+- `max_charge`, `min_charge` (statistics)
+- `kinds` (computed from sites)
 
 ### Step 4: Add Setter Method
 
@@ -390,6 +499,8 @@ When adding a new **site property**, ensure you:
 - [ ] Add to `_SITE_PROPERTIES` list in `__init__.py`
 - [ ] Add default value (if applicable) in `_DEFAULT_VALUES`
 - [ ] Add computed field (for array access) in `models.py`
+- [ ] **Add `singular_form` metadata to computed field** (maps plural → singular)
+- [ ] Add `store_in` metadata (`"npz"` or `"db"`) to computed field
 - [ ] Add setter method in `setter_mixin.py`
 - [ ] Add getter method in `getter_mixin.py`
 - [ ] Add remove method in `setter_mixin.py`
@@ -456,6 +567,39 @@ new_site_property: t.Optional[float] = Field(
 )
 ```
 
+### ❌ Missing `singular_form` in Computed Field Metadata
+
+```python
+# ❌ BAD: Missing singular_form - loading from database will FAIL
+@computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed"})
+@property
+def new_site_properties(self) -> np.ndarray:
+    return np.array([site.new_site_property for site in self.sites])
+
+# Result: KeyError when loading stored structures
+
+# ✅ GOOD: Includes singular_form mapping
+@computed_field(
+    json_schema_extra={
+        "store_in": "repository",
+        "property_type": "computed",
+        "singular_form": "new_site_property"  # Maps plural → singular
+    }
+)
+@property
+def new_site_properties(self) -> np.ndarray:
+    return np.array([site.new_site_property for site in self.sites])
+
+# Result: Structure loads correctly from database
+```
+
+:::{danger}
+**Critical**: Always add `singular_form` to computed fields that represent site-level arrays. Without it:
+- Structures cannot be loaded from the database
+- Site reconstruction fails with `KeyError`
+- All stored data becomes inaccessible
+:::
+
 ## Examples
 
 ### Example 1: Adding Occupation Numbers (Site Property)
@@ -476,7 +620,13 @@ _SITE_PROPERTIES = [..., 'occupation']
 _DEFAULT_VALUES = {..., 'occupation': 1.0}
 
 # 3. Add computed field in models.py
-@computed_field
+@computed_field(
+    json_schema_extra={
+        "store_in": "repository",
+        "property_type": "computed",
+        "singular_form": "occupation"  # Required for loading
+    }
+)
 @property
 def occupations(self) -> t.Optional[np.ndarray]:
     if all(site.occupation is None for site in self.sites):
@@ -584,6 +734,245 @@ structure_dict = {
         {"symbol": "C", "position": [2.5, 2.5, 2.5], "b_factor": 18.7},
     ]
 }
+```
+
+### Example 4: Adding Statistical Computed Fields (Max/Min Values)
+
+When you add a site property that stores per-atom values (like charges, magnetic moments, etc.), you should also add **statistical computed fields** for efficient querying. These fields store aggregated metadata (max, min, average) in the database so users can filter structures without loading the full arrays.
+
+**Use Case:** You want to find all structures with high charges without loading every structure's full charge array.
+
+#### Step-by-Step: Adding Statistics for a New Site Property
+
+Let's add statistics for a hypothetical `spin_density` property:
+
+```python
+# 1. First, add the site property and its computed field (as shown in previous examples)
+class Site(BaseModel):
+    spin_density: t.Optional[float] = Field(
+        default=None,
+        json_schema_extra={"tolerance": 1e-3},
+        description="Spin density at this site"
+    )
+
+# 2. Add computed field for array access in models.py
+@computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed"})
+@property
+def spin_densities(self) -> t.Optional[np.ndarray]:
+    """Spin density values for all sites (stored in repository)."""
+    if all(site.spin_density is None for site in self.sites):
+        return None
+    return np.array([
+        site.spin_density if site.spin_density is not None else 0.0
+        for site in self.sites
+    ])
+
+# 3. Add statistical computed fields (stored in database for querying)
+@computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "max"})
+@property
+def max_spin_density(self) -> t.Optional[float]:
+    """Maximum spin density value across all sites (queryable)."""
+    if self.spin_densities is None:
+        return None
+    return float(np.max(self.spin_densities))
+
+@computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "min"})
+@property
+def min_spin_density(self) -> t.Optional[float]:
+    """Minimum spin density value across all sites (queryable)."""
+    if self.spin_densities is None:
+        return None
+    return float(np.min(self.spin_densities))
+
+@computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "has"})
+@property
+def has_spin_density(self) -> bool:
+    """Whether any site has spin density defined (queryable)."""
+    return self.spin_densities is not None
+```
+
+#### Real Example: Charges with Statistics
+
+This is how charges are implemented in `aiida-atomistic`:
+
+```python
+# In models.py
+
+# Array computed field (stored in .npz repository)
+@computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed"})
+@property
+def charges(self) -> t.Optional[np.ndarray]:
+    """Charge values for all sites."""
+    if all(site.charge is None for site in self.sites):
+        return None
+    return np.array([
+        site.charge if site.charge is not None else 0.0
+        for site in self.sites
+    ])
+
+# Statistical fields (stored in database attributes - queryable!)
+@computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "max"})
+@property
+def max_charge(self) -> t.Optional[float]:
+    """Maximum charge value across all sites."""
+    if self.charges is None:
+        return None
+    return float(np.max(self.charges))
+
+@computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "min"})
+@property
+def min_charge(self) -> t.Optional[float]:
+    """Minimum charge value across all sites."""
+    if self.charges is None:
+        return None
+    return float(np.min(self.charges))
+```
+
+#### Metadata Keys Explained
+
+| Metadata Key | Value | Purpose |
+|--------------|-------|---------|
+| `store_in` | `"db"` | Store in database attributes (makes it queryable) |
+| `property_type` | `"computed"` | Indicates this is a computed field |
+| `statistic` | `"max"`, `"min"`, `"avg"`, `"has"` | Classification (optional, for documentation) |
+
+#### Special Cases
+
+**For Vector Properties (like magmoms):**
+
+When the property is a 3D vector, use the **magnitude** for max/min:
+
+```python
+# magmoms is N×3 array
+@computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "max"})
+@property
+def max_magmom(self) -> t.Optional[float]:
+    """Maximum magnetic moment magnitude across all sites."""
+    if self.magmoms is None:
+        return None
+    # Use np.linalg.norm to get magnitude of 3D vectors
+    return float(np.max(np.linalg.norm(self.magmoms, axis=1)))
+
+@computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "min"})
+@property
+def min_magmom(self) -> t.Optional[float]:
+    """Minimum magnetic moment magnitude across all sites."""
+    if self.magmoms is None:
+        return None
+    return float(np.min(np.linalg.norm(self.magmoms, axis=1)))
+```
+
+#### Why Add Statistics?
+
+**Without statistics:**
+```python
+# ❌ Cannot query - charge array is in .npz file
+qb = QueryBuilder()
+qb.append(StructureDataRepository, filters={'attributes.charges': ...})  # ERROR!
+```
+
+**With statistics:**
+```python
+# ✅ Can query efficiently using statistics
+qb = QueryBuilder()
+qb.append(
+    StructureDataRepository,
+    filters={
+        'attributes.max_charge': {'>': 0.5},  # Find high charges
+        'attributes.min_charge': {'<': -0.5}, # Find negative charges
+    }
+)
+
+# Then load only matching structures
+for structure in qb.all():
+    charges = structure.charges  # Load full array only when needed
+```
+
+#### Checklist for Adding Statistics
+
+When adding a new site property with statistics:
+
+- [ ] Add site property field to `Site` model
+- [ ] Add array computed field with `store_in="npz"`
+- [ ] Add `max_<property>` with `store_in="db"` and `statistic="max"`
+- [ ] Add `min_<property>` with `store_in="db"` and `statistic="min"`
+- [ ] For vector properties, use `np.linalg.norm()` to get magnitude
+- [ ] Add `has_<property>` boolean flag if useful for queries
+- [ ] Include conditional checks (`if self.<property> is None: return None`)
+- [ ] Convert to Python types with `float()`, `int()`, or `bool()`
+- [ ] Add tests for statistics calculation
+- [ ] Document in query examples
+
+#### Common Statistical Fields
+
+Here are common patterns for different property types:
+
+```python
+# Scalar property (charge, occupation, etc.)
+@computed_field(json_schema_extra={"store_in": "db", "property_type": "computed"})
+@property
+def max_<property>(self) -> t.Optional[float]:
+    if self.<properties> is None:
+        return None
+    return float(np.max(self.<properties>))
+
+# Vector property (magmom, velocity, etc.)
+@computed_field(json_schema_extra={"store_in": "db", "property_type": "computed"})
+@property
+def max_<property>(self) -> t.Optional[float]:
+    if self.<properties> is None:
+        return None
+    return float(np.max(np.linalg.norm(self.<properties>, axis=1)))
+
+# Boolean presence indicator
+@computed_field(json_schema_extra={"store_in": "db", "property_type": "computed"})
+@property
+def has_<property>(self) -> bool:
+    return self.<properties> is not None
+
+# Count (e.g., number of sites with property)
+@computed_field(json_schema_extra={"store_in": "db", "property_type": "computed"})
+@property
+def n_sites_with_<property>(self) -> int:
+    if self.<properties> is None:
+        return 0
+    return int(np.sum(self.<properties> != 0))  # or other condition
+```
+
+#### Testing Statistics
+
+Add tests to verify statistics are calculated correctly:
+
+```python
+def test_spin_density_statistics():
+    """Test statistical fields for spin_density."""
+    structure_dict = {
+        "pbc": [True, True, True],
+        "cell": [[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        "sites": [
+            {"symbol": "Fe", "position": [0, 0, 0], "spin_density": 2.5},
+            {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "spin_density": -1.8},
+            {"symbol": "O", "position": [0.5, 0.5, 0.5], "spin_density": 0.3},
+        ],
+    }
+
+    structure = StructureData(**structure_dict)
+
+    # Test statistics
+    assert structure.properties.max_spin_density == 2.5
+    assert structure.properties.min_spin_density == -1.8
+    assert structure.properties.has_spin_density is True
+
+    # Test queryability (for repository-based storage)
+    structure_repo = StructureDataRepository(**structure_dict)
+    structure_repo.store()
+
+    qb = QueryBuilder()
+    qb.append(
+        StructureDataRepository,
+        filters={'attributes.max_spin_density': {'>': 2.0}}
+    )
+    assert qb.count() == 1
 ```
 
 ## Submitting Your Contribution

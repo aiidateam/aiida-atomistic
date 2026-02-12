@@ -45,7 +45,7 @@ Classes
 .. py:class:: HubbardSetterMixin
 
 
-   .. py:method:: set_hubbard_from_list(projectors: str = 'ortho-atomic', formulation: str = 'dudarev')
+   .. py:method:: set_hubbard_from_list(parameters: List[Tuple[int, str, int, str, float, Tuple[int, int, int], str]], projectors: str = 'ortho-atomic', formulation: str = 'dudarev')
 
       Return a :meth:`~aiida_quantumespresso.common.hubbard.Hubbard` instance from a list of tuples.
 

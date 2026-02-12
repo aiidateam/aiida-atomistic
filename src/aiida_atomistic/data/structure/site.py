@@ -101,7 +101,7 @@ class Site(BaseModel):
         validate_assignment = True
         )
 
-    symbol: t.Union[str, t.List[str]] # validation is done in the check_is_alloy
+    symbol: t.Union[str, t.List[str]]  # validation is done in the check_is_alloy
     position: NumpyArray = Field(
         min_length=3,
         max_length=3,
@@ -247,6 +247,7 @@ class Site(BaseModel):
     def from_ase_atom(
         cls,
         aseatom: t.Optional[ase.Atom] = None,
+        tag_to_kind_name: bool = True,
         **kwargs
         ) -> dict:
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
@@ -260,7 +261,7 @@ class Site(BaseModel):
                 )
             properties_from_Atom = {
                 "symbol": aseatom.symbol,
-                "kind_name": aseatom.symbol + str(aseatom.tag),
+                "kind_name": aseatom.symbol + str(aseatom.tag).replace('0', ''),
                 "position": aseatom.position.tolist(),
                 "mass": aseatom.mass,
             }
@@ -272,6 +273,9 @@ class Site(BaseModel):
             elif isinstance(aseatom.magmom, (list, np.ndarray)):
                 if np.linalg.norm(aseatom.magmom) > 0:
                     properties_from_Atom['magmom'] = aseatom.magmom
+
+            if not tag_to_kind_name:
+                properties_from_Atom.pop("kind_name", None)
 
             new_site = cls(**properties_from_Atom)
         else:

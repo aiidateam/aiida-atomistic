@@ -109,8 +109,11 @@ Attributes
       for this structure.
 
 
-   .. py:method:: get_queryable_properties()
+   .. py:method:: get_computed_properties()
       :classmethod:
+
+      Get a dictionary of computed properties that can be set
+      for this structure.
 
 
    .. py:method:: get_defined_properties(exclude_computed: bool = False)
@@ -132,19 +135,21 @@ Attributes
       Return a given kind.
 
 
-   .. py:method:: from_ase(aseatoms: ASE_ATOMS_TYPE, detect_kinds: bool = False)
+   .. py:method:: from_ase(aseatoms: ASE_ATOMS_TYPE)
       :classmethod:
 
       Load the structure from a ASE object
 
 
-   .. py:method:: from_file(filename, format='cif', detect_kinds: bool = False, **kwargs)
+   .. py:method:: from_file(filename, format='cif', parser: str = 'ase', **kwargs)
       :classmethod:
 
       Load the structure from a file.
 
+      It is possible to specify the parser between ase or pymatgen, default is ase.
 
-   .. py:method:: from_pymatgen(pymatgen_obj: Union[PYMATGEN_MOLECULE, PYMATGEN_STRUCTURE], detect_kinds: bool = False, **kwargs)
+
+   .. py:method:: from_pymatgen(pymatgen_obj: Union[PYMATGEN_MOLECULE, PYMATGEN_STRUCTURE], **kwargs)
       :classmethod:
 
       Load the structure from a pymatgen object.
@@ -153,7 +158,7 @@ Attributes
           of earlier versions may cause errors).
 
 
-   .. py:method:: _from_pymatgen_molecule(mol: PYMATGEN_MOLECULE, margin=5, detect_kinds: bool = False)
+   .. py:method:: _from_pymatgen_molecule(mol: PYMATGEN_MOLECULE, margin=5)
       :classmethod:
 
       Load the structure from a pymatgen Molecule object.
@@ -165,7 +170,7 @@ Attributes
           of earlier versions may cause errors).
 
 
-   .. py:method:: _from_pymatgen_structure(struct: PYMATGEN_STRUCTURE, detect_kinds: bool = False)
+   .. py:method:: _from_pymatgen_structure(struct: PYMATGEN_STRUCTURE)
       :classmethod:
 
       Load the structure from a pymatgen Structure object.
@@ -178,33 +183,35 @@ Attributes
       :raise ValueError: if there are partial occupancies together with spins.
 
 
-   .. py:method:: generate_kinds(tolerance: Union[dict, float] = 0.001)
+   .. py:method:: validate_kinds(threshold: dict = {})
+
+      Validate that the kinds defined in the structure match the ones generated from the sites.
+      :param threshold: Threshold for grouping sites into kinds. Should be a dictionary specifying thresholds for specific properties.
+      :type threshold: dict, optional. The default values are taken from Site.get_default_thresholds()
+
+      :raises ValueError: if the kinds defined in the structure do not match the ones generated from the sites.
 
 
-   .. py:method:: validate_kinds()
-
-
-   .. py:method:: to_dict(exclude_kinds=False)
-
-      Convert the structure to a dictionary representation.
-
-      :param detect_kinds: Whether to detect and include the kinds of the structure.
-      :type detect_kinds: bool, optional
-      :return: The structure as a dictionary.
-      :rtype: dict
-
-
-   .. py:method:: to_kinds_based(tolerance: Union[dict, float] = 0.001)
+   .. py:method:: to_kinds(threshold: dict = {}, store_provenance: bool = True)
 
       Convert the structure to a kinds-based representation.
 
-      :param tolerance: Tolerance for grouping sites into kinds. Can be a float or a dictionary specifying tolerances for specific properties.
-      :type tolerance: float or dict, optional
+      :param threshold: Threshold for grouping sites into kinds. Should be a dictionary specifying thresholds for specific properties.
+      :type threshold: dict, optional. The default values are taken from Site.get_default_thresholds()
+      :type store_provenance: bool, optional
       :return: The structure as a dictionary with kinds.
       :rtype: dict
 
 
-   .. py:method:: get_cif(converter='ase', store=False, **kwargs)
+   .. py:method:: to_dict()
+
+      Convert the structure to a dictionary representation.
+
+      :return: The structure as a dictionary.
+      :rtype: dict
+
+
+   .. py:method:: to_cif(converter='ase', store=False, **kwargs)
 
       Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.
 

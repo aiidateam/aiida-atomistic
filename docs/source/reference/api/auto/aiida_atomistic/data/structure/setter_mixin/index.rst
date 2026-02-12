@@ -127,7 +127,25 @@ Attributes
       Update all sites with the given kind name.
 
 
-   .. py:method:: append_atom(atom: Union[aiida_atomistic.data.structure.site.Site, dict] = None, index=-1)
+   .. py:method:: append_atom(atom: Union[aiida_atomistic.data.structure.site.Site, dict] = None, index: int = -1, **kwargs)
+
+      Append an atom to the structure.
+
+      Args:
+          atom: Site object or dictionary with site properties. If None, kwargs are used.
+          index: Position where to insert the atom. Default -1 (append at end).
+          **kwargs: Site properties (symbol, position, charge, magmom, etc.) if atom is None.
+
+      Examples:
+          # Using kwargs (recommended)
+          builder.append_atom(symbol="Fe", position=[0, 0, 0], magmom=[0, 0, 2.2])
+
+          # Using dict
+          builder.append_atom({"symbol": "Fe", "position": [0, 0, 0]})
+
+          # Using Site object
+          site = Site(symbol="Fe", position=[0, 0, 0])
+          builder.append_atom(site)
 
 
    .. py:method:: pop_atom(index=-1)
@@ -190,3 +208,19 @@ Attributes
 
 
    .. py:method:: set_kind_names(value: list)
+
+
+   .. py:method:: remove_kind_names()
+
+
+   .. py:method:: set_custom(value: dict)
+
+      Set the custom properties.
+
+
+   .. py:method:: remove_custom(keys: List[str] = None)
+
+      Remove the custom properties.
+
+      If keys is None, remove all custom properties.
+      If keys is provided, remove only the specified keys.

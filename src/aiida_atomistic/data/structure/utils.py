@@ -10,7 +10,7 @@ from scipy.spatial import cKDTree
 from aiida.common.constants import elements
 from aiida.common.exceptions import UnsupportedSpeciesError
 
-from .constants import _COMPUTED_PROPERTIES, _GLOBAL_PROPERTIES, _atomic_masses, _CONVERSION_PLURAL_SINGULAR
+from .constants import _atomic_masses, _CONVERSION_PLURAL_SINGULAR
 
 try:
     import ase  # noqa: F401
@@ -36,6 +36,31 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 _dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
+
+
+def _get_global_properties_from_model(model_class):
+    """Get list of global properties from model metadata."""
+    global_props = []
+
+    # Check regular fields
+    for field_name, field_info in model_class.model_fields.items():
+        extra = field_info.json_schema_extra or {}
+        if extra.get("property_type") == "global":
+            global_props.append(field_name)
+
+    # Check computed fields
+    for field_name, computed_field_info in model_class.model_computed_fields.items():
+        extra = getattr(computed_field_info, 'json_schema_extra', None) or {}
+        if extra.get("property_type") == "global":
+            global_props.append(field_name)
+
+    return global_props
+
+
+def _get_computed_properties_from_model(model_class):
+    """Get list of computed properties from model metadata."""
+    return list(model_class.model_computed_fields.keys())
+
 
 class ObservedArray(np.ndarray):
     """
@@ -863,6 +888,12 @@ def check_is_alloy(data):
     :return: True if the data is an alloy, False otherwise.
     """
     new_data = copy.deepcopy(data)
+
+    # If 'symbol' is not present, we can't check for alloy
+    # This can happen during site reconstruction from stored data
+    if "symbol" not in new_data:
+        return None
+
     if "weight" not in new_data.keys() or new_data.get("weight", None) is None:
         if isinstance(new_data["symbol"], list) or re.search(r'[A-Z][a-z]*[A-Z]', new_data["symbol"]):
             return new_data
@@ -908,20 +939,49 @@ def order_k(k):
             k[np.where(k >=i )] -= 1
     return k
 
-def build_sites_from_expanded_properties(expanded):
+def build_sites_from_expanded_properties(expanded, model_class=None):
     """
     Build the structure dictionary from expanded site-wise lists of properties.
 
-    Expanded is a dictionary where each key corresponds to a property and the value is a list of values for each site,
-    i.e. the format on which we store the properties in the database.
-    """
+    The input expanded is a dictionary where each key corresponds to a property, the value being a list of
+    values (each element corresponding to a site),
+    i.e. the format which we store the properties in the database.
 
-    # Use all keys except positions if you want to exclude arrays, or specify your own
-    site_props = set(expanded.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites", "site_indices"])
+    Args:
+        expanded: Dictionary with property names as keys and lists of values
+        model_class: Optional model class to dynamically get computed fields and conversion mappings.
+    """
+    # Get model class if not provided
+    if model_class is None:
+        from aiida_atomistic.data.structure.models import StructureProperties
+        model_class = StructureProperties
+
+    # Get computed properties and global properties dynamically from model class
+    computed_props = _get_computed_properties_from_model(model_class)
+    global_props = _get_global_properties_from_model(model_class)
+
+    # Build conversion mapping from metadata
+    conversion_mapping = {}
+    site_array_props = []  # Properties with singular_form that need to be converted to sites
+    for field_name, field_info in model_class.model_computed_fields.items():
+        metadata = getattr(field_info, 'json_schema_extra', {})
+        if 'singular_form' in metadata:
+            conversion_mapping[field_name] = metadata['singular_form']
+            site_array_props.append(field_name)  # Track these for inclusion
+
+    # Exclude computed properties EXCEPT those with singular_form (they need to be converted to sites)
+    computed_to_exclude = [prop for prop in computed_props if prop not in site_array_props]
+
+    # Use all keys except global properties and non-site computed properties
+    site_props = set(expanded.keys()).difference(global_props + computed_to_exclude + ["sites", "site_indices"])
 
     # Pre-compute the conversion mapping to avoid repeated dict lookups
-    prop_conversions = [(prop, _CONVERSION_PLURAL_SINGULAR[prop], expanded[prop])
-                        for prop in site_props]
+    # Only include properties that have a known singular form
+    prop_conversions = [
+        (prop, conversion_mapping.get(prop, prop), expanded[prop])
+        for prop in site_props
+        if prop in conversion_mapping
+    ]
 
     positions = expanded.get("positions", [])
     n_sites = len(positions)
@@ -933,7 +993,7 @@ def build_sites_from_expanded_properties(expanded):
 
     structure_dict = {
         prop: expanded[prop]
-        for prop in _GLOBAL_PROPERTIES
+        for prop in global_props
         if prop in expanded and expanded[prop] is not None
     }
     structure_dict["sites"] = sites

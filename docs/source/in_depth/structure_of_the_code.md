@@ -250,9 +250,14 @@ new_structure.store()
 
 ## Storage Architecture
 
-### Database vs Repository Storage
+AiiDA-atomistic provides two storage backends, each optimized for different use cases:
 
-Currently, all data is stored in the **AiiDA database attributes** for simplicity and queryability:
+### 1. Attribute-Based Storage (Default)
+
+**Class:** `StructureData`
+**Storage:** All data in AiiDA database attributes
+
+All structure properties are stored as JSON-serializable data in the database. This enables full queryability but can lead to database bloat for large structures.
 
 ```python
 # Without kinds (site-based storage)
@@ -282,18 +287,92 @@ Currently, all data is stored in the **AiiDA database attributes** for simplicit
 
 **Compression Benefits:**
 
-For a structure with many identical atoms (e.g., 1000 water molecules = 3000 atoms but only 2 kinds), kinds-based storage significantly reduces database size.
+For structures with many identical atoms (e.g., 1000 water molecules = 3000 atoms but only 2 kinds), kinds-based storage significantly reduces database size.
+
+### 2. Repository-Based Storage
+
+**Class:** `StructureDataRepository`
+**Storage:** Metadata in database attributes, arrays in `.npz` files
+
+Data is intelligently split based on field metadata:
+- **Database attributes**: Queryable properties (cell, formula, statistics)
+- **Repository file**: Large numeric arrays (positions, charges, magmoms)
+
+```python
+# Database attributes (queryable metadata only)
+{
+    "pbc": [true, true, true],
+    "cell": [[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+    "formula": "H2O",
+    "cell_volume": 27.0,
+    "n_sites": 3,
+    "max_charge": 0.4,
+    "min_charge": -0.8,
+    ...
+}
+
+# Repository file: properties.npz (compressed arrays)
+{
+    "positions": [[0,0,0], [1,0,0], [0,1,0]],  # NumPy array
+    "charges": [0.4, 0.4, -0.8],                # NumPy array
+    "masses": [1.008, 1.008, 15.999],           # NumPy array
+    ...
+}
+```
+
+**When to use which:**
+- **Attribute-based**: Small structures (< 1000 atoms), query-intensive workflows
+- **Repository-based**: Large structures (> 1000 atoms), high-throughput workflows
+
+See the [Storage Backends](storage_backends.md) documentation for detailed comparison and migration guide.
+
+### Metadata-Driven Storage Decisions
+
+The repository backend uses field metadata to automatically determine storage location:
+
+```python
+# From models.py - metadata controls storage
+class ImmutableStructureModel(StructureBaseModel):
+    # Queryable → database
+    cell: ArrayLike3x3 = Field(
+        json_schema_extra={"store_in": "db", "property_type": "global"}
+    )
+
+    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed"})
+    @property
+    def positions(self) -> np.ndarray:
+        """Large array → repository"""
+        return np.array([site.position for site in self.sites])
+
+    @computed_field(json_schema_extra={"store_in": "db", "property_type": "computed"})
+    @property
+    def formula(self) -> str:
+        """Metadata → database (queryable)"""
+        return self._compute_formula()
+```
+
+Storage decision hierarchy:
+1. Explicit overrides (`_storage_overrides` dict)
+2. Field metadata (`json_schema_extra["store_in"]`)
+3. Type-based fallback (numeric arrays → repository)
 
 ### Loading Process
 
-When loading from the database, the data is automatically decompressed:
+When loading from the database, data is automatically reconstructed:
 
+**Attribute-based storage:**
 1. Check if `kind_names` exists in attributes
 2. If yes: decompress kinds → sites using `rebuild_site_lists_from_kind_lists()`
 3. Build `Site` objects from expanded properties
 4. Create `ImmutableStructureModel` with reconstructed sites
 
-**Key Insight**: Storage is optimized (kinds-based), but the in-memory representation is always site-based for ease of use.
+**Repository-based storage:**
+1. Load queryable metadata from database attributes
+2. Load arrays from `properties.npz` file (cached after first access)
+3. Reconstruct full structure in memory
+4. Create `ImmutableStructureModel` combining both sources
+
+**Key Insight**: Storage is optimized (kinds-based or split repo/db), but the in-memory representation is always site-based for ease of use.
 
 ## Getter and Setter Mixins
 

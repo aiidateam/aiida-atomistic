@@ -21,9 +21,12 @@ Functions
 
 .. autoapisummary::
 
+   aiida_atomistic.data.structure.utils._get_global_properties_from_model
+   aiida_atomistic.data.structure.utils._get_computed_properties_from_model
    aiida_atomistic.data.structure.utils.efficient_copy
    aiida_atomistic.data.structure.utils._get_valid_cell
    aiida_atomistic.data.structure.utils._get_valid_pbc
+   aiida_atomistic.data.structure.utils.any_close_pairs
    aiida_atomistic.data.structure.utils._check_valid_sites
    aiida_atomistic.data.structure.utils.has_ase
    aiida_atomistic.data.structure.utils.has_pymatgen
@@ -47,17 +50,12 @@ Functions
    aiida_atomistic.data.structure.utils.symop_fract_from_ortho
    aiida_atomistic.data.structure.utils.ase_refine_cell
    aiida_atomistic.data.structure.utils.atom_kinds_to_html
-   aiida_atomistic.data.structure.utils.create_automatic_kind_name
    aiida_atomistic.data.structure.utils.set_symbols_and_weights
    aiida_atomistic.data.structure.utils.check_is_alloy
    aiida_atomistic.data.structure.utils.check_plugin_unsupported_props
    aiida_atomistic.data.structure.utils.order_k
-   aiida_atomistic.data.structure.utils.compress_properties_by_kind
-   aiida_atomistic.data.structure.utils.rebuild_site_lists_from_kind_lists
    aiida_atomistic.data.structure.utils.build_sites_from_expanded_properties
-   aiida_atomistic.data.structure.utils.classify_site_kinds
-   aiida_atomistic.data.structure.utils.check_kinds_match
-   aiida_atomistic.data.structure.utils.sites_from_kinds
+   aiida_atomistic.data.structure.utils.get_structure_repr
 
 
 
@@ -104,6 +102,16 @@ Attributes
 
 .. py:data:: _dimensionality_label
 
+
+
+.. py:function:: _get_global_properties_from_model(model_class)
+
+   Get list of global properties from model metadata.
+
+
+.. py:function:: _get_computed_properties_from_model(model_class)
+
+   Get list of computed properties from model metadata.
 
 
 .. py:class:: ObservedArray(shape, dtype=float, buffer=None, offset=0, strides=None, order=None)
@@ -164,6 +172,9 @@ Attributes
    in a valid format from a generic input.
 
    :raise ValueError: if the format is not valid.
+
+
+.. py:function:: any_close_pairs(points, eps)
 
 
 .. py:function:: _check_valid_sites(sites)
@@ -445,13 +456,6 @@ Attributes
        html code for rendered formula
 
 
-.. py:function:: create_automatic_kind_name(symbols, weights)
-
-   Create a string obtained with the symbols appended one
-   after the other, without spaces, in alphabetical order;
-   if the site has a vacancy, a X is appended at the end too.
-
-
 .. py:function:: set_symbols_and_weights(new_data)
 
    Set the chemical symbols and the weights for the site.
@@ -490,61 +494,19 @@ Attributes
    numpy.ndarray: The reordered array `k`.
 
 
-.. py:function:: compress_properties_by_kind(props)
-
-   Compress site-wise properties into kind-wise lists.
-   Returns a dict with properties as lists, one entry per kind.
-
-
-.. py:function:: rebuild_site_lists_from_kind_lists(compressed)
-
-   Expand kinds into a list of site dictionaries, sorted by site_index.
-
-
-.. py:function:: build_sites_from_expanded_properties(expanded)
+.. py:function:: build_sites_from_expanded_properties(expanded, model_class=None)
 
    Build the structure dictionary from expanded site-wise lists of properties.
 
-
-.. py:function:: classify_site_kinds(sites: list, exclude_props: bool = None, tolerance: Union[dict, float] = 0.001)
-
-   Classify sites into groups where each group (kind) has the same properties except position.
+   The input expanded is a dictionary where each key corresponds to a property, the value being a list of
+   values (each element corresponding to a site),
+   i.e. the format which we store the properties in the database.
 
    Args:
-       sites: List of site dictionaries
-       exclude_props: Set of property names to exclude from grouping (default: {'position'})
-       tolerance: Numerical tolerance for floating point comparisons (default: 1e-3)
-
-   Returns:
-       dict: {group_key: {'sites': [site_indices], 'properties': {prop: value}}}
+       expanded: Dictionary with property names as keys and lists of values
+       model_class: Optional model class to dynamically get computed fields and conversion mappings.
 
 
-.. py:function:: check_kinds_match(structure, kinds_list)
+.. py:function:: get_structure_repr(structure)
 
-
-.. py:function:: sites_from_kinds(kinds)
-
-   Expand kinds into a list of site dictionaries, sorted by site_index.
-   1. Create a list of site indices and positions from the kinds
-   2. Create a list of site dictionaries by copying the kind properties
-      and adding the position
-   3. Return the list of site dictionaries
-   4. Note: the returned list is sorted by site_index
-
-   Format of kinds (basically what can be obtained by structure.generate_kinds()):
-   [
-       {'site_indices': [0, 2],
-       'positions': [array([0., 0., 0.]), array([0., 1., 0.])],
-       'symbol': 'H',
-       'mass': 1.008,
-       'charge': 0.0,
-       'magmom': (0.0, 0.0, -1.0),
-       'kind_name': 'H1'},
-       {'site_indices': [1],
-       'positions': [array([0., 0., 1.])],
-       'symbol': 'O',
-       'mass': 15.999,
-       'charge': -2.0,
-       'magmom': (0.0, 0.0, 1.0),
-       'kind_name': 'O1'}
-   ]
+   Return a concise string representation of the structure.

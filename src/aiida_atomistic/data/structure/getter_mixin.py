@@ -44,8 +44,6 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
-from .constants import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES
-
 _DEFAULT_THRESHOLDS = {
             "charges": 0.1,
             "masses": 1e-4,
@@ -99,10 +97,14 @@ class GetterMixin(HubbardGetterMixin):
         }
 
     @classmethod
-    def get_queryable_properties(cls):
-        fields = cls._model.model_fields
-        computed_fields = cls._model.model_computed_fields
-        return set(fields.keys()).union(computed_fields.keys()).difference({'kinds', 'sites'})
+    def get_computed_properties(cls):
+        """
+        Get a dictionary of computed properties that can be set
+        for this structure.
+        """
+        structure_fields = set(cls._model.model_computed_fields.keys())
+
+        return structure_fields
 
     def get_defined_properties(self, exclude_computed: bool = False):
         """
@@ -113,6 +115,7 @@ class GetterMixin(HubbardGetterMixin):
                 exclude_defaults (bool): If True, properties with default values will be excluded from the result.
         """
         return set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys()).difference(set(self._model.model_computed_fields.keys()) if exclude_computed else set())
+
 
     def get_kind_names(self):
         """Return a list of the kind names defined in this structure."""
@@ -161,7 +164,9 @@ class GetterMixin(HubbardGetterMixin):
         data["sites"] = []
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
-            new_site = SiteClass.from_ase_atom(aseatom=atom)
+            tag_to_kind_name=len(set(aseatoms.get_tags())) > 1
+
+            new_site = SiteClass.from_ase_atom(aseatom=atom, tag_to_kind_name=tag_to_kind_name)
             data["sites"].append(new_site.model_dump())
 
 
@@ -185,7 +190,7 @@ class GetterMixin(HubbardGetterMixin):
             # in this case, we use pymatgen parser, because the ase one does not work properly for now.
             from pymatgen.io.cif import CifParser
             parser  = CifParser(filename)
-            mcif_structure   = parser.get_structures(**kwargs)[0]
+            mcif_structure   = parser.parse_structures(**kwargs)[0]
             return cls.from_pymatgen(pymatgen_obj=mcif_structure)
         else:
             ase_read = ase_io.read(filename, format=format, **kwargs)

@@ -6,24 +6,80 @@ from aiida import orm
 
 from aiida_atomistic.data.structure.structure import StructureData, StructureBuilder
 
-from .constants import _GLOBAL_PROPERTIES, _COMPUTED_PROPERTIES
 
-def compress_properties_by_kind(props):
+def _get_global_properties(model_class):
+    """Get list of global properties from model metadata."""
+    global_props = []
+
+    # Check regular fields
+    for field_name, field_info in model_class.model_fields.items():
+        extra = field_info.json_schema_extra or {}
+        if extra.get("property_type") == "global":
+            global_props.append(field_name)
+
+    # Check computed fields
+    for field_name, computed_field_info in model_class.model_computed_fields.items():
+        extra = getattr(computed_field_info, 'json_schema_extra', None) or {}
+        if extra.get("property_type") == "global":
+            global_props.append(field_name)
+
+    return global_props
+
+def _get_properties_with_singular_form(model_class):
+    """Get list of global properties from model metadata."""
+    _props = []
+
+    # Check regular fields
+    for field_name, field_info in model_class.model_fields.items():
+        extra = field_info.json_schema_extra or {}
+        if extra.get("singular_form", None) is not None:
+            _props.append(field_name)
+
+    # Check computed fields
+    for field_name, computed_field_info in model_class.model_computed_fields.items():
+        extra = getattr(computed_field_info, 'json_schema_extra', None) or {}
+        if extra.get("singular_form", None) is not None:
+            _props.append(field_name)
+
+    return _props
+
+
+def _get_computed_properties(model_class):
+    """Get list of computed properties from model metadata."""
+    return list(model_class.model_computed_fields.keys())
+
+
+def compress_properties_by_kind(props, model_class=None):
     """
     Compress site-wise properties into kind-wise lists.
     Returns a dict with properties as lists, one entry per kind.
+
+    Args:
+        props: Dictionary of properties to compress
+        model_class: The Pydantic model class (e.g., StructureProperties) to extract metadata from.
+                    If not provided, will attempt to use StructureData.
     """
     import numpy as np
 
     if not props.get("kind_names", None):
         raise ValueError("The input properties must contain 'kind_names' information.")
 
+    # Get model class if not provided
+    if model_class is None:
+        from aiida_atomistic.data.structure.models import StructureBaseModel
+        model_class = StructureBaseModel
+
     kind_names_array = np.array(props["kind_names"])
 
-    site_props = set(props.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites"])
+    # Get global and computed properties dynamically from metadata
+    global_props = _get_global_properties(model_class)
+    computed_props = _get_computed_properties(model_class)
 
+    site_props = set(props.keys()).difference(global_props + computed_props + ["sites"])
 
-    compressed = {prop: [] if prop in site_props.union(["site_indices"]) else props.get(prop, None) for prop in site_props.union(["site_indices"]).union(_GLOBAL_PROPERTIES)}
+    full_set_of_props = site_props.union(global_props).union(["site_indices"])
+
+    compressed = {prop: [] if prop in site_props.union(["site_indices"]) else props.get(prop, None) for prop in full_set_of_props}
 
     for kind_name in set(props["kind_names"]):
         site_indices = np.where(kind_names_array == kind_name)[0]
@@ -36,44 +92,101 @@ def compress_properties_by_kind(props):
                 compressed.pop(prop, None)
         compressed["site_indices"].append(site_indices.tolist())
 
-    for prop in _GLOBAL_PROPERTIES:
+    for prop in global_props:
         if compressed.get(prop, None) is None:
             compressed.pop(prop, None)
 
     return compressed
 
 
-def rebuild_site_lists_from_kind_lists(compressed):
+def rebuild_site_lists_from_kind_lists(compressed, model_class=None):
     """
     Expand kinds into a list of site dictionaries, sorted by site_index.
+
+    Args:
+        compressed: Dictionary of compressed kind-wise properties
+        model_class: The Pydantic model class (e.g., StructureProperties) to extract metadata from.
+                    If not provided, will attempt to use StructureData.
     """
-    site_props = set(compressed.keys()).difference(_GLOBAL_PROPERTIES + _COMPUTED_PROPERTIES + ["sites","site_indices"])
-    expanded = {prop: [] if prop in site_props.union(["site_indices"]) else compressed.get(prop, None) for prop in site_props.union(["site_indices"]).union(_GLOBAL_PROPERTIES)}
+    # Get model class if not provided
+    if model_class is None:
+        from aiida_atomistic.data.structure.models import StructureBaseModel
+        model_class = StructureBaseModel
 
-    for i, site_indices in enumerate(compressed["site_indices"]):
-        for prop in site_props:
-            if prop == "positions":
-                expanded[prop].extend(compressed[prop][i])
-            elif prop == "site_indices":
-                continue
-            elif prop in compressed:
-                expanded[prop].extend([compressed[prop][i]] * len(site_indices))
-            else:
-                expanded.pop(prop)
+    # Get global and computed properties dynamically from metadata
+    global_props = _get_global_properties(model_class)
+    computed_props = _get_computed_properties(model_class)
+    props_with_singluar_form = _get_properties_with_singular_form(model_class)
 
-        expanded["site_indices"] += site_indices
+    # Site props are properties that exist in compressed dict and need to be expanded
+    # These are: properties with singular_form + 'site_indices' + 'positions'
+    # Everything else (global props, pure computed props) should be kept as-is
+    all_props_in_compressed = set(compressed.keys())
 
-    # Reorder by site_index
-    order = np.argsort(expanded["site_indices"])
-    for prop in site_props.union(["site_indices"]):
-        if prop in expanded:
-            expanded[prop] = [expanded[prop][i] for i in order]
+    # Properties that need expansion (site-wise)
+    site_props = all_props_in_compressed.intersection(set(props_with_singluar_form + ['site_indices', 'positions']))
 
-    for prop in _GLOBAL_PROPERTIES:
+    # All properties to include in final dict
+    full_set_of_props = all_props_in_compressed.union(global_props)
+
+    # Initialize expanded dict
+    expanded = {}
+    for prop in full_set_of_props:
+        if prop in site_props:
+            # Site properties that need expansion start as empty lists
+            expanded[prop] = []
+        else:
+            # Global properties and pure computed properties keep their values
+            expanded[prop] = compressed.get(prop, None)
+
+    # Also need to initialize any missing site-wise properties with singular forms as empty lists
+    #for prop in props_with_singluar_form:
+    #    if prop not in expanded:
+    #        expanded[prop] = []
+
+    # Now expand compressed properties back to per-site format
+    # compressed['site_indices'] is a list of lists: [[0], [1]] means kind 0 has site 0, kind 1 has site 1
+    # compressed['positions'] is a list of lists of positions: one list per kind
+    # Other properties with singular_form are compressed: one value per kind, needs repetition
+
+
+    for kind_idx, sites_in_kind in enumerate(compressed['site_indices']):
+        num_sites_in_kind = len(sites_in_kind)
+
+        # Expand positions: compressed['positions'][kind_idx] is a list of position arrays
+        if 'positions' in compressed:
+            for site_index in sites_in_kind:
+                positions_for_kind = compressed['positions'][site_index]
+                expanded['positions'].append(list(positions_for_kind))
+
+        # Expand other properties with singular_form: repeat the single value for each site
+        for prop in props_with_singluar_form:
+            if prop == 'positions':
+                continue  # Already handled above
+            if prop in compressed:
+                value_for_kind = compressed[prop][kind_idx]
+                # Repeat this value for each site in the kind
+                expanded[prop].extend([value_for_kind] * num_sites_in_kind)
+
+        # Track which original site indices we've added
+        expanded['site_indices'].extend(sites_in_kind)
+
+
+    # Remove None global properties
+    for prop in global_props:
         if expanded.get(prop, None) is None:
             expanded.pop(prop, None)
 
-    expanded.pop("site_indices")
+    # Reorder everything by the original site index
+    order = np.argsort(np.array(expanded['site_indices']).flatten())
+
+    # Reorder all properties with singular_form (including positions) plus site_indices
+    for prop in props_with_singluar_form + ['positions', 'site_indices']:
+        if prop in expanded and isinstance(expanded[prop], list) and len(expanded[prop]) > 0:
+            expanded[prop] = [expanded[prop][i] for i in order]
+
+    # Remove the site_indices tracking list
+    expanded.pop('site_indices')
 
     return expanded
 
@@ -215,6 +328,10 @@ def generate_kinds(structure: t.Union[StructureData, StructureBuilder], threshol
         threshold = threshold.get_dict()
 
     sites = structure.to_dict()['sites']
+    for i, site in enumerate(sites):
+        # Remove kind_name if already present, to avoid interference with classification
+        sites[i].pop('kind_name', None)
+
     groups = classify_site_kinds(sites, threshold=threshold)
     kinds = []
     kind_names = []
@@ -237,6 +354,7 @@ def generate_kinds(structure: t.Union[StructureData, StructureBuilder], threshol
             **properties
         }
         kinds.append(kind)
+
     return kinds
 
 def to_kinds(structure: t.Union[StructureData, StructureBuilder], threshold:dict = {}):
@@ -255,6 +373,7 @@ def to_kinds(structure: t.Union[StructureData, StructureBuilder], threshold:dict
                                                 but with kinds generated from the sites.
     """
     dict_repr = structure.to_dict()
+
     dict_repr['kinds'] = generate_kinds(structure, threshold=threshold)
     dict_repr.pop('sites', None)
 

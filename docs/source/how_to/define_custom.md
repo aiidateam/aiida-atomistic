@@ -8,7 +8,7 @@ Custom properties in the `custom` dict won't have:
 - Dedicated getter/setter methods
 - Integration with kinds or compression
 
-Use them for plugin-specific experimental properties that doesn't need full integration.
+Use them for plugin-specific experimental properties that don't need full integration.
 :::
 
 For properties that don't fit the standard patterns, use the `custom` dictionary:
