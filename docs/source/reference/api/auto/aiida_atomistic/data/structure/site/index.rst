@@ -180,22 +180,22 @@ Attributes
       Return a string representation of the Site.
 
 
-   .. py:method:: get_default_tolerances() -> dict
+   .. py:method:: get_default_thresholds() -> dict
       :classmethod:
 
-      Extract default tolerances from field metadata.
+      Extract default thresholds from field metadata.
 
-      Returns a dictionary mapping property names to their default tolerance values
+      Returns a dictionary mapping property names to their default threshold values
       as defined in the json_schema_extra metadata of each field.
 
-      :return: dictionary with property names as keys and tolerance values as floats
+      :return: dictionary with property names as keys and threshold values as floats
 
       Example:
-          >>> Site.get_default_tolerances()
+          >>> Site.get_default_thresholds()
           {'position': 1e-06, 'mass': 0.001, 'charge': 0.0001, 'magmom': 0.01, 'magnetization': 0.01, 'weight': 0.0001}
 
 
-   .. py:method:: from_ase_atom(aseatom: Optional[ase.Atom] = None, **kwargs) -> dict
+   .. py:method:: from_ase_atom(aseatom: Optional[ase.Atom] = None, tag_to_kind_name: bool = True, **kwargs) -> dict
       :classmethod:
 
       Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site.

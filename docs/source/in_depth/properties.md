@@ -59,17 +59,37 @@ Setting both on the same site will cause validation errors. See the [Magnetic St
 
 ### 3. Computed Properties
 
-Properties calculated from other properties (not stored, calculated on-the-fly):
+Properties calculated from other properties. Some are stored (for querying), others computed on-the-fly:
 
+**Queryable computed properties** (stored in database attributes):
 - `cell_volume` (calculated from `cell`)
 - `dimensionality` (calculated from `pbc` and `cell`)
 - `formula` (calculated from `symbols`)
 - `is_alloy` (whether structure contains alloys)
 - `has_vacancies` (whether structure contains vacancies)
+- `n_sites` (total number of sites)
+
+**Statistical properties** (stored in database for range queries):
+- `max_charge`, `min_charge` (maximum and minimum charge values)
+- `max_magmom`, `min_magmom` (maximum and minimum magnetic moment magnitudes)
+- `max_magnetization`, `min_magnetization` (maximum and minimum magnetization values)
+
+**Reconstructed properties** (not stored, computed on-the-fly):
 - `kinds` (grouped site information based on properties)
-- the already mentioned computed arrays
+- `kind_names`, `symbols` (when not using repository storage)
+- the computed array properties (`positions`, `charges`, etc.)
 
 These properties are mainly useful for [querying `StructureData` objects](../how_to/query.md).
+
+:::{note}
+**Storage Backend Differences:**
+
+The storage location of properties depends on the backend used:
+- **Attribute-based storage** (`StructureData`): Most properties stored in database attributes
+- **Repository-based storage** (`StructureDataRepository`): Arrays stored in `.npz` files, queryable metadata in database
+
+See [Storage Backends](storage_backends.md) for details.
+:::
 
 ## Property Formats
 

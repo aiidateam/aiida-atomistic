@@ -1,10 +1,6 @@
 # Magnetic Structures
 
-## Introduction
-
 AiiDA-atomistic provides comprehensive support for magnetic properties in crystal structures. This enables modeling of magnetic materials with proper magnetic moment assignments and collinear/non-collinear magnetism support.
-
-## Basic Magnetic Properties
 
 :::{important}
 **Magnetic Properties: `magmom` vs `magnetization`**
@@ -21,6 +17,7 @@ AiiDA-atomistic provides comprehensive support for magnetic properties in crysta
 - Additionally, you can define the total cell magnetization with `tot_magnetization`
 :::
 
+Here below a full example on how to set all possible magnetic properties:
 
 ```python
 import numpy as np

@@ -15,6 +15,8 @@ Classes
    aiida_atomistic.data.structure.models.StructureBaseModel
    aiida_atomistic.data.structure.models.MutableStructureModel
    aiida_atomistic.data.structure.models.ImmutableStructureModel
+   aiida_atomistic.data.structure.models.MutableStructureModel
+   aiida_atomistic.data.structure.models.ImmutableStructureModel
 
 
 
@@ -29,6 +31,165 @@ Classes
    Attributes:
        pbc (Optional[List[bool]]): Periodic boundary conditions in the x, y, and z directions.
        cell (Optional[List[List[float]]]): The cell vectors defining the unit cell of the structure.
+
+   .. py:property:: cell_volume
+      :type: float
+
+      Compute the volume of the unit cell.
+
+      Returns:
+          float: The volume of the unit cell in cubic Angstroms.
+
+
+   .. py:property:: dimensionality
+      :type: dict
+
+      Determine the dimensionality of the structure.
+
+      Returns:
+          dict: A dictionary indicating the dimensionality of the structure.
+
+
+   .. py:property:: formula
+      :type: str
+
+      Get the chemical formula of the structure.
+
+      Returns:
+          str: The chemical formula of the structure.
+
+
+   .. py:property:: is_alloy
+      :type: dict
+
+      Computed field to determine if the structure is an alloy.
+
+
+   .. py:property:: has_vacancies
+      :type: bool
+
+      Computed field to determine if the structure has vacancies.
+
+
+   .. py:property:: positions
+      :type: numpy.ndarray
+
+      Return the positions of all sites in the structure as a numpy array.
+
+      Returns:
+          np.ndarray: An array of shape (N, 3) where N is the number of sites.
+
+
+   .. py:property:: kind_names
+      :type: List[str]
+
+      Return the list of kind names for all sites in the structure.
+
+      Returns:
+          List[str]: A list of kind names corresponding to each site.
+
+
+   .. py:property:: symbols
+      :type: List[str]
+
+      Return the list of chemical symbols for all sites in the structure.
+
+      Returns:
+          List[str]: A list of chemical symbols corresponding to each site.
+
+
+   .. py:property:: masses
+      :type: numpy.ndarray
+
+      Return the masses of all sites in the structure as a numpy array.
+
+      Returns:
+          np.ndarray: An array of masses corresponding to each site.
+
+
+   .. py:property:: charges
+      :type: numpy.ndarray
+
+      Return the charges of all sites in the structure as a numpy array.
+
+      Returns:
+          np.ndarray: An array of charges corresponding to each site.
+
+
+   .. py:property:: magmoms
+      :type: numpy.ndarray
+
+      Return the magnetic moments of all sites in the structure as a numpy array.
+
+      Returns:
+          np.ndarray: An array of magnetic moments corresponding to each site.
+
+
+   .. py:property:: magnetizations
+      :type: numpy.ndarray
+
+      Return the magnetizations of all sites in the structure as a numpy array.
+
+      Returns:
+          np.ndarray: An array of magnetizations corresponding to each site.
+
+
+   .. py:property:: weights
+      :type: List[Tuple[float, Ellipsis]]
+
+      Return the weights of all sites in the structure as a list of tuples.
+
+      Returns:
+          List[Tuple[float, ...]]: A list of weight tuples corresponding to each site.
+
+
+   .. py:property:: kinds
+      :type: list[aiida_atomistic.data.structure.kind.Kind]
+
+      Return the reduced set of kinds, grouping sites that share all properties except positions and site_indices.
+
+
+   .. py:property:: max_charge
+      :type: Optional[float]
+
+      Maximum charge value across all sites.
+
+
+   .. py:property:: min_charge
+      :type: Optional[float]
+
+      Minimum charge value across all sites.
+
+
+   .. py:property:: max_magmom
+      :type: Optional[float]
+
+      Maximum magnetic moment magnitude across all sites.
+
+
+   .. py:property:: min_magmom
+      :type: Optional[float]
+
+      Minimum magnetic moment magnitude across all sites.
+
+
+   .. py:property:: max_magnetization
+      :type: Optional[float]
+
+      Maximum magnetization value across all sites.
+
+
+   .. py:property:: min_magnetization
+      :type: Optional[float]
+
+      Minimum magnetization value across all sites.
+
+
+   .. py:property:: n_sites
+      :type: int
+
+      Total number of sites in the structure.
+
 
    .. py:attribute:: _mutable
       :type: ClassVar[bool]
@@ -105,112 +266,19 @@ Classes
       Freeze the list of sites if the structure is immutable.
 
 
-   .. py:method:: cell_volume() -> float
+   .. py:method:: freeze_custom(v)
 
-      Compute the volume of the unit cell.
-
-      Returns:
-          float: The volume of the unit cell in cubic Angstroms.
-
-
-   .. py:method:: dimensionality() -> dict
-
-      Determine the dimensionality of the structure.
-
-      Returns:
-          dict: A dictionary indicating the dimensionality of the structure.
-
-
-   .. py:method:: formula() -> str
-
-      Get the chemical formula of the structure.
-
-      Returns:
-          str: The chemical formula of the structure.
-
-
-   .. py:method:: is_alloy() -> dict
-
-      Computed field to determine if the structure is an alloy.
-
-
-   .. py:method:: has_vacancies() -> bool
-
-      Computed field to determine if the structure has vacancies.
-
-
-   .. py:method:: positions() -> numpy.ndarray
-
-      Return the positions of all sites in the structure as a numpy array.
-
-      Returns:
-          np.ndarray: An array of shape (N, 3) where N is the number of sites.
-
-
-   .. py:method:: kind_names() -> List[str]
-
-      Return the list of kind names for all sites in the structure.
-
-      Returns:
-          List[str]: A list of kind names corresponding to each site.
-
-
-   .. py:method:: symbols() -> List[str]
-
-      Return the list of chemical symbols for all sites in the structure.
-
-      Returns:
-          List[str]: A list of chemical symbols corresponding to each site.
-
-
-   .. py:method:: masses() -> numpy.ndarray
-
-      Return the masses of all sites in the structure as a numpy array.
-
-      Returns:
-          np.ndarray: An array of masses corresponding to each site.
-
-
-   .. py:method:: charges() -> numpy.ndarray
-
-      Return the charges of all sites in the structure as a numpy array.
-
-      Returns:
-          np.ndarray: An array of charges corresponding to each site.
-
-
-   .. py:method:: magmoms() -> numpy.ndarray
-
-      Return the magnetic moments of all sites in the structure as a numpy array.
-
-      Returns:
-          np.ndarray: An array of magnetic moments corresponding to each site.
-
-
-   .. py:method:: magnetizations() -> numpy.ndarray
-
-      Return the magnetizations of all sites in the structure as a numpy array.
-
-      Returns:
-          np.ndarray: An array of magnetizations corresponding to each site.
-
-
-   .. py:method:: weights() -> List[Tuple[float, Ellipsis]]
-
-      Return the weights of all sites in the structure as a list of tuples.
-
-      Returns:
-          List[Tuple[float, ...]]: A list of weight tuples corresponding to each site.
-
-
-   .. py:method:: kinds() -> list[aiida_atomistic.data.structure.kind.Kind]
-
-      Return the reduced set of kinds, grouping sites that share all properties except positions and site_indices.
+      Freeze the list of sites if the structure is immutable.
 
 
    .. py:method:: __repr__() -> str
 
-      Return a concise string representation of the structure.
+      Return repr(self).
+
+
+   .. py:method:: __str__()
+
+      Return str(self).
 
 
 
@@ -254,8 +322,64 @@ Classes
 
 
 
-   .. py:attribute:: pbc
-      :type: list[bool]
+   .. py:attribute:: sites
+      :type: Optional[list[aiida_atomistic.data.structure.site.FrozenSite]]
+
+
+
+   .. py:attribute:: model_config
+
+
+
+   .. py:method:: freeze_pbc(v)
+      :classmethod:
+
+      Freeze the pbc list to make it immutable.
+
+
+   .. py:method:: __setattr__(key, value)
+
+      Implement setattr(self, name, value).
+
+
+
+.. py:class:: MutableStructureModel(/, **data: Any)
+
+
+   Bases: :py:obj:`StructureBaseModel`
+
+   A mutable structure model that extends the StructureBaseModel class.
+
+   Attributes:
+       _mutable (bool): Flag indicating whether the structure is mutable or not.
+       sites (List[Site]): List of immutable sites in the structure.
+
+   .. py:attribute:: _mutable
+      :value: True
+
+
+
+
+.. py:class:: ImmutableStructureModel(/, **data: Any)
+
+
+   Bases: :py:obj:`StructureBaseModel`
+
+   A class representing an immutable structure model.
+
+   This class inherits from `StructureBaseModel` and provides additional functionality for handling immutable structures.
+
+   Attributes:
+       _mutable (bool): Flag indicating whether the structure is mutable or not.
+       sites (List[Site]): List of immutable sites in the structure.
+
+   Config:
+       from_attributes (bool): Flag indicating whether to load attributes from the input data.
+       frozen (bool): Flag indicating whether the model is frozen or not.
+       arbitrary_types_allowed (bool): Flag indicating whether arbitrary types are allowed or not.
+
+   .. py:attribute:: _mutable
+      :value: False
 
 
 

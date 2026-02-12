@@ -123,12 +123,40 @@ class SetterMixin(HubbardSetterMixin):
         self.update_sites(kind_indices, **kwargs)
         return
 
-    def append_atom(self, atom: t.Union[Site, dict]=None, index=-1):
+    def append_atom(self, atom: t.Union[Site, dict] = None, index: int = -1, **kwargs):
+        """Append an atom to the structure.
 
-        if isinstance(atom, dict):
+        Args:
+            atom: Site object or dictionary with site properties. If None, kwargs are used.
+            index: Position where to insert the atom. Default -1 (append at end).
+            **kwargs: Site properties (symbol, position, charge, magmom, etc.) if atom is None.
+
+        Examples:
+            # Using kwargs (recommended)
+            builder.append_atom(symbol="Fe", position=[0, 0, 0], magmom=[0, 0, 2.2])
+
+            # Using dict
+            builder.append_atom({"symbol": "Fe", "position": [0, 0, 0]})
+
+            # Using Site object
+            site = Site(symbol="Fe", position=[0, 0, 0])
+            builder.append_atom(site)
+        """
+        # Determine the site data to use
+        if atom is None:
+            if not kwargs:
+                raise ValueError("Must provide either 'atom' parameter or keyword arguments")
+            new_site = Site(**kwargs)
+        elif isinstance(atom, dict):
+            if kwargs:
+                raise ValueError("Cannot provide both 'atom' as dict and keyword arguments")
             new_site = Site(**atom)
-        else:
+        elif isinstance(atom, Site):
+            if kwargs:
+                raise ValueError("Cannot provide both 'atom' as Site and keyword arguments")
             new_site = atom
+        else:
+            raise TypeError(f"atom must be Site, dict, or None (with kwargs), not {type(atom)}")
 
         if len(self.properties.sites) == 0:
             self.properties.sites.insert(-1, new_site)
@@ -159,7 +187,7 @@ class SetterMixin(HubbardSetterMixin):
 
     def clear_sites(self,):
         """Clear the sites, i.e. every property except pbc, cell and custom."""
-        del self.properties.sites
+        self.properties.sites = []
         return
 
     def remove_property(self, property_name):
@@ -255,6 +283,10 @@ class SetterMixin(HubbardSetterMixin):
             raise ValueError(f"The length of the kind_names list ({len(value)}) does not match the number of sites ({len(self.properties.sites)}).")
         for site, kind_name in zip(self.properties.sites, value):
             site.kind_name = kind_name
+        return
+
+    def remove_kind_names(self):
+        self.remove_property('kind_name')
         return
 
     def set_custom(self, value: dict):

@@ -30,6 +30,7 @@ class HubbardSetterMixin:
 
     #@staticmethod
     def set_hubbard_from_list(
+        self,
         parameters: List[Tuple[int, str, int, str, float, Tuple[int, int, int], str]],
         projectors: str = 'ortho-atomic',
         formulation: str = 'dudarev',

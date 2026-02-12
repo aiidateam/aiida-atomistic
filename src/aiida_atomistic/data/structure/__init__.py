@@ -47,8 +47,6 @@ from aiida_atomistic.data.structure.constants import (
     _DEFAULT_PBC,
     _DEFAULT_VALUES,
     _CONVERSION_PLURAL_SINGULAR,
-    _GLOBAL_PROPERTIES,
-    _COMPUTED_PROPERTIES,
     _valid_symbols,
     _atomic_masses,
     _atomic_numbers,

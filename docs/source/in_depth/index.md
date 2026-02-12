@@ -7,12 +7,13 @@ Comprehensive explanations of core concepts and advanced topics in `aiida-atomis
 
 properties
 immutability
+storage_backends
 structure_of_the_code
 ```
 
 ## Core Concepts
 
-### � **Property Types and Architecture**
+### 🏗️ **Property Types and Architecture**
 
 Understanding the property system in aiida-atomistic:
 - **Guide**: [Property Types](properties.md)
@@ -23,9 +24,10 @@ Understanding the property system in aiida-atomistic:
 - Individual site properties (singular: `charge`, `magmom`) vs computed arrays (plural: `charges`, `magmoms`)
 - Global properties apply to entire structure (`pbc`, `cell`, `hubbard`)
 - Computed properties are derived on-the-fly (`formula`, `kinds`, `dimensionality`)
+- Statistical properties for efficient queries (`max_charge`, `min_magmom`, etc.)
 - Clear property access patterns and formats
 
-### �🔒 **Immutability**
+### 🔒 **Immutability**
 
 Understanding the immutability model and its implications:
 - **Guide**: [Immutability in StructureData](immutability.md)
@@ -38,7 +40,20 @@ Understanding the immutability model and its implications:
 - How to work with frozen lists and sites
 - Converting between mutable and immutable structures
 
-### �️ **Code Architecture**
+### 💾 **Storage Backends**
+
+Understanding data storage strategies:
+- **Guide**: [Storage Backends](storage_backends.md)
+- **Topics**: Attribute-based vs repository-based storage, metadata-driven decisions, querying
+- **Why it matters**: Choosing the right backend for performance and scalability
+
+**Key takeaways:**
+- `StructureData`: All data in database attributes (queryable, simple)
+- `StructureDataRepository`: Arrays in `.npz` files, metadata in database (scalable)
+- Metadata controls storage location (`store_in="db"` vs `store_in="npz"`)
+- Trade-offs between queryability and storage efficiency
+
+### ⚙️ **Code Architecture**
 
 Internal structure and organization of the codebase:
 - **Guide**: [Structure of the Code](structure_of_the_code.md)

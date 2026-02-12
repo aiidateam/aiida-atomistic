@@ -30,25 +30,30 @@ class StructureBaseModel(BaseModel):
         description="Periodic boundary conditions",
         min_length=3,
         max_length=3,
+        json_schema_extra={"store_in": "db", "property_type": "global"},
     )
 
     cell: NumpyArray = Field(
         default=_DEFAULT_CELL,
         description="Lattice vectors",
-        json_schema_extra={"units": "Angstrom"},
+        json_schema_extra={"units": "Angstrom", "store_in": "db", "property_type": "global"},
     )
 
     sites: list[Site] = Field(
         default=[],
         description="List of sites in the structure",
+        json_schema_extra={"store_in": "db", "property_type": "global"},
     )
 
     # global and more specific properties
-    tot_magnetization: t.Optional[float] = Field(default=None)
-    tot_charge: t.Optional[float] = Field(default=None)
-    hubbard: t.Optional[Hubbard] = Field(default=Hubbard(parameters=[])) # to have access to the methods.
+    tot_magnetization: t.Optional[float] = Field(default=None, json_schema_extra={"store_in": "db", "property_type": "global"})
+    tot_charge: t.Optional[float] = Field(default=None, json_schema_extra={"store_in": "db", "property_type": "global"})
+    hubbard: t.Optional[Hubbard] = Field(
+        default=Hubbard(parameters=[]),
+        json_schema_extra={"store_in": "db", "property_type": "global"},
+    )  # to have access to the methods.
 
-    custom: t.Optional[dict] = Field(default=None)
+    custom: t.Optional[dict] = Field(default=None, json_schema_extra={"store_in": "db", "property_type": "global"})
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -82,8 +87,6 @@ class StructureBaseModel(BaseModel):
         Raises:
             ValueError: If the structure does not meet the minimal requirements.
         """
-
-        from aiida_atomistic.data.structure.utils import _check_valid_sites
 
         if not data.get("sites", None):
             # if no symbols, no positions, we just return the pbc and cell
@@ -130,7 +133,8 @@ class StructureBaseModel(BaseModel):
         return v
 
     # computed properties
-    @computed_field
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @property
     def cell_volume(self) -> float:
         """
         Compute the volume of the unit cell.
@@ -141,7 +145,8 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import calc_cell_volume
         return calc_cell_volume(self.cell)
 
-    @computed_field
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @property
     def dimensionality(self) -> dict:
         """
         Determine the dimensionality of the structure.
@@ -152,7 +157,8 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import get_dimensionality
         return get_dimensionality(self.pbc, self.cell)
 
-    @computed_field
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @property
     def formula(self) -> str:
         """
         Get the chemical formula of the structure.
@@ -163,14 +169,16 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import get_formula
         return get_formula(self.sites)
 
-    @computed_field
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @property
     def is_alloy(self) -> dict:
         """
         Computed field to determine if the structure is an alloy.
         """
         return  any(_.is_alloy for _ in self.sites)
 
-    @computed_field
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @property
     def has_vacancies(self) -> bool:
         """
         Computed field to determine if the structure has vacancies.
@@ -178,7 +186,8 @@ class StructureBaseModel(BaseModel):
         return any(_.has_vacancies for _ in self.sites)
 
     # HERE I AM DEFINING EXPLICITLY THE COMPUTED FIELDS LIKE POSITIONS AND KINDS, but maybe we can do it with some metaclass.
-    @computed_field
+    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "position"})
+    @property
     def positions(self) -> np.ndarray:
         """
         Return the positions of all sites in the structure as a numpy array.
@@ -190,7 +199,8 @@ class StructureBaseModel(BaseModel):
             return None
         return np.array([site.position for site in self.sites])
 
-    @computed_field
+    @computed_field(json_schema_extra={"store_in": "db", "property_type": "computed", "singular_form": "kind_name"})
+    @property
     def kind_names(self) -> t.List[str]:
         """
         Return the list of kind names for all sites in the structure.
@@ -202,7 +212,8 @@ class StructureBaseModel(BaseModel):
             return None
         return FrozenList([site.kind_name if site.kind_name is not None else site.symbol for site in self.sites])
 
-    @computed_field
+    @computed_field(json_schema_extra={"store_in": "db", "property_type": "computed", "singular_form": "symbol"})
+    @property
     def symbols(self) -> t.List[str]:
         """
         Return the list of chemical symbols for all sites in the structure.
@@ -214,7 +225,8 @@ class StructureBaseModel(BaseModel):
             return None
         return FrozenList([site.symbol for site in self.sites])
 
-    @computed_field
+    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "mass"})
+    @property
     def masses(self) -> np.ndarray:
         """
         Return the masses of all sites in the structure as a numpy array.
@@ -226,7 +238,8 @@ class StructureBaseModel(BaseModel):
             return None
         return np.array([site.mass for site in self.sites])
 
-    @computed_field
+    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "charge"})
+    @property
     def charges(self) -> np.ndarray:
         """
         Return the charges of all sites in the structure as a numpy array.
@@ -238,7 +251,8 @@ class StructureBaseModel(BaseModel):
             return None
         return np.array([site.charge if site.charge else _DEFAULT_VALUES['charge'] for site in self.sites])
 
-    @computed_field
+    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "magmom"})
+    @property
     def magmoms(self) -> np.ndarray:
         """
         Return the magnetic moments of all sites in the structure as a numpy array.
@@ -252,7 +266,8 @@ class StructureBaseModel(BaseModel):
             return None
         return np.array([site.magmom if site.magmom is not None else _DEFAULT_VALUES['magmom'] for site in self.sites])
 
-    @computed_field
+    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "magnetization"})
+    @property
     def magnetizations(self) -> np.ndarray:
         """
         Return the magnetizations of all sites in the structure as a numpy array.
@@ -264,7 +279,8 @@ class StructureBaseModel(BaseModel):
             return None
         return np.array([site.magnetization if site.magnetization is not None else _DEFAULT_VALUES['magnetization'] for site in self.sites])
 
-    @computed_field
+    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "weight"})
+    @property
     def weights(self) -> t.List[t.Tuple[float, ...]]:
         """
         Return the weights of all sites in the structure as a list of tuples.
@@ -277,7 +293,8 @@ class StructureBaseModel(BaseModel):
         return FrozenList([site.weight if site.weight is not None else _DEFAULT_VALUES['weight'] for site in self.sites])
 
 
-    @computed_field
+    @computed_field(json_schema_extra={"property_type": "computed"})
+    @property
     def kinds(self) -> list[Kind]:
         """
         Return the reduced set of kinds, grouping sites that share all properties except positions and site_indices.
@@ -320,6 +337,61 @@ class StructureBaseModel(BaseModel):
 
         return FrozenList(kinds_list)
 
+    # Statistical computed fields for querying
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "max"})
+    @property
+    def max_charge(self) -> t.Optional[float]:
+        """Maximum charge value across all sites."""
+        if self.charges is None:
+            return None
+        return float(np.max(self.charges))
+
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "min"})
+    @property
+    def min_charge(self) -> t.Optional[float]:
+        """Minimum charge value across all sites."""
+        if self.charges is None:
+            return None
+        return float(np.min(self.charges))
+
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "max"})
+    @property
+    def max_magmom(self) -> t.Optional[float]:
+        """Maximum magnetic moment magnitude across all sites."""
+        if self.magmoms is None:
+            return None
+        return float(np.max(np.linalg.norm(self.magmoms, axis=1)))
+
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "min"})
+    @property
+    def min_magmom(self) -> t.Optional[float]:
+        """Minimum magnetic moment magnitude across all sites."""
+        if self.magmoms is None:
+            return None
+        return float(np.min(np.linalg.norm(self.magmoms, axis=1)))
+
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "max"})
+    @property
+    def max_magnetization(self) -> t.Optional[float]:
+        """Maximum magnetization value across all sites."""
+        if self.magnetizations is None:
+            return None
+        return float(np.max(self.magnetizations))
+
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "min"})
+    @property
+    def min_magnetization(self) -> t.Optional[float]:
+        """Minimum magnetization value across all sites."""
+        if self.magnetizations is None:
+            return None
+        return float(np.min(self.magnetizations))
+
+    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @property
+    def n_sites(self) -> int:
+        """Total number of sites in the structure."""
+        return len(self.sites)
+
     def __repr__(self) -> str:
         from pprint import pformat
         pformatted = pformat(self.model_dump())
@@ -357,13 +429,6 @@ class ImmutableStructureModel(StructureBaseModel):
     """
     _mutable = False
 
-    pbc: list[bool] = Field(
-        default=_DEFAULT_PBC,
-        description="Periodic boundary conditions",
-        min_length=3,
-        max_length=3,
-    )
-
     sites: t.Optional[list[FrozenSite]] = Field(
         default=None,
         description="List of sites in the structure",
@@ -387,4 +452,60 @@ class ImmutableStructureModel(StructureBaseModel):
         # Customizing the exception message when trying to mutate attributes
         if key in self.model_fields:
             raise ValueError("The AiiDA `StructureData` is immutable. You can create a mutable copy of it using its `to_builder` method.")
+        super().__setattr__(key, value)
+
+
+class MutableStructureModel(StructureBaseModel):
+    """
+    A mutable structure model that extends the StructureBaseModel class.
+
+    Attributes:
+        _mutable (bool): Flag indicating whether the structure is mutable or not.
+        sites (List[Site]): List of immutable sites in the structure.
+    """
+
+    _mutable = True
+
+
+class ImmutableStructureModel(StructureBaseModel):
+    """
+    A class representing an immutable structure model.
+
+    This class inherits from `StructureBaseModel` and provides additional functionality for handling immutable structures.
+
+    Attributes:
+        _mutable (bool): Flag indicating whether the structure is mutable or not.
+        sites (List[Site]): List of immutable sites in the structure.
+
+    Config:
+        from_attributes (bool): Flag indicating whether to load attributes from the input data.
+        frozen (bool): Flag indicating whether the model is frozen or not.
+        arbitrary_types_allowed (bool): Flag indicating whether arbitrary types are allowed or not.
+    """
+    _mutable = False
+
+    sites: t.Optional[list[FrozenSite]] = Field(
+        default=None,
+        description="List of sites in the structure",
+        json_schema_extra={"store_in": "db", "property_type": "global"},
+    )
+
+    @field_validator('pbc', mode='after')
+    @classmethod
+    def freeze_pbc(cls, v):
+        """Freeze the pbc list to make it immutable."""
+        if not isinstance(v, FrozenList):
+            return FrozenList(v)
+        return v
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        frozen=True,
+        arbitrary_types_allowed=True,
+    )
+
+    def __setattr__(self, key, value):
+        # Customizing the exception message when trying to mutate attributes
+        if key in self.model_fields:
+            raise ValueError("The AiiDA `StructureData` is immutable. You can create a mutable copy of it using its `get_value` method.")
         super().__setattr__(key, value)

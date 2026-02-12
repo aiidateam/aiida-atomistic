@@ -8,11 +8,7 @@ In crystallography and materials science, **kinds** represent groups of atoms th
 - Same magnetic moment (magnitude and direction)
 - Same additional properties
 
-Kinds are particularly useful for:
-- **Reducing data redundancy**: Store properties once per kind instead of per atom
-- **Grouping equivalent atoms**: Identify symmetry-equivalent positions
-- **Optimizing storage**: Compress structure data in the database
-- **Plugin compatibility**: Some simulation codes use kind-based representations
+Often, simulation codes use kind-based representations in their input files.
 
 ## Basics
 
@@ -46,7 +42,7 @@ print(structure.properties.kind_names)  # ['Fe1', 'Fe2']
 
 It is possible to automatically generate the kinds, starting from an initialised structure.
 For both `StructureData` and `StructureBuilder`, we provide a `to_kinds` method, which will
-return as output a new instance of the same object, but this time we the kinds which are detected
+return as output a new instance of the same object, but this time with the kinds defined as detected
 by the implemented algorithm.
 
 ```python
@@ -54,10 +50,8 @@ by the implemented algorithm.
 new_structure = structure.to_kinds()
 ```
 
-the `new_structure` object will be an instance of the same class as the starting `structure` object.
-In the case of the AiiDA `StructureData`, the new structure will be stored in the database (and created
-by means of a `calcfunction`) to preserve provenance. It is possible to skip the provenance by providing
-the `store_provenance=False` input parameter (e.g.: `new_structure = structure.to_kinds(store_provenance=False)`).
+the `new_structure` object will be an instance of the same class as the starting object.
+In the case of the AiiDA `StructureData`, the new structure will be stored in the database (and created by means of a `calcfunction`) to preserve provenance. It is possible to skip the provenance by providing the `store_provenance=False` input parameter (e.g.: `new_structure = structure.to_kinds(store_provenance=False)`).
 
 ### Thresolds for kinds detection
 
@@ -66,7 +60,7 @@ Each property in the `Site` model has a default threshold value stored in its fi
 You can access these default thresholds programmatically:
 
 ```python
-from aiida_atomistic.data.structure import Site
+from aiida_atomistic.data.structure.site import Site
 
 # Get all default thresholds
 default_thresholds = Site.get_default_thresholds()
@@ -74,14 +68,14 @@ print(default_thresholds)
 # {'mass': 0.001, 'charge': 0.01, 'magmom': 0.01, 'magnetization': 0.01, 'weight': 0.01}
 ```
 
-When you call `to_kinds()` without specifying thresholds, these property-specific defaults are used automatically.
+When you call `to_kinds()` without specifying the `threshold` input parameter, these property-specific defaults are used automatically.
 
 #### Custom thresolds
 
 You can override the defaults by specifying a dictionary with specific thresholds for the properties of interest:
 
 ```python
-structure.generate_kinds(threshold={'charge':0.005})
+structure.to_kinds(threshold={'charge':0.005})
 ```
 
 This approach gives you fine-grained control while maintaining sensible defaults for properties you don't specify.
@@ -112,7 +106,7 @@ you can pass, as argument, a threshold `dict` as for the `to_kinds` method.
 
 ```python
 # Get kind names for all sites
-print(structure.properties.kind_names)  # ['Fe1', 'Fe1', 'O1', 'O1']
+print(structure.properties.kind_names)  # ['Fe1', 'Fe2',]
 
 # Get the kinds objects
 for kind in structure.properties.kinds:
@@ -120,6 +114,19 @@ for kind in structure.properties.kinds:
     print(f"  Symbol: {kind.symbol}")
     print(f"  Positions: {kind.positions}")
     print(f"  Site indices: {kind.site_indices}")
+```
+
+**Output**
+```
+['Fe1', 'Fe2']
+Kind: Fe1
+  Symbol: Fe
+  Positions: [[0. 0. 0.]]
+  Site indices: [0]
+Kind: Fe2
+  Symbol: Fe
+  Positions: [[2.5 2.5 2.5]]
+  Site indices: [1]
 ```
 
 Note the kinds can be also accessed directly via `structure.kinds`.

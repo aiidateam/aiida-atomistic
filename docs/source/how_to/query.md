@@ -1,15 +1,24 @@
 # Querying Structures
 
-Learn how to query and search for `StructureData` nodes in your AiiDA database using the QueryBuilder.
+Learn how to query and search for `StructureData` nodes in your AiiDA database using the QueryBuilder. For more details on the query of data from AiiDA databases, we refer to the [official documentation](https://aiida.readthedocs.io/projects/aiida-core/en/latest/howto/query.html).
 
 :::{note}
 This page only concerns the `StructureData` object, as the `StructureBuilder` is just a python class with no utility in the AiiDA provenance database.
 :::
 
-## How Properties are Stored
+:::{important}
+**Storage Locations**
 
-In the AiiDA database, only properties that differ from their default values are stored. For example, if all charges are zero, the `charges` property won't be stored. This means structures in the database with a `charges` entry have at least one non-zero charge (though the total can still be neutral).
-Moreover, `computed_fields` (i.e. derived properties from the user-defined ones) are also stored.
+**Database (queryable via QueryBuilder):**
+- Global properties: `pbc`, `cell`, `periodicity`, `tot_magnetization`, `tot_charge`, `hubbard`, `custom` and so on. You can see the whole set accessing `StructureData.get_supported_properties()['global']`
+- Computed properties: `formula`, `cell_volume`, `dimensionality`, `is_alloy`, `has_vacancies`, `symbols`, `kind_names`, `n_sites` and so on. You can see the whole set accessing `StructureData.get_computed_properties()['global']`
+
+
+**Repository (not queryable, loaded on access):**
+- Per-site arrays: `positions`, `masses`, `charges`, `magmoms`, `magnetizations`, `weights`
+
+The `sites` and `kinds` properties are **never stored**—they are reconstructed on-the-fly from the stored data.
+:::
 
 For any `StructureData` object, you can see which properties are stored using:
 
@@ -17,29 +26,24 @@ For any `StructureData` object, you can see which properties are stored using:
 structure.get_defined_properties()
 ```
 
-:::{important}
-The `sites` and `kinds`properties are **not** stored in the database—they are computed on-the-fly when we reload the node from the database, as they don't contain any additional information.
-
-To see the raw database representation:
-```python
-print(structure.base.attributes.all.keys())
-# Returns: dict_keys(['pbc', 'cell', 'cell_volume', 'dimensionality', 'formula', 'is_alloy', 'has_vacancies', 'positions', 'kind_names', 'symbols', 'masses', 'magmoms', 'site_indices'])
-```
-:::
-
 ## Queryable Properties
 
-Get the full list of properties that is possible to query:
+Get the full list of properties stored in the database that can be queried:
 
 ```python
 StructureData.get_queryable_properties()
 ```
 
-These include: `formula`, `symbols`, `kinds`, `masses`, `charges`, `magmoms`, `positions`, `cell_volume`, `dimensionality`, and more.
+**Queryable properties include:**
+- **Global**: `pbc`, `cell`, `periodicity`, `tot_magnetization`, `tot_charge`, `hubbard`, `custom`
+- **Computed**: `formula`, `cell_volume`, `dimensionality`, `is_alloy`, `has_vacancies`, `symbols`, `kind_names`, `n_sites`
+- **Statistics**: `max_charge`, `min_charge`, `max_magmom`, `min_magmom`, `max_magnetization`, `min_magnetization`
 
-## Simple Queries
+:::{note}
+**Per-site arrays like `positions`, `masses`, `charges`, `magmoms`, `magnetizations`, and `weights` are stored in the repository and cannot be queried directly.** Instead, use the statistical properties (`max_charge`, `min_charge`, etc.) to filter structures by value ranges.
+:::
 
-### All Structures
+## Examples of simple queries
 
 Query all `StructureData` in your database:
 
@@ -52,26 +56,40 @@ qb.append(StructureData)
 print(f"Total structures: {len(qb.all())}")
 ```
 
-### Structures with Specific Properties
+**Output**
+```
+Total structures: 8011
+```
 
-Find structures that have certain properties defined:
+### Structures with specific properties
+
+Find structures that have certain properties defined. Note that per-site arrays are in the repository, so we query their statistical summaries:
 
 ```python
-# Structures with charges defined
-prop = 'charges'
+# Structures with charges defined (via max_charge statistic)
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes': {'has_key': prop}}
+    filters={'attributes': {'has_key': 'max_charge'}}
 )
-print(f"Structures with {prop}: {len(qb.all())}")
+print(f"Structures with charges: {len(qb.all())}")
+
+# Structures with magnetic moments defined
+qb = QueryBuilder()
+qb.append(
+    StructureData,
+    filters={'attributes': {'has_key': 'max_magmom'}}
+)
+print(f"Structures with magmoms: {len(qb.all())}")
 
 # Structures with both charges AND magmoms
-props = ['charges', 'magmoms']
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes': {'and': [{'has_key': prop} for prop in props]}}
+    filters={'attributes': {'and': [
+        {'has_key': 'max_charge'},
+        {'has_key': 'max_magmom'}
+    ]}}
 )
 print(f"Structures with both properties: {len(qb.all())}")
 
@@ -80,8 +98,8 @@ qb = QueryBuilder()
 qb.append(
     StructureData,
     filters={'attributes': {'and': [
-        {'has_key': 'charges'},
-        {'!has_key': 'magmoms'}
+        {'has_key': 'max_charge'},
+        {'!has_key': 'max_magmom'}
     ]}}
 )
 print(f"Structures with charges only: {len(qb.all())}")
@@ -89,16 +107,17 @@ print(f"Structures with charges only: {len(qb.all())}")
 
 ### Structures without Specific Properties
 
-Use the `!` negation:
+Use the `!` negation to find structures without specific properties:
 
 ```python
-prop = 'magmoms'
+# Structures without charges
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes': {'!has_key': prop}}
+    filters={'attributes': {'!has_key': 'max_charge'}}
 )
-print(f"Structures without {prop}: {len(qb.all())}")
+without_charges = len(qb.all())
+print(f"Structures without charges: {len(qb.all())}")
 ```
 
 ### Projecting Specific Attributes
@@ -106,18 +125,19 @@ print(f"Structures without {prop}: {len(qb.all())}")
 Retrieve only selected properties instead of full nodes:
 
 ```python
-prop = 'charges'
+# Get formula and statistics for structures with charges
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes': {'has_key': prop}},
-    project=['attributes.formula', 'attributes.' + prop, 'id']
+    filters={'attributes': {'has_key': 'max_charge'}},
+    project=['attributes.formula', 'attributes.max_charge', 'attributes.min_charge', 'id']
 )
 
 result = qb.all()[-1]  # Get last result
 print(f"Formula: {result[0]}")
-print(f"Charges: {result[1]}")
-print(f"PK: {result[2]}")
+print(f"Max charge: {result[1]}")
+print(f"Min charge: {result[2]}")
+print(f"PK: {result[3]}")
 ```
 
 ### Structures by Number of Atoms
@@ -172,7 +192,46 @@ qb.append(
     StructureData,
     filters={'attributes.has_vacancies': True}
 )
+print(f"Structures with vacancies: {len(qb.all())}")
 ```
+
+### Querying by Statistical Properties
+
+Since per-site properties are stored in the repository, use statistical summaries to filter by value ranges:
+
+```python
+# Structures with charges above a threshold
+charge_threshold = 1.0
+qb = QueryBuilder()
+qb.append(
+    StructureData,
+    filters={'attributes.max_charge': {'>': charge_threshold}}
+)
+print(f"Structures with max charge > {charge_threshold}: {len(qb.all())}")
+
+# Structures with charge range between min and max
+min_charge = -1.0
+max_charge = 1.0
+qb = QueryBuilder()
+qb.append(
+    StructureData,
+    filters={'and': [
+        {'attributes.min_charge': {'>': min_charge}},
+        {'attributes.max_charge': {'<': max_charge}}
+    ]}
+)
+print(f"Structures with charges in ({min_charge}, {max_charge}): {len(qb.all())}")
+```
+
+:::{tip}
+**Using Statistics for Efficient Queries**
+
+Statistical properties enable efficient filtering without loading large arrays:
+- Use `max_charge` and `min_charge` to find structures with specific charge distributions
+- Use `max_magmom` and `min_magmom` to filter by magnetic moment magnitudes
+- Combine with other filters like `formula` or `n_sites` for precise queries
+- Remember: `min_magmom` and `max_magmom` represent the **magnitude** of magnetic moment vectors
+:::
 
 ## Advanced Queries
 
@@ -325,21 +384,64 @@ This ensures the formula has exactly the specified number of element symbols.
 
 1. **Filter early**: Use QueryBuilder filters to reduce the result set before post-processing
 2. **Project efficiently**: Only retrieve the attributes you need
-3. **Use regex carefully**: Regex post-processing is powerful but slower than database filters
-4. **Check for None**: Always validate that projected values exist before using them in regex
-5. **Combine filters**: Use `and`, `or`, and negation (`!`) to build complex queries
+3. **Use statistical properties**: Query `max_charge`, `min_charge`, etc. instead of loading full arrays
+4. **Use regex carefully**: Regex post-processing is powerful but slower than database filters
+5. **Check for None**: Always validate that projected values exist before using them in regex
+6. **Combine filters**: Use `and`, `or`, and negation (`!`) to build complex queries
+7. **Understand storage locations**: Database properties are fast to query; repository properties require loading the node
+
+:::{note}
+**Storage Model Impact on Queries**
+
+- **Fast queries**: Properties in the database (`formula`, `symbols`, `n_sites`, statistics)
+- **Requires loading**: Per-site arrays in the repository (`positions`, `charges`, `magmoms`)
+- **Best practice**: Filter using database properties first, then load nodes to access repository arrays
+
+Example efficient workflow:
+```python
+# First: Filter in database by statistics
+qb = QueryBuilder()
+qb.append(
+    StructureData,
+    filters={'attributes': {'and': [
+        {'max_charge': {'>': 1.0}},
+        {'formula': {'like': '%Fe%'}}
+    ]}}
+)
+
+# Then: Load only matching nodes to access full charge arrays
+for (structure,) in qb.iterall():
+    charges = structure.properties.charges  # Loads from repository
+    # Process individual charge values...
+```
+:::
 
 ## Performance Tips
 
-- Use `qb.iterall()` instead of `qb.all()` for large result sets to avoid loading everything into memory
-- Apply as many filters as possible at the database level before regex post-processing
-- Use `project` to retrieve only needed attributes
-- For very large databases, consider adding pagination with `limit` and `offset`
+- **Use `qb.iterall()`** instead of `qb.all()` for large result sets to avoid loading everything into memory
+- **Filter at database level**: Apply as many filters as possible using QueryBuilder before loading nodes
+- **Use statistical properties**: Query `max_charge`, `min_charge`, etc. to avoid loading repository arrays
+- **Use `project`** to retrieve only needed database attributes
+- **Load repository data last**: Access `positions`, `charges`, `magmoms` only after filtering
+- **For very large databases**: Consider adding pagination with `limit` and `offset`
 
-## See Also
+:::{important}
+**Performance Comparison**
 
-- [AiiDA QueryBuilder Documentation](https://aiida.readthedocs.io/projects/aiida-core/en/latest/howto/query.html)
-- [QueryBuilder Filters Reference](https://aiida.readthedocs.io/projects/aiida-core/en/latest/topics/database.html#reference-tables)
-- [Working with Kinds](kinds.md)
-- [Magnetic Structures](magnetic_structures.md)
-- [Property Types](../in_depth/properties.md)
+**Fast** (database query only):
+```python
+qb = QueryBuilder()
+qb.append(StructureData, filters={'attributes.max_charge': {'>': 1.0}})
+results = qb.all()  # Fast - no repository access
+```
+
+**Slow** (loading all arrays):
+```python
+qb = QueryBuilder()
+qb.append(StructureData)
+for (s,) in qb.iterall():
+    if "charges" in s.get_defined_properties():
+        if max(s.properties.charges) > 1.0:  # Slow - loads from repository for every structure with charges
+            results.append(s)
+```
+:::
