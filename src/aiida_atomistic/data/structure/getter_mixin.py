@@ -10,6 +10,7 @@ from aiida_atomistic.data.structure.site import Site, FrozenSite
 from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
 )
+from aiida_atomistic.data.structure.utils import _get_computed_properties_from_model
 
 try:
     import ase  # noqa: F401
@@ -44,11 +45,6 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
-_DEFAULT_THRESHOLDS = {
-            "charges": 0.1,
-            "masses": 1e-4,
-            "magmoms": 1e-4, # _MAGMOM_THRESHOLD
-        }
 
 class GetterMixin(HubbardGetterMixin):
 
@@ -102,9 +98,7 @@ class GetterMixin(HubbardGetterMixin):
         Get a dictionary of computed properties that can be set
         for this structure.
         """
-        structure_fields = set(cls._model.model_computed_fields.keys())
-
-        return structure_fields
+        return set(_get_computed_properties_from_model(cls._model))
 
     def get_defined_properties(self, exclude_computed: bool = False):
         """

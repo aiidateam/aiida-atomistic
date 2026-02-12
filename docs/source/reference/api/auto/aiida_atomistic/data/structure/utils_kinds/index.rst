@@ -15,7 +15,6 @@ Functions
 
    aiida_atomistic.data.structure.utils_kinds._get_global_properties
    aiida_atomistic.data.structure.utils_kinds._get_properties_with_singular_form
-   aiida_atomistic.data.structure.utils_kinds._get_computed_properties
    aiida_atomistic.data.structure.utils_kinds.compress_properties_by_kind
    aiida_atomistic.data.structure.utils_kinds.rebuild_site_lists_from_kind_lists
    aiida_atomistic.data.structure.utils_kinds.classify_site_kinds
@@ -34,11 +33,6 @@ Functions
 .. py:function:: _get_properties_with_singular_form(model_class)
 
    Get list of global properties from model metadata.
-
-
-.. py:function:: _get_computed_properties(model_class)
-
-   Get list of computed properties from model metadata.
 
 
 .. py:function:: compress_properties_by_kind(props, model_class=None)

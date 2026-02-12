@@ -21,6 +21,24 @@ Classes
 
 
 
+Attributes
+~~~~~~~~~~
+
+.. autoapisummary::
+
+   aiida_atomistic.data.structure.models._DEFAULT_CELL
+   aiida_atomistic.data.structure.models._DEFAULT_PBC
+
+
+.. py:data:: _DEFAULT_CELL
+
+
+
+.. py:data:: _DEFAULT_PBC
+   :value: [True, True, True]
+
+
+
 .. py:class:: StructureBaseModel(/, **data: Any)
 
 

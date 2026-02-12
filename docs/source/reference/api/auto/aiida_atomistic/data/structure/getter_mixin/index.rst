@@ -30,7 +30,6 @@ Attributes
    aiida_atomistic.data.structure.getter_mixin._valid_symbols
    aiida_atomistic.data.structure.getter_mixin._atomic_masses
    aiida_atomistic.data.structure.getter_mixin._atomic_numbers
-   aiida_atomistic.data.structure.getter_mixin._DEFAULT_THRESHOLDS
 
 
 .. py:data:: has_ase
@@ -66,10 +65,6 @@ Attributes
 
 
 .. py:data:: _atomic_numbers
-
-
-
-.. py:data:: _DEFAULT_THRESHOLDS
 
 
 

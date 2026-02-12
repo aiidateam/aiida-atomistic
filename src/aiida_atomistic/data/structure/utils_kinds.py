@@ -5,6 +5,7 @@ import numpy as np
 from aiida import orm
 
 from aiida_atomistic.data.structure.structure import StructureData, StructureBuilder
+from aiida_atomistic.data.structure.utils import _get_computed_properties_from_model
 
 
 def _get_global_properties(model_class):
@@ -14,13 +15,13 @@ def _get_global_properties(model_class):
     # Check regular fields
     for field_name, field_info in model_class.model_fields.items():
         extra = field_info.json_schema_extra or {}
-        if extra.get("property_type") == "global":
+        if extra.get("property_type","") == "global":
             global_props.append(field_name)
 
     # Check computed fields
     for field_name, computed_field_info in model_class.model_computed_fields.items():
         extra = getattr(computed_field_info, 'json_schema_extra', None) or {}
-        if extra.get("property_type") == "global":
+        if extra.get("property_type","") == "global":
             global_props.append(field_name)
 
     return global_props
@@ -42,11 +43,6 @@ def _get_properties_with_singular_form(model_class):
             _props.append(field_name)
 
     return _props
-
-
-def _get_computed_properties(model_class):
-    """Get list of computed properties from model metadata."""
-    return list(model_class.model_computed_fields.keys())
 
 
 def compress_properties_by_kind(props, model_class=None):
@@ -73,7 +69,7 @@ def compress_properties_by_kind(props, model_class=None):
 
     # Get global and computed properties dynamically from metadata
     global_props = _get_global_properties(model_class)
-    computed_props = _get_computed_properties(model_class)
+    computed_props = _get_computed_properties_from_model(model_class)
 
     site_props = set(props.keys()).difference(global_props + computed_props + ["sites"])
 
@@ -115,7 +111,7 @@ def rebuild_site_lists_from_kind_lists(compressed, model_class=None):
 
     # Get global and computed properties dynamically from metadata
     global_props = _get_global_properties(model_class)
-    computed_props = _get_computed_properties(model_class)
+    computed_props = _get_computed_properties_from_model(model_class)
     props_with_singluar_form = _get_properties_with_singular_form(model_class)
 
     # Site props are properties that exist in compressed dict and need to be expanded
