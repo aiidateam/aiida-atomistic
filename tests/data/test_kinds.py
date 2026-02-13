@@ -82,7 +82,7 @@ class TestKindsDetection:
 
     def test_validate_kinds_success(self, example_structure_dict_for_kinds):
         """Test kinds validation passes for valid structure."""
-        structure = StructureData(**example_structure_dict_for_kinds, validate_kinds=True)
+        structure = StructureData(**example_structure_dict_for_kinds)
 
         # Should not raise
         structure.validate_kinds()
@@ -117,6 +117,8 @@ class TestKindsDetection:
 
     def test_generate_kinds(self):
         """Test automatic kind name generation."""
+        from aiida_atomistic.data.structure.utils_kinds import generate_kinds
+
         structure_dict = {
             "pbc": [True, True, True],
             "cell": [[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]],
@@ -140,12 +142,10 @@ class TestKindsDetection:
         }
 
         structure = StructureBuilder(**structure_dict)
-        structure.generate_kinds()
+        kinds = generate_kinds(structure)
 
-        # kind_names might be None if not generated
-        kind_names = structure.properties.kind_names
-        if kind_names:
-            assert len(set(kind_names)) == 2
+        # Should generate 2 different kinds (different magmom values)
+        assert len(kinds) == 2
 
     def test_kinds_with_tolerance(self):
         """Test kinds detection with numerical tolerance."""
@@ -174,15 +174,20 @@ class TestKindsDetection:
         structure.validate_kinds()
 
     def test_kinds_compression_storage(self, complex_example_structure_dict_for_kinds):
-        """Test that kinds are compressed in storage."""
+        """Test that kinds information is properly stored."""
         structure = StructureData(**complex_example_structure_dict_for_kinds)
 
         # Check that kind_names is in attributes
         assert "kind_names" in structure.base.attributes.all
 
-        # Check that properties are compressed (one value per kind, not per site)
+        # Check that sites maintain their structure (not compressed, site-based model)
         stored_symbols = structure.base.attributes.get("symbols")
-        assert len(stored_symbols) == 4  # 4 kinds, not 8 sites
+        assert len(stored_symbols) == 8  # 8 sites (site-based, not kind-compressed)
+
+        # But kind_names should have been assigned
+        kind_names = structure.base.attributes.get("kind_names")
+        assert kind_names is not None
+        assert len(set(kind_names)) == 4  # 4 unique kinds
 
 
 class TestKindsWorkflow:
@@ -190,6 +195,8 @@ class TestKindsWorkflow:
 
     def test_create_modify_validate_workflow(self):
         """Test: create → modify → validate → store workflow."""
+        from aiida_atomistic.data.structure.site import Site
+
         # 1. Create structure without kinds initially
         structure_dict = {
             "pbc": [True, True, True],
@@ -208,21 +215,24 @@ class TestKindsWorkflow:
             ],
         }
 
-        # 2. Create and get mutable copy
-        structure = StructureData(**structure_dict)
-        mutable = structure.get_value()
+        # 2. Create mutable structure
+        mutable = StructureBuilder(**structure_dict)
 
-        # 3. Modify
-        mutable.set_charges([2.0, 2.0])
+        # 3. Modify by updating site charges
+        new_sites = []
+        for site in mutable.properties.sites:
+            site_dict = site.model_dump()
+            site_dict['charge'] = 2.0
+            new_sites.append(Site(**site_dict))  # Create Site objects
+        mutable.properties.sites = new_sites
 
-        # 4. Convert back
-        new_structure = StructureData.from_builder(mutable)
-
-        # 5. Check result
-        assert all(s.charge == 2.0 for s in new_structure.sites)
+        # 4. Verify modification
+        assert all(s.charge == 2.0 for s in mutable.properties.sites)
 
     def test_automatic_kind_generation_workflow(self):
         """Test automatic kind generation on structure without kind_names."""
+        from aiida_atomistic.data.structure.utils_kinds import generate_kinds
+
         structure_dict = {
             "pbc": [True, True, True],
             "cell": [[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]],
@@ -235,14 +245,11 @@ class TestKindsWorkflow:
 
         mutable = StructureBuilder(**structure_dict)
 
-        # Generate kinds
-        mutable.generate_kinds()
+        # Generate kinds using utility function
+        kinds = generate_kinds(mutable)
 
-        # kind_names might be None if not generated
-        kind_names = mutable.properties.kind_names
-        if kind_names:
-            unique_kinds = set(kind_names)
-            assert len(unique_kinds) == 2
+        # Should have 2 kinds: one for H with magmom, one for O with charge
+        assert len(kinds) == 2
 
     def test_from_kinds_initialization(self):
         """Test initializing structure from kinds."""

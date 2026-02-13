@@ -7,12 +7,12 @@ from aiida_atomistic.data.structure.utils import (
     _check_valid_sites,
     _create_symbols_tuple,
     _create_weights_tuple,
+    validate_symbols_tuple,
+    validate_weights_tuple,
     _get_valid_cell,
     _get_valid_pbc,
     calc_cell_volume,
     check_is_alloy,
-    classify_site_kinds,
-    compress_properties_by_kind,
     create_automatic_kind_name,
     get_dimensionality,
     get_formula,
@@ -21,12 +21,13 @@ from aiida_atomistic.data.structure.utils import (
     has_pymatgen,
     has_vacancies,
     is_valid_symbol,
+)
+from aiida_atomistic.data.structure.utils_kinds import (
+    classify_site_kinds,
+    compress_properties_by_kind,
     rebuild_site_lists_from_kind_lists,
     sites_from_kinds,
-    validate_symbols_tuple,
-    validate_weights_tuple,
 )
-
 
 class TestCellValidation:
     """Test cell validation utilities."""
@@ -443,7 +444,10 @@ class TestKindsCompression:
         compressed = compress_properties_by_kind(props)
         rebuilt = rebuild_site_lists_from_kind_lists(compressed)
 
-        assert len(rebuilt["positions"]) == len(structure.sites)
+        # Rebuilt should have site-wise properties expanded
+        # Check that we have the expected number of kind-related properties
+        assert "sites" in rebuilt
+        assert len(rebuilt["sites"]) == len(structure.sites)
 
     def test_compression_roundtrip(self, complex_example_structure_dict_for_kinds):
         """Test compression/decompression roundtrip."""
@@ -454,8 +458,8 @@ class TestKindsCompression:
         compressed = compress_properties_by_kind(props)
         rebuilt = rebuild_site_lists_from_kind_lists(compressed)
 
-        # Check roundtrip preserves data
-        assert len(rebuilt["positions"]) == len(structure.sites)
+        # Check roundtrip preserves number of sites
+        assert len(rebuilt["sites"]) == len(structure.sites)
 
 
 class TestKindsClassification:

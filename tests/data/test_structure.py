@@ -282,26 +282,6 @@ def test_roundtrips(complex_example_structure_dict_for_kinds):
     assert b.to_dict() == s2.to_dict()
     assert s.to_dict() == b.to_dict()
 
-def test_from_legacy(aiida_profile):
-    """Test conversion from legacy AiiDA StructureData to atomistic StructureData.
-
-    The aiida_profile fixture ensures the AiiDA database is available.
-    Note: This test requires RabbitMQ to be running.
-    """
-    pytest.skip("We will drop the backward compatibility.")
-    from aiida_atomistic.data.structure.utils_orm import from_legacy_to_atomistic
-    from aiida.orm import StructureData as LegacyStructureData
-
-    legacy = LegacyStructureData(cell=[[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]])
-    legacy.append_atom(symbols='H', position=[0.0, 0.0, 0.0], mass=1.008, name='H1')
-    legacy.append_atom(symbols='O', position=[0.0, 0.0, 1.0], mass=15.999, name='O1')
-
-    s = from_legacy_to_atomistic(legacy, metadata={'store_provenance': False})
-
-    assert np.allclose(legacy.cell, s.cell)
-    assert np.allclose(legacy.pbc, s.pbc)
-    assert legacy.get_kind_names() == s.properties.kind_names
-
 ## Test the get_kinds() method.
 
 @pytest.mark.skip
