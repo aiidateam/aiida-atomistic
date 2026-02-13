@@ -1,391 +1,107 @@
 # Storage Backends
 
-`aiida-atomistic` provides two different storage backends for structure data, each optimized for different use cases.
+This document explains how `aiida-atomistic` stores structure data in AiiDA's database and repository.
 
 ## Overview
 
-| Backend | Storage Location | Best For | File |
-|---------|------------------|----------|------|
-| **Attribute-based** | Database attributes | Queryable metadata, small structures | `structuredata.py` |
-| **Repository-based** | AiiDA repository (`.npz` files) | Large structures, array-heavy data | `structure.py` |
+`StructureData` stores properties in two locations:
 
-Both backends share the same API and pydantic models (`ImmutableStructureModel`, `MutableStructureModel`), making them interchangeable for most use cases.
-
-## Attribute-Based Storage (Default)
-
-**Class:** `StructureData`
-**File:** `src/aiida_atomistic/data/structure/structuredata.py`
-
-### How It Works
-
-All structure data is stored in the AiiDA database attributes as JSON-serializable dictionaries:
-
-```python
-from aiida_atomistic.data.structure import StructureData
-
-structure = StructureData(
-    pbc=[True, True, True],
-    cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
-    sites=[
-        {'symbol': 'Si', 'position': [0, 0, 0]},
-        {'symbol': 'Si', 'position': [1.5, 1.5, 1.5]}
-    ]
-)
-structure.store()  # Stores everything in database attributes
-```
-
-### Advantages
-
-- **Queryable**: All properties stored in the database can be queried using AiiDA's QueryBuilder
-- **Simple**: Single storage location, no separate files to manage
-- **Kinds compression**: Automatically compresses repeated site data using kinds
-
-### When to Use
-
-- Small to medium structures (< 1000 atoms)
-- When you need to query structure properties frequently
-- When database size is not a concern
-- For most standard use cases
-
-### Storage Format
-
-```python
-# Database attributes (simplified)
-{
-    "pbc": [true, true, true],
-    "cell": [[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
-    "kind_names": ["Si1", "Si1"],  # Compressed via kinds
-    "symbols": ["Si"],
-    "positions": [[[0, 0, 0], [1.5, 1.5, 1.5]]],  # Grouped by kind
-    "tot_charge": 0.0,
-    ...
-}
-```
-
-## Repository-Based Storage
-
-**Class:** `StructureData`
-**File:** `src/aiida_atomistic/data/structure/structure.py`
-
-### How It Works
-
-Structure data is **intelligently split** between database attributes and repository files based on metadata:
-
-- **Database attributes**: Queryable metadata (cell parameters, formulas, statistics)
-- **Repository file**: Large numeric arrays (positions, charges, magnetic moments)
-
-```python
-from aiida_atomistic.data.structure import StructureData
-
-structure = StructureData(
-    pbc=[True, True, True],
-    cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
-    sites=[
-        {'symbol': 'Si', 'position': [0, 0, 0], 'charge': 0.5},
-        {'symbol': 'Si', 'position': [1.5, 1.5, 1.5], 'charge': 0.5}
-    ]
-)
-structure.store()
-# Stores: cell, pbc, formula → database (queryable)
-#         positions, charges → properties.npz file (efficient)
-```
-
-### Advantages
-
-- **Scalable**: Handles large structures with thousands of atoms efficiently
-- **Efficient**: NumPy arrays compressed in `.npz` format
-- **Smart splitting**: Automatically separates queryable metadata from bulk arrays
-- **Flexible**: Metadata-driven storage decisions (see below)
-
-### When to Use
-
-- Large structures (> 1000 atoms)
-- Array-heavy data (e.g., charge densities, magnetic moments for all atoms)
-- When database bloat is a concern
-- High-throughput workflows with many large structures
-
-### Storage Format
-
-**Database attributes (only queryable metadata):**
-```python
-{
-    "pbc": [true, true, true],
-    "cell": [[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
-    "formula": "Si2",
-    "cell_volume": 27.0,
-    "dimensionality": 3,
-    "is_alloy": false,
-    "has_vacancies": false,
-    "max_charge": 0.5,
-    "min_charge": 0.5,
-    ...
-}
-```
-
-**Repository file (`properties.npz`):**
-```python
-{
-    "positions": [[0, 0, 0], [1.5, 1.5, 1.5]],  # N×3 array
-    "charges": [0.5, 0.5],                      # N array
-    "masses": [28.085, 28.085],                 # N array
-    "symbols": ["Si", "Si"],                    # list (stored as array)
-    ...
-}
-```
-
-## Metadata-Driven Storage Decisions
-
-The repository backend uses **field metadata** to automatically determine where each property should be stored.
-
-### Storage Metadata Keys
-
-Each field in `models.py` has `json_schema_extra` metadata:
-
-```python
-# Example from models.py
-class ImmutableStructureModel(StructureBaseModel):
-    # Global property → database (queryable)
-    cell: ArrayLike3x3 = Field(
-        json_schema_extra={"store_in": "db", "property_type": "global"}
-    )
-
-    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed"})
-    @property
-    def positions(self) -> np.ndarray:
-        """Positions array → repository (large array)"""
-        return np.array([site.position for site in self.sites])
-
-    @computed_field(json_schema_extra={"store_in": "db", "property_type": "computed"})
-    @property
-    def formula(self) -> str:
-        """Formula → database (queryable metadata)"""
-        return self._compute_formula()
-```
-
-### Metadata Keys
-
-| Key | Values | Purpose |
-|-----|--------|---------|
-| `store_in` | `"db"`, `"npz"`, `"repo"`, `"repository"`, `"attribute"`, `"attributes"` | Where to store the property |
-| `property_type` | `"global"`, `"computed"`, `"internal"` | Classification of the property |
-| `statistic` | `"max"`, `"min"` | Indicates a statistical field |
-| `singular_form` | String (e.g., `"position"`) | **Required for site-array properties** - Maps plural property to singular site field |
+1. **Database attributes**: Queryable metadata (formulas, statistics, small arrays)
+2. **Repository files**: Large numeric arrays (positions, charges, magnetic moments)
 
 :::{important}
-**`singular_form` is critical for site-array properties!**
+**Storage location is determined at the code level, not at runtime.**
 
-When a computed field represents an array of site-level values, you MUST specify how it maps back to the individual site property:
+When you create a `StructureData`, the storage location for each property is already defined in the source code via metadata in `models.py`. You cannot choose where properties are stored when creating structures.
+
+**Developers** can decide storage locations when adding new properties by setting metadata in `models.py`.
+:::
+
+## How Storage Works
+
+Each property in `models.py` has metadata that determines its storage location:
+
+```python
+# From models.py - storage is defined here
+class StructureBaseModel(BaseModel):
+    # This property goes to database
+    cell: ArrayLike3x3 = Field(
+        json_schema_extra={"store_in": "db"}
+    )
+    
+    # This array goes to repository
+    @computed_field(json_schema_extra={"store_in": "repository", "singular_form": "position"})
+    @property
+    def positions(self) -> np.ndarray:
+        return np.array([site.position for site in self.sites])
+```
+
+When you store a structure, the system uses these metadata settings automatically:
+
+```python
+structure = StructureData(
+    cell=[[3, 0, 0], [0, 3, 0], [0, 0, 3]],
+    pbc=[True, True, True],
+    sites=[...]
+)
+structure.store()
+# cell → database (as defined by store_in="db")
+# positions → repository (as defined by store_in="repository")
+```
+
+## What Gets Stored Where
+
+**Database Attributes** (queryable):
+
+- Global properties: `cell`, `pbc`, `tot_charge`, `tot_magnetization`
+- Computed metadata: `formula`, `cell_volume`, `dimensionality`, `n_sites`
+- Composition flags: `is_alloy`, `has_vacancies`
+- Statistics: `max_charge`, `min_charge`, `max_magmom`, `min_magmom`, etc.
+- Small arrays: `symbols`, `kind_names`
+
+**Repository Files** (`properties.npz`):
+
+- Large numeric arrays: `positions`, `masses`, `charges`, `magmoms`, `magnetizations`, `weights`
+
+**Not Stored** (reconstructed on access):
+
+- `kinds` - Rebuilt from stored properties
+- `sites` (internal) - Rebuilt from stored arrays
+
+## Storage Metadata
+
+### The `store_in` Key
+
+Each field uses `json_schema_extra` metadata with a `store_in` key:
+
+| `store_in` Value | Storage Location |
+|------------------|------------------|
+| `"db"`, `"attribute"`, `"attributes"` | Database attributes |
+| `"repository"`, `"repo"`, `"npz"` | Repository `.npz` file |
+
+### The `singular_form` Key (Required for Array Properties)
+
+For computed array properties from sites, `singular_form` maps the array back to individual site fields:
 
 ```python
 @computed_field(
     json_schema_extra={
         "store_in": "repository",
-        "property_type": "computed",
-        "singular_form": "charge"  # ← REQUIRED
+        "singular_form": "charge"  # Maps 'charges' array → 'charge' site property
     }
 )
 @property
 def charges(self) -> np.ndarray:
-    """Array of charge values from all sites."""
     return np.array([site.charge for site in self.sites])
 ```
 
-Without `singular_form`:
-- ❌ Structure cannot be loaded from database
-- ❌ Site reconstruction fails with `KeyError`
-- ❌ Data becomes inaccessible after storing
-
-Common mappings: `positions` → `"position"`, `charges` → `"charge"`, `symbols` → `"symbol"`
+:::{important}
+Without `singular_form`, the system cannot reconstruct sites when loading from the database, causing `KeyError` and making data inaccessible.
 :::
 
-### Storage Decision Logic
+## Querying Structures
 
-The `StructureData._get_storage_target()` method follows a simple decision process:
-
-1. **Check field metadata** (`json_schema_extra["store_in"]`)
-2. **Check computed field metadata** (`json_schema_extra["store_in"]`)
-3. **Type-based fallback** (numeric arrays → repository, others → database)
-
-```python
-class StructureData:
-    def _get_storage_target(self, prop_name, value):
-        # 1. Check regular field metadata
-        if prop_name in self._model.model_fields:
-            metadata = self._model.model_fields[prop_name].json_schema_extra
-            if metadata and "store_in" in metadata:
-                store_in = metadata["store_in"]
-                if store_in in {"npz", "repo", "repository"}:
-                    return "repository"
-                elif store_in in {"db", "attribute", "attributes"}:
-                    return "attributes"
-
-        # 2. Check computed field metadata
-        if prop_name in self._model.model_computed_fields:
-            computed_info = self._model.model_computed_fields[prop_name]
-            metadata = getattr(computed_info, 'json_schema_extra', None)
-            if metadata and "store_in" in metadata:
-                store_in = metadata["store_in"]
-                if store_in in {"npz", "repo", "repository"}:
-                    return "repository"
-                elif store_in in {"db", "attribute", "attributes"}:
-                    return "attributes"
-
-        # 3. Type-based fallback
-        if self._is_numeric_array(value):
-            return "repository"
-        return "attributes"
-```
-
-All storage decisions are driven by the `store_in` metadata in `models.py`.
-No hardcoded overrides needed!
-
-### Property Classification
-
-Properties are classified by `property_type`:
-
-| Type | Description | Examples | Typical Storage |
-|------|-------------|----------|-----------------|
-| `global` | Structure-level properties | `pbc`, `cell`, `tot_charge` | Database |
-| `computed` | Calculated properties | `positions`, `formula`, `cell_volume` | Mixed (see below) |
-| `internal` | Internal representations | `sites` | Database |
-
-### Storage by Property Type
-
-**Stored in Database (`store_in="db"`):**
-
-- **Queryable metadata** - Needed for searches:
-  - `cell`, `pbc`, `tot_charge`, `tot_magnetization`
-  - `cell_volume`, `dimensionality`, `formula`
-  - `is_alloy`, `has_vacancies`
-  - `kind_names`, `symbols` (for quick lookups)
-
-- **Statistics** - For range queries:
-  - `max_charge`, `min_charge`
-  - `max_magmom`, `min_magmom`
-  - `max_magnetization`, `min_magnetization`
-  - `n_sites` (total number of atoms)
-
-**Stored in Repository (`store_in="npz"`):**
-
-- **Large numeric arrays**:
-  - `positions` (N×3 array)
-  - `masses` (N array)
-  - `charges` (N array)
-  - `magmoms` (N×3 array)
-  - `magnetizations` (N array)
-  - `weights` (list of tuples)
-
-**Not Stored (reconstructed on-the-fly):**
-
-- `kinds` - Reconstructed from `kind_names` and other stored properties
-- `sites` (internal representation) - Rebuilt from stored arrays
-
-## Loading Structures from Database
-
-### How Repository-Based Loading Works
-
-When you load a `StructureDataRepository` from the database, the system reconstructs the structure from both storage locations:
-
-```python
-loaded = orm.load_node(pk)
-# 1. Loads database attributes: cell, pbc, formula, statistics, etc.
-# 2. Loads repository file: properties.npz with arrays
-# 3. Reconstructs sites from arrays using singular_form mappings
-```
-
-#### The `singular_form` Mapping
-
-The `singular_form` metadata is **critical** for reconstructing sites from stored arrays:
-
-**Storage (when saving):**
-```python
-structure = StructureDataRepository(
-    sites=[
-        {'symbol': 'H', 'position': [0,0,0], 'charge': 0.5},
-        {'symbol': 'O', 'position': [0,0,1], 'charge': -1.0},
-    ]
-)
-structure.store()
-
-# Stores as arrays:
-# - positions: [[0,0,0], [0,0,1]]  (in .npz)
-# - charges: [0.5, -1.0]           (in .npz)
-# - symbols: ['H', 'O']            (in DB)
-```
-
-**Loading (when retrieving):**
-```python
-loaded = orm.load_node(pk)
-
-# System needs to know: positions → position, charges → charge, symbols → symbol
-# Uses singular_form metadata from models.py:
-
-@computed_field(json_schema_extra={"singular_form": "position", "store_in": "repository"})
-def positions(self): ...
-
-@computed_field(json_schema_extra={"singular_form": "charge", "store_in": "repository"})
-def charges(self): ...
-
-@computed_field(json_schema_extra={"singular_form": "symbol", "store_in": "db"})
-def symbols(self): ...
-
-# Reconstructs sites:
-# sites[0] = {'position': [0,0,0], 'charge': 0.5, 'symbol': 'H'}
-# sites[1] = {'position': [0,0,1], 'charge': -1.0, 'symbol': 'O'}
-```
-
-**Without `singular_form`:**
-```python
-# ❌ System doesn't know how to map 'charges' array back to site property
-# Result: KeyError when trying to reconstruct sites
-# Your data becomes inaccessible!
-```
-
-#### Complete Example
-
-```python
-# models.py - ALL site-array properties need singular_form
-class ImmutableStructureModel(StructureBaseModel):
-    @computed_field(
-        json_schema_extra={
-            "store_in": "repository",
-            "property_type": "computed",
-            "singular_form": "position"  # positions → position
-        }
-    )
-    @property
-    def positions(self) -> np.ndarray:
-        return np.array([site.position for site in self.sites])
-
-    @computed_field(
-        json_schema_extra={
-            "store_in": "repository",
-            "property_type": "computed",
-            "singular_form": "charge"  # charges → charge
-        }
-    )
-    @property
-    def charges(self) -> np.ndarray:
-        return np.array([site.charge for site in self.sites])
-
-    # Statistics DON'T need singular_form (not site-level)
-    @computed_field(
-        json_schema_extra={
-            "store_in": "db",
-            "property_type": "computed",
-            "statistic": "max"
-        }
-    )
-    @property
-    def max_charge(self) -> float:
-        return float(np.max(self.charges))
-```
-
-## Querying with Different Backends
-
-### Attribute-Based Storage
-
-All properties are queryable:
+### Database Properties are Queryable
 
 ```python
 from aiida.orm import QueryBuilder
@@ -395,288 +111,175 @@ qb = QueryBuilder()
 qb.append(
     StructureData,
     filters={
-        'attributes.formula': 'Si2',
-        'attributes.cell_volume': {'<': 30.0}
+        'attributes.formula': 'H2O',           # ✓ Queryable
+        'attributes.cell_volume': {'<': 30},   # ✓ Queryable
+        'attributes.max_charge': {'>': 1.0},   # ✓ Queryable
     }
 )
 ```
 
-### Repository-Based Storage
+### Repository Properties are NOT Queryable
 
-**IMPORTANT**: Only database-stored properties are queryable. Properties in `.npz` files cannot be queried.
-
-#### Checking Queryable Properties
-
-Use `get_queryable_properties()` or `print_queryable_properties()` to see what can be queried:
+Arrays in `.npz` files cannot be queried:
 
 ```python
-from aiida_atomistic.data.structure.structure import StructureDataRepository
-
-# Get queryable properties programmatically
-props = StructureDataRepository.get_queryable_properties()
-print(props['queryable'])
-# ['cell', 'cell_volume', 'custom', 'dimensionality', 'formula',
-#  'has_vacancies', 'is_alloy', 'kind_names', 'max_charge', ...]
-
-print(props['not_queryable'])
-# ['charges', 'kinds', 'magmoms', 'magnetizations', 'masses', 'positions', 'weights']
-
-# Or print a formatted overview
-StructureDataRepository.print_queryable_properties()
-```
-
-Output:
-```
-═══════════════════════════════════════════════════════════════
-Queryable Properties for StructureDataRepository
-═══════════════════════════════════════════════════════════════
-
-✓ QUERYABLE (stored in database attributes):
-  • cell
-  • cell_volume
-  • custom
-  • dimensionality
-  • formula
-  • has_vacancies
-  • is_alloy
-  • kind_names
-  • max_charge
-  • max_magmom
-  • max_magnetization
-  • min_charge
-  • min_magmom
-  • min_magnetization
-  • n_sites
-  • pbc
-  • symbols
-  • tot_charge
-  • tot_magnetization
-
-✗ NOT QUERYABLE (stored in .npz repository):
-  • charges
-  • magmoms
-  • magnetizations
-  • masses
-  • positions
-  • weights
-
-⚠ NOT QUERYABLE (computed on-the-fly, not stored):
-  • kinds
-```
-
-#### Query Example
-
-```python
-from aiida.orm import QueryBuilder
-from aiida_atomistic.data.structure.structure import StructureDataRepository
-
-qb = QueryBuilder()
 qb.append(
-    StructureDataRepository,
+    StructureData,
     filters={
-        'attributes.formula': 'Si2',           # ✓ Queryable (in DB)
-        'attributes.cell_volume': {'<': 30.0}, # ✓ Queryable (in DB)
-        'attributes.max_charge': {'>': 0.5},   # ✓ Queryable (in DB)
-        # 'attributes.positions': ...          # ✗ Not queryable (in .npz)
+        'attributes.positions': ...  # ✗ Not queryable - stored in .npz
+        'attributes.charges': ...    # ✗ Not queryable - stored in .npz
     }
 )
 ```
 
-### Query Example: Finding Structures
+**Solution**: Query statistical properties stored in the database:
 
 ```python
-# Find all silicon structures with volume < 30 Å³ and high charges
-qb = QueryBuilder()
 qb.append(
-    StructureDataRepository,
+    StructureData,
     filters={
-        'attributes.formula': {'like': 'Si%'},
-        'attributes.cell_volume': {'<': 30.0},
-        'attributes.max_charge': {'>': 0.5},
-    },
-    project=['uuid', 'attributes.formula', 'attributes.cell_volume']
+        'attributes.max_charge': {'>': 1.0, '<=': 2.0},  # ✓ Works
+        'attributes.n_sites': {'>': 10},                  # ✓ Works
+    }
 )
-
-for uuid, formula, volume in qb.all():
-    # Load full structure (including arrays from .npz)
-    structure = load_node(uuid)
-    positions = structure.positions  # Loaded from properties.npz
-    charges = structure.charges      # Loaded from properties.npz
 ```
 
-:::{tip}
-**Query Statistics Instead of Arrays**
+## Adding New Properties (Developer Guide)
 
-Since array properties are not queryable, use the statistical fields:
-- Instead of querying individual charges, use `max_charge`, `min_charge`
-- Instead of querying individual magmoms, use `max_magmom`, `min_magmom`
-- Use `n_sites` to filter by structure size
-- Use `formula`, `is_alloy`, `has_vacancies` for composition queries
-:::
+When adding properties to `aiida-atomistic`, you decide where they're stored.
 
-## Adding Custom Storage Logic
+### Step 1: Add Site Property
 
-### Method 1: Metadata in Models (Recommended)
-
-The recommended way is to update `models.py` with proper metadata:
+In `site.py`:
 
 ```python
-class ImmutableStructureModel(StructureBaseModel):
-    my_property: Optional[np.ndarray] = Field(
+class Site(BaseModel):
+    my_property: t.Optional[float] = Field(
         default=None,
-        json_schema_extra={
-            "store_in": "repository",           # Store in repository
-            "property_type": "global",
-            "description": "My custom array property"
-        }
+        json_schema_extra={"threshold": 1e-4, "default": 0.0}
     )
-
-    @computed_field(json_schema_extra={"store_in": "db", "property_type": "computed"})
-    @property
-    def my_queryable_stat(self) -> float:
-        """Store in database for querying."""
-        if self.my_property is None:
-            return None
-        return float(np.max(self.my_property))
 ```
 
-This approach:
-- ✅ Self-documenting (metadata lives with the field definition)
-- ✅ No subclassing needed
-- ✅ Works for both regular and computed fields
-- ✅ Centralized in models.py
+### Step 2: Add Array Property with Storage Metadata
 
-### Method 2: Override Decision Method
-
-For complex conditional logic based on runtime values:
+In `models.py`:
 
 ```python
-class MyCustomStructure(StructureDataRepository):
-    def _get_storage_target(self, prop_name, value):
-        # Custom logic based on property name or value
-        if prop_name.startswith('large_'):
-            return 'repository'
-        if prop_name.endswith('_metadata'):
-            return 'attributes'
-
-        # For very large arrays, force repository storage
-        if isinstance(value, np.ndarray) and value.nbytes > 1_000_000:  # > 1MB
-            return 'repository'
-
-        # Fall back to default logic
-        return super()._get_storage_target(prop_name, value)
+@computed_field(
+    json_schema_extra={
+        "store_in": "repository",      # ← Choose storage location
+        "singular_form": "my_property" # ← Map array to site field
+    }
+)
+@property
+def my_properties(self) -> np.ndarray:
+    """Array of my_property from all sites."""
+    if all(site.my_property is None for site in self.sites):
+        return None
+    return np.array([
+        site.my_property if site.my_property is not None 
+        else Site.get_default_values()['my_property']
+        for site in self.sites
+    ])
 ```
+
+### Step 3: Add Statistics (Optional, for Querying)
+
+```python
+@computed_field(
+    json_schema_extra={
+        "store_in": "db",  # ← Store in database for querying
+        "statistic": "max"
+    }
+)
+@property
+def max_my_property(self) -> t.Optional[float]:
+    if self.my_properties is None:
+        return None
+    return float(np.max(self.my_properties))
+```
+
+### Choosing Storage Location
+
+**Store in Database (`"db"`)** when:
+
+- Property is small (strings, numbers, flags)
+- You need to query by this property
+- It's metadata for filtering/searching
+
+**Store in Repository (`"repository"`)** when:
+
+- Property is a large array
+- You don't need to query array contents
+- Storage efficiency matters
+
+**Example Guidelines:**
+
+| Property Type | Size | Queryable? | Store In |
+|--------------|------|------------|----------|
+| Formula | String | Yes | Database |
+| Cell volume | Float | Yes | Database |
+| Statistics (max/min) | Float | Yes | Database |
+| Positions array | N×3 floats | No | Repository |
+| Charges array | N floats | No | Repository |
 
 ## Performance Considerations
 
-### Attribute-Based Storage
+**Database Storage:**
 
-**Pros:**
-- Fast queries (everything in database index)
-- Simple mental model
-- No file I/O overhead
+- ✓ Fast queries - everything indexed
+- ✗ Database grows with structure size
 
-**Cons:**
-- Database bloat for large structures
-- Slower database operations with many large structures
-- Memory overhead in PostgreSQL
+**Repository Storage:**
 
-### Repository-Based Storage
+- ✓ Database stays small
+- ✓ Efficient for large structures
+- ✗ Cannot query array contents
 
-**Pros:**
-- Constant database size regardless of structure size
-- Fast queries on metadata (small database)
-- Efficient compression (`.npz` files)
-- Scales to very large structures
+**Recommendations:**
 
-**Cons:**
-- Slight overhead loading full structure (need to read `.npz`)
-- Cannot query array contents directly
-- Two-step access pattern (query metadata, then load arrays)
-
-### Recommendations
-
-| Structure Size | Recommended Backend | Reason |
-|---------------|---------------------|--------|
-| < 100 atoms | Attribute-based | Simple, fast, no overhead |
-| 100-1000 atoms | Either | Depends on query patterns |
-| > 1000 atoms | Repository-based | Prevents database bloat |
-| High-throughput | Repository-based | Better scalability |
-| Query-intensive | Attribute-based | All data queryable |
-
-## Migration Between Backends
-
-### Attribute → Repository
-
-```python
-from aiida_atomistic.data.structure import StructureData
-from aiida_atomistic.data.structure.structure import StructureDataRepository
-
-# Load existing attribute-based structure
-old_structure = load_node('uuid-here')
-
-# Create repository-based version
-new_structure = StructureDataRepository(**old_structure.properties.model_dump())
-new_structure.store()
-```
-
-### Repository → Attribute
-
-```python
-from aiida_atomistic.data.structure.structure import StructureDataRepository
-from aiida_atomistic.data.structure import StructureData
-
-# Load existing repository-based structure
-old_structure = load_node('uuid-here')
-
-# Create attribute-based version
-new_structure = StructureData(**old_structure.properties.model_dump())
-new_structure.store()
-```
+| Structure Size | Notes |
+|---------------|-------|
+| < 100 atoms | Database size usually fine |
+| > 1000 atoms | Repository prevents database bloat |
+| High-throughput | Repository scales better |
 
 ## Technical Details
 
-### NPZ File Format
+### Storage Format
 
-Repository storage uses NumPy's `.npz` format:
+Repository uses NumPy's compressed `.npz` format:
 
 ```python
-import numpy as np
-
-# What's stored in properties.npz
-np.savez_compressed(
-    'properties.npz',
-    positions=positions_array,  # float64, shape (N, 3)
-    charges=charges_array,      # float64, shape (N,)
-    masses=masses_array,        # float64, shape (N,)
-    symbols=symbols_list,       # object array of strings
-    ...
-)
+# What's in properties.npz
+{
+    'positions': np.array([[0,0,0], [1,1,1]]),  # N×3 float64
+    'charges': np.array([1.0, -1.0]),            # N float64
+    'masses': np.array([1.008, 15.999])          # N float64
+}
 ```
 
 ### Caching
 
-Repository arrays are cached after first load:
+Arrays are cached after first load to avoid repeated file I/O:
 
 ```python
-structure = load_node('uuid')
-positions1 = structure.positions  # Loads from .npz, caches result
-positions2 = structure.positions  # Returns cached array (no file I/O)
+structure = orm.load_node(pk)
+pos1 = structure.properties.positions  # Loads from .npz, caches
+pos2 = structure.properties.positions  # Returns cached (no I/O)
 ```
-
-Cache is stored in `self._npz_cache` and cleared on node reload.
 
 ### File Location
 
-Repository files are stored in AiiDA's standard repository structure:
+Files are stored in AiiDA's repository:
 
 ```
-~/.aiida/repository/<profile>/
-  └── node/
-      └── <first_2_uuid_chars>/
-          └── <next_2_uuid_chars>/
-              └── <uuid>/
-                  └── properties.npz
+~/.aiida/repository/<profile>/node/<uuid>/properties.npz
 ```
 
-Managed automatically by AiiDA - no manual file handling needed.
+## Related Documentation
+
+- [Adding New Properties Guide](../dev_guides/dev_adding_properties.md) - Detailed developer guide
+- [Properties Documentation](properties.md) - Overview of all properties
+- [Querying Structures](../how_to/query.md) - Query examples
+- [Custom Properties](../how_to/define_custom.md) - Temporary/experimental properties
