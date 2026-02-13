@@ -268,18 +268,3 @@ structure = orm.load_node(pk)
 pos1 = structure.properties.positions  # Loads from .npz, caches
 pos2 = structure.properties.positions  # Returns cached (no I/O)
 ```
-
-### File Location
-
-Files are stored in AiiDA's repository:
-
-```
-~/.aiida/repository/<profile>/node/<uuid>/properties.npz
-```
-
-## Related Documentation
-
-- [Adding New Properties Guide](../dev_guides/dev_adding_properties.md) - Detailed developer guide
-- [Properties Documentation](properties.md) - Overview of all properties
-- [Querying Structures](../how_to/query.md) - Query examples
-- [Custom Properties](../how_to/define_custom.md) - Temporary/experimental properties
