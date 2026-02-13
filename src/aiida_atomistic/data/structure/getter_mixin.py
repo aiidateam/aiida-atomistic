@@ -100,15 +100,53 @@ class GetterMixin(HubbardGetterMixin):
         """
         return set(_get_computed_properties_from_model(cls._model))
 
-    def get_defined_properties(self, exclude_computed: bool = False):
+    def get_defined_properties(self, exclude_computed: bool = False, exclude_computed_without_singular: bool = True):
         """
-            Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
+        Retrieve the defined properties of the structure.
 
-            Args:
-                exclude_computed (bool): If False, all properties will be returned, including those computed after the initialization (the pydantic computed fields).
-                exclude_defaults (bool): If True, properties with default values will be excluded from the result.
+        Args:
+            exclude_computed (bool): If True, exclude ALL computed fields. Default is False.
+            exclude_computed_without_singular (bool): If True (default), exclude computed fields
+                                                     that don't have a 'singular_form' in their metadata.
+                                                     These are pure calculated properties like formula,
+                                                     cell_volume, is_alloy, etc. that are derived from
+                                                     other properties and not user-defined.
+                                                     If False, include all computed fields (unless
+                                                     exclude_computed=True).
+                                                     Used for the `check_plugin_unsupported_props` function in utils.py
+
+        Returns:
+            set: Set of property names that are defined (not None) in this structure.
+
+        Examples:
+            >>> structure.get_defined_properties()
+            # Returns: base properties + site arrays (charges, masses, etc.)
+            # Excludes: formula, cell_volume, is_alloy, etc.
+
+            >>> structure.get_defined_properties(exclude_computed_without_singular=False)
+            # Returns: base properties + ALL computed fields (including formula, etc.)
+
+            >>> structure.get_defined_properties(exclude_computed=True)
+            # Returns: only base properties (no computed fields at all)
         """
-        return set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys()).difference(set(self._model.model_computed_fields.keys()) if exclude_computed else set())
+        # Get all properties that are set (not None)
+        defined = set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys())
+
+        if exclude_computed:
+            # Exclude ALL computed fields
+            defined = defined.difference(set(self._model.model_computed_fields.keys()))
+        elif exclude_computed_without_singular:
+            # Only exclude computed fields WITHOUT singular_form
+            # (Keep computed fields WITH singular_form, like charges, masses, etc.)
+            computed_without_singular = set()
+            for field_name, field_info in self._model.model_computed_fields.items():
+                extra = getattr(field_info, 'json_schema_extra', None) or {}
+                if 'singular_form' not in extra:
+                    computed_without_singular.add(field_name)
+            defined = defined.difference(computed_without_singular)
+        # else: include all computed fields (no filtering)
+
+        return defined
 
 
     def get_kind_names(self):

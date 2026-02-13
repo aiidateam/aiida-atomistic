@@ -914,7 +914,7 @@ def check_plugin_unsupported_props(structure, plugin_properties: set) -> set:
     :rtype: set
     """
 
-    defined_properties = structure.get_defined_properties(exclude_computed=True)
+    defined_properties = structure.get_defined_properties(exclude_computed_without_singular=True)
     return defined_properties.difference(plugin_properties)
 
 
