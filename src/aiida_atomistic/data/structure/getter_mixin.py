@@ -10,6 +10,7 @@ from aiida_atomistic.data.structure.site import Site, FrozenSite
 from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
 )
+from aiida_atomistic.data.structure.utils import _get_computed_properties_from_model, _dimensionality_label
 
 try:
     import ase  # noqa: F401
@@ -44,11 +45,6 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
-_DEFAULT_THRESHOLDS = {
-            "charges": 0.1,
-            "masses": 1e-4,
-            "magmoms": 1e-4, # _MAGMOM_THRESHOLD
-        }
 
 class GetterMixin(HubbardGetterMixin):
 
@@ -102,19 +98,56 @@ class GetterMixin(HubbardGetterMixin):
         Get a dictionary of computed properties that can be set
         for this structure.
         """
-        structure_fields = set(cls._model.model_computed_fields.keys())
+        return set(_get_computed_properties_from_model(cls._model))
 
-        return structure_fields
-
-    def get_defined_properties(self, exclude_computed: bool = False):
+    def get_defined_properties(self, exclude_computed: bool = False, exclude_computed_without_singular: bool = True):
         """
-            Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
+        Retrieve the defined properties of the structure.
 
-            Args:
-                exclude_computed (bool): If False, all properties will be returned, including those computed after the initialization (the pydantic computed fields).
-                exclude_defaults (bool): If True, properties with default values will be excluded from the result.
+        Args:
+            exclude_computed (bool): If True, exclude ALL computed fields. Default is False.
+            exclude_computed_without_singular (bool): If True (default), exclude computed fields
+                                                     that don't have a 'singular_form' in their metadata.
+                                                     These are pure calculated properties like formula,
+                                                     cell_volume, is_alloy, etc. that are derived from
+                                                     other properties and not user-defined.
+                                                     If False, include all computed fields (unless
+                                                     exclude_computed=True).
+                                                     Used for the `check_plugin_unsupported_props` function in utils.py
+
+        Returns:
+            set: Set of property names that are defined (not None) in this structure.
+
+        Examples:
+            >>> structure.get_defined_properties()
+            # Returns: base properties + site arrays (charges, masses, etc.)
+            # Excludes: formula, cell_volume, is_alloy, etc.
+
+            >>> structure.get_defined_properties(exclude_computed_without_singular=False)
+            # Returns: base properties + ALL computed fields (including formula, etc.)
+
+            >>> structure.get_defined_properties(exclude_computed=True)
+            # Returns: only base properties (no computed fields at all)
         """
-        return set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys()).difference(set(self._model.model_computed_fields.keys()) if exclude_computed else set())
+        # Get all properties that are set (not None)
+        defined = set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys())
+
+        if exclude_computed:
+            # Exclude ALL computed fields
+            defined = defined.difference(set(self._model.model_computed_fields.keys()))
+        elif exclude_computed_without_singular:
+            # Only exclude computed fields WITHOUT singular_form
+            # (Keep computed fields WITH singular_form, like charges, masses, etc.)
+            computed_without_singular = set()
+            for field_name, field_info in self._model.model_computed_fields.items():
+                extra = getattr(field_info, 'json_schema_extra', None) or {}
+                if 'singular_form' not in extra:
+                    computed_without_singular.add(field_name)
+            defined = defined.difference(computed_without_singular)
+        # else: include all computed fields (no filtering)
+
+        return defined
+
 
 
     def get_kind_names(self):
@@ -133,11 +166,17 @@ class GetterMixin(HubbardGetterMixin):
     def is_collinear(self):
         # if not magmoms, is can be collinear if magnetizations are provided (just quantum number)
         # if magmoms, we check that the rank of the magmoms matrix is one (if not, it is not collinear)
-        if self.properties.magmoms is None:
-            return False
         if self.properties.magnetizations is not None:
             return True
-        return np.linalg.matrix_rank(self.properties.magmoms) == 1
+        if self.properties.magmoms is None:
+            return False
+        # Use SVD-based rank calculation for better numpy version compatibility
+        magmoms_array = np.array(self.properties.magmoms)
+        # Calculate rank using singular value decomposition
+        tol = np.finfo(magmoms_array.dtype).eps * max(magmoms_array.shape)
+        s = np.linalg.svd(magmoms_array, compute_uv=False)
+        rank = np.sum(s > tol * s[0])
+        return rank == 1
 
 
     # initialization methods
@@ -232,14 +271,14 @@ class GetterMixin(HubbardGetterMixin):
             of earlier versions may cause errors).
         """
         box = [
-            max(x.coords.tolist()[0] for x in mol.properties.sites)
-            - min(x.coords.tolist()[0] for x in mol.properties.sites)
+            max(x.coords.tolist()[0] for x in mol.sites)
+            - min(x.coords.tolist()[0] for x in mol.sites)
             + 2 * margin,
-            max(x.coords.tolist()[1] for x in mol.properties.sites)
-            - min(x.coords.tolist()[1] for x in mol.properties.sites)
+            max(x.coords.tolist()[1] for x in mol.sites)
+            - min(x.coords.tolist()[1] for x in mol.sites)
             + 2 * margin,
-            max(x.coords.tolist()[2] for x in mol.properties.sites)
-            - min(x.coords.tolist()[2] for x in mol.properties.sites)
+            max(x.coords.tolist()[2] for x in mol.sites)
+            - min(x.coords.tolist()[2] for x in mol.sites)
             + 2 * margin,
         ]
         structure = cls._from_pymatgen_structure(mol.get_boxed_structure(*box))
@@ -410,7 +449,8 @@ class GetterMixin(HubbardGetterMixin):
 
     def to_dict(self):
             """
-            Convert the structure to a dictionary representation.
+            Convert the structure to a dictionary representation, ready to be used as input for the StructureBuilder or for serialization.
+            This is why it excludes computed fields, unsets and None: to avoid including properties that are not user-defined.
 
             :return: The structure as a dictionary.
             :rtype: dict
@@ -446,7 +486,7 @@ class GetterMixin(HubbardGetterMixin):
         :param self: the StructureData node
         :return: retsrt: the description string
         """
-        return self.get_formula(mode="hill_compact")
+        return self.properties.formula
 
     def get_composition(self, mode="full"):
         """Returns the chemical composition of this structure as a dictionary,
@@ -611,7 +651,7 @@ class GetterMixin(HubbardGetterMixin):
             # I checked above that it is not an alloy, therefore I take the
             # first symbol
             return_string += (
-                f"{_atomic_numbers[site.symbols]} "
+                f"{_atomic_numbers[site.symbol]} "
             )
             return_string += "%18.10f %18.10f %18.10f\n" % tuple(site.position)
         return return_string.encode("utf-8"), {}
@@ -633,7 +673,7 @@ class GetterMixin(HubbardGetterMixin):
         supercell_factors = [1, 1, 1]
 
         # Get cell vectors and atomic position
-        lattice_vectors = np.array(self.base.attributes.get("cell"))
+        lattice_vectors = np.array(self.properties.cell)
         base_sites = self.sites
 
         start1 = -int(supercell_factors[0] / 2)
@@ -662,15 +702,15 @@ class GetterMixin(HubbardGetterMixin):
                     - center
                 ).tolist()
 
-                kind_name = base_site.kinds
-                kind_string = base_site.symbols
+                kind_name = base_site.kind_name
+                kind_string = base_site.symbol
 
                 atoms_json.append(
                     {
                         "l": kind_string,
-                        "x": np.array(base_site.positions[0]) + shift[0],
-                        "y": np.array(base_site.positions[1]) + shift[1],
-                        "z": np.array(base_site.positions[2]) + shift[2],
+                        "x": np.array(base_site.position[0]) + shift[0],
+                        "y": np.array(base_site.position[1]) + shift[1],
+                        "z": np.array(base_site.position[2]) + shift[2],
                         "atomic_elements_html": atom_kinds_to_html(kind_string),
                     }
                 )
@@ -726,7 +766,7 @@ class GetterMixin(HubbardGetterMixin):
             # first symbol
             return_list.append(
                 "{:6s} {:18.10f} {:18.10f} {:18.10f}".format(
-                    site.symbols,
+                    site.symbol,
                     site.position[0],
                     site.position[1],
                     site.position[2],
@@ -752,7 +792,7 @@ class GetterMixin(HubbardGetterMixin):
         self.properties.pbc = (False, False, False)
 
         for sym, position in atoms:
-            self.add_atom(atom_info={'symbols':sym, 'positions':position})
+            self.append_atom(atom={'symbol':sym, 'position':position})
 
     def _adjust_default_cell(
         self, vacuum_factor=1.0, vacuum_addition=10.0, pbc=(False, False, False)
@@ -980,23 +1020,31 @@ class GetterMixin(HubbardGetterMixin):
         additional_kwargs = {}
 
         for site in self.properties.sites:
-            if hasattr(site, "weights"):
-                weight = site.weights
+            if hasattr(site, "weight") and site.weight is not None:
+                weight = site.weight
             else:
                 weight = 1
-            species.append({site.symbols: weight})
+            species.append({site.symbol: weight})
 
-        positions = [list(site.positions) for site in self.properties.sites]
+        positions = [list(site.position) for site in self.properties.sites]
         mol =  Molecule(species, positions)
 
-        additional_kwargs["site_properties"] = {
-                "kinds": self.properties.kind_names,
-                "charge": self.properties.charges,
-                "magmom": self.properties.magmoms
-            }
+        # Build site properties as lists (required by pymatgen)
+        site_properties = {}
+        if self.properties.kind_names is not None:
+            site_properties["kinds"] = self.properties.kind_names
+        if self.properties.charges is not None:
+            site_properties["charge"] = self.properties.charges
+        if self.properties.magmoms is not None:
+            site_properties["magmom"] = self.properties.magmoms
 
-        for prop,value in additional_kwargs.items():
-            mol.add_site_property(prop, value)
+
+        # Add each property separately (each must be a list of length = number of sites)
+        for prop, value in site_properties.items():
+            if value is not None:
+                mol.add_site_property(prop, value)
+
+        return mol
 
     def _get_dimensionality(
         self,
@@ -1018,7 +1066,7 @@ class GetterMixin(HubbardGetterMixin):
         dim = len(pbc[pbc])
 
         retdict["dim"] = dim
-        retdict["label"] = self._dimensionality_label[dim]
+        retdict["label"] = _dimensionality_label[dim]
 
         if dim not in (0, 1, 2, 3):
             raise ValueError(f"Dimensionality {dim} must be one of 0, 1, 2, 3")

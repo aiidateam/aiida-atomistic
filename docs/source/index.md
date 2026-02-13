@@ -27,6 +27,13 @@ how_to/index
 
 ```{toctree}
 :hidden: true
+:caption: Dev guides
+
+dev_guides/index
+```
+
+```{toctree}
+:hidden: true
 :caption: In-Depth Guides
 
 in_depth/index

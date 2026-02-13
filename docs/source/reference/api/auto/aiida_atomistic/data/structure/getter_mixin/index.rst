@@ -30,7 +30,6 @@ Attributes
    aiida_atomistic.data.structure.getter_mixin._valid_symbols
    aiida_atomistic.data.structure.getter_mixin._atomic_masses
    aiida_atomistic.data.structure.getter_mixin._atomic_numbers
-   aiida_atomistic.data.structure.getter_mixin._DEFAULT_THRESHOLDS
 
 
 .. py:data:: has_ase
@@ -66,10 +65,6 @@ Attributes
 
 
 .. py:data:: _atomic_numbers
-
-
-
-.. py:data:: _DEFAULT_THRESHOLDS
 
 
 
@@ -116,13 +111,34 @@ Attributes
       for this structure.
 
 
-   .. py:method:: get_defined_properties(exclude_computed: bool = False)
+   .. py:method:: get_defined_properties(exclude_computed: bool = False, exclude_computed_without_singular: bool = True)
 
-      Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
+      Retrieve the defined properties of the structure.
 
       Args:
-          exclude_computed (bool): If False, all properties will be returned, including those computed after the initialization (the pydantic computed fields).
-          exclude_defaults (bool): If True, properties with default values will be excluded from the result.
+          exclude_computed (bool): If True, exclude ALL computed fields. Default is False.
+          exclude_computed_without_singular (bool): If True (default), exclude computed fields
+                                                   that don't have a 'singular_form' in their metadata.
+                                                   These are pure calculated properties like formula,
+                                                   cell_volume, is_alloy, etc. that are derived from
+                                                   other properties and not user-defined.
+                                                   If False, include all computed fields (unless
+                                                   exclude_computed=True).
+                                                   Used for the `check_plugin_unsupported_props` function in utils.py
+
+      Returns:
+          set: Set of property names that are defined (not None) in this structure.
+
+      Examples:
+          >>> structure.get_defined_properties()
+          # Returns: base properties + site arrays (charges, masses, etc.)
+          # Excludes: formula, cell_volume, is_alloy, etc.
+
+          >>> structure.get_defined_properties(exclude_computed_without_singular=False)
+          # Returns: base properties + ALL computed fields (including formula, etc.)
+
+          >>> structure.get_defined_properties(exclude_computed=True)
+          # Returns: only base properties (no computed fields at all)
 
 
    .. py:method:: get_kind_names()

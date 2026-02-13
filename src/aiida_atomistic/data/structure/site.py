@@ -108,25 +108,28 @@ class Site(BaseModel):
     )
     mass: t.Optional[float] = Field(
         gt=0,
-        json_schema_extra={"threshold": 1e-3}
+        json_schema_extra={"threshold": 1e-3, "default": 0}
     )
     charge: t.Optional[float] = Field(
         default=None,
-        json_schema_extra={"threshold": 1e-2}
+        json_schema_extra={"threshold": 1e-2, "default": 0}
     )
     magmom: t.Optional[NumpyArray] = Field(
         default=None,
-        json_schema_extra={"threshold": 1e-2}
+        json_schema_extra={"threshold": 1e-2, "default": np.array([0, 0, 0])}
     )
     magnetization: t.Optional[float] = Field(
         default=None,
-        json_schema_extra={"threshold": 1e-2}
+        json_schema_extra={"threshold": 1e-2, "default": 0}
     )
     weight: t.Optional[t.Tuple[float, ...]] = Field(
         default=None,
-        json_schema_extra={"threshold": 1e-2}
+        json_schema_extra={"threshold": 1e-2, "default": (1,)}
     )
-    kind_name: t.Optional[str] = Field(default=None)
+    kind_name: t.Optional[str] = Field(
+        default=None,
+        json_schema_extra={"default": ""}
+    )
 
 
     @field_validator('position', 'magmom', mode='before') # maybe instead of the explicit list, I can use model_fields.keys()
@@ -244,6 +247,25 @@ class Site(BaseModel):
         return thresholds
 
     @classmethod
+    def get_default_values(cls) -> dict:
+        """Extract default values from field metadata.
+
+        Returns a dictionary mapping property names to their default values
+        as defined in the json_schema_extra metadata of each field.
+
+        :return: dictionary with property names as keys and their default values
+
+        Example:
+            >>> Site.get_default_values()
+            {'mass': 0, 'charge': 0, 'magmom': array([0, 0, 0]), 'magnetization': 0, 'weight': (1,), 'kind_name': ''}
+        """
+        defaults = {}
+        for name, field in cls.model_fields.items():
+            if field.json_schema_extra and "default" in field.json_schema_extra:
+                defaults[name] = field.json_schema_extra["default"]
+        return defaults
+
+    @classmethod
     def from_ase_atom(
         cls,
         aseatom: t.Optional[ase.Atom] = None,
@@ -358,7 +380,8 @@ class Site(BaseModel):
         atom_dict = self.model_dump()
         atom_dict["symbol"] = atom_dict.pop("symbol", None)
         atom_dict["position"] = atom_dict.pop("position", None)
-        atom_dict["magmom"] = atom_dict.pop("magmom", atom_dict.pop("magnetization", None))
+        magmom = atom_dict.pop("magmom", None)
+        atom_dict["magmom"] = atom_dict.pop("magnetization", None) if magmom is None else magmom
         atom_dict["momentum"] = atom_dict.pop("momentum", None)
         atom_dict["charge"] = atom_dict.pop("charge", None)
         atom_dict["mass"] = atom_dict.pop("mass", None)

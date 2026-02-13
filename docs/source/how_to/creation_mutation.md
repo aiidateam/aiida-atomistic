@@ -68,6 +68,34 @@ Number of sites: 2
 Some of the most common properties like sites, cell, pbc, kinds, formula (and so on) are directly accessible as attributes of the object, without passing throught the `properties` attribute. For example, you can access sites via `structure.sites`.
 :::
 
+#### Alloys and vacancies
+
+To create an alloy, you can provide a list of elements as site symbol, and corresponding weights:
+
+```python
+sites = [
+    {
+        "symbol": ["Cu", "Zn"],
+        "position": [0.0, 0.0, 0.0],
+        "mass": 1.008,
+        "weight": (0.6, 0.6)
+    }
+]
+```
+
+For a vacancy, the site should have one element, but a weight lower than 1:
+
+```python
+sites = [
+    {
+        "symbol": "Cu",
+        "position": [0.0, 0.0, 0.0],
+        "mass": 1.008,
+        "weight": (0.6,)
+    }
+]
+```
+
 ### From ASE
 
 Convert ASE Atoms objects to StructureData:

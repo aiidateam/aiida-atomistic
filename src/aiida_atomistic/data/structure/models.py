@@ -9,11 +9,9 @@ from aiida_atomistic.data.structure.kind import Kind
 
 from aiida_quantumespresso.common.hubbard import Hubbard
 
-from aiida_atomistic.data.structure.constants import (
-    _DEFAULT_CELL,
-    _DEFAULT_PBC,
-    _DEFAULT_VALUES,
-)
+
+_DEFAULT_CELL = [[0.0, 0.0, 0.0]] * 3
+_DEFAULT_PBC = [True, True, True]
 
 class StructureBaseModel(BaseModel):
     """
@@ -133,7 +131,7 @@ class StructureBaseModel(BaseModel):
         return v
 
     # computed properties
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @computed_field(json_schema_extra={"store_in": "db"})
     @property
     def cell_volume(self) -> float:
         """
@@ -145,7 +143,7 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import calc_cell_volume
         return calc_cell_volume(self.cell)
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @computed_field(json_schema_extra={"store_in": "db"})
     @property
     def dimensionality(self) -> dict:
         """
@@ -157,7 +155,7 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import get_dimensionality
         return get_dimensionality(self.pbc, self.cell)
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @computed_field(json_schema_extra={"store_in": "db"})
     @property
     def formula(self) -> str:
         """
@@ -169,7 +167,7 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import get_formula
         return get_formula(self.sites)
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @computed_field(json_schema_extra={"store_in": "db"})
     @property
     def is_alloy(self) -> dict:
         """
@@ -177,7 +175,7 @@ class StructureBaseModel(BaseModel):
         """
         return  any(_.is_alloy for _ in self.sites)
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @computed_field(json_schema_extra={"store_in": "db"})
     @property
     def has_vacancies(self) -> bool:
         """
@@ -186,7 +184,7 @@ class StructureBaseModel(BaseModel):
         return any(_.has_vacancies for _ in self.sites)
 
     # HERE I AM DEFINING EXPLICITLY THE COMPUTED FIELDS LIKE POSITIONS AND KINDS, but maybe we can do it with some metaclass.
-    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "position"})
+    @computed_field(json_schema_extra={"store_in": "repository","singular_form": "position"})
     @property
     def positions(self) -> np.ndarray:
         """
@@ -199,7 +197,7 @@ class StructureBaseModel(BaseModel):
             return None
         return np.array([site.position for site in self.sites])
 
-    @computed_field(json_schema_extra={"store_in": "db", "property_type": "computed", "singular_form": "kind_name"})
+    @computed_field(json_schema_extra={"store_in": "db","singular_form": "kind_name"})
     @property
     def kind_names(self) -> t.List[str]:
         """
@@ -212,7 +210,7 @@ class StructureBaseModel(BaseModel):
             return None
         return FrozenList([site.kind_name if site.kind_name is not None else site.symbol for site in self.sites])
 
-    @computed_field(json_schema_extra={"store_in": "db", "property_type": "computed", "singular_form": "symbol"})
+    @computed_field(json_schema_extra={"store_in": "db","singular_form": "symbol"})
     @property
     def symbols(self) -> t.List[str]:
         """
@@ -225,7 +223,7 @@ class StructureBaseModel(BaseModel):
             return None
         return FrozenList([site.symbol for site in self.sites])
 
-    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "mass"})
+    @computed_field(json_schema_extra={"store_in": "repository","singular_form": "mass"})
     @property
     def masses(self) -> np.ndarray:
         """
@@ -238,7 +236,7 @@ class StructureBaseModel(BaseModel):
             return None
         return np.array([site.mass for site in self.sites])
 
-    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "charge"})
+    @computed_field(json_schema_extra={"store_in": "repository","singular_form": "charge"})
     @property
     def charges(self) -> np.ndarray:
         """
@@ -249,9 +247,10 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.charge is None for site in self.sites):
             return None
-        return np.array([site.charge if site.charge else _DEFAULT_VALUES['charge'] for site in self.sites])
+        default_charge = Site.get_default_values().get('charge')
+        return np.array([site.charge if site.charge else default_charge for site in self.sites])
 
-    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "magmom"})
+    @computed_field(json_schema_extra={"store_in": "repository","singular_form": "magmom"})
     @property
     def magmoms(self) -> np.ndarray:
         """
@@ -264,9 +263,10 @@ class StructureBaseModel(BaseModel):
         # if all none, return None, otherwise return array with default values if None
         if all(site.magmom is None for site in self.sites):
             return None
-        return np.array([site.magmom if site.magmom is not None else _DEFAULT_VALUES['magmom'] for site in self.sites])
+        default_magmom = Site.get_default_values().get('magmom')
+        return np.array([site.magmom if site.magmom is not None else default_magmom for site in self.sites])
 
-    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "magnetization"})
+    @computed_field(json_schema_extra={"store_in": "repository","singular_form": "magnetization"})
     @property
     def magnetizations(self) -> np.ndarray:
         """
@@ -277,9 +277,10 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.magnetization is None for site in self.sites):
             return None
-        return np.array([site.magnetization if site.magnetization is not None else _DEFAULT_VALUES['magnetization'] for site in self.sites])
+        default_magnetization = Site.get_default_values().get('magnetization')
+        return np.array([site.magnetization if site.magnetization is not None else default_magnetization for site in self.sites])
 
-    @computed_field(json_schema_extra={"store_in": "repository", "property_type": "computed", "singular_form": "weight"})
+    @computed_field(json_schema_extra={"store_in": "repository","singular_form": "weight"})
     @property
     def weights(self) -> t.List[t.Tuple[float, ...]]:
         """
@@ -290,10 +291,11 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.weight is None for site in self.sites):
             return None
-        return FrozenList([site.weight if site.weight is not None else _DEFAULT_VALUES['weight'] for site in self.sites])
+        default_weight = Site.get_default_values().get('weight')
+        return FrozenList([site.weight if site.weight is not None else default_weight for site in self.sites])
 
 
-    @computed_field(json_schema_extra={"property_type": "computed"})
+    @computed_field(json_schema_extra={})
     @property
     def kinds(self) -> list[Kind]:
         """
@@ -338,7 +340,7 @@ class StructureBaseModel(BaseModel):
         return FrozenList(kinds_list)
 
     # Statistical computed fields for querying
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "max"})
+    @computed_field(json_schema_extra={"store_in": "db", "statistic": "max"})
     @property
     def max_charge(self) -> t.Optional[float]:
         """Maximum charge value across all sites."""
@@ -346,7 +348,7 @@ class StructureBaseModel(BaseModel):
             return None
         return float(np.max(self.charges))
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "min"})
+    @computed_field(json_schema_extra={"store_in": "db", "statistic": "min"})
     @property
     def min_charge(self) -> t.Optional[float]:
         """Minimum charge value across all sites."""
@@ -354,7 +356,7 @@ class StructureBaseModel(BaseModel):
             return None
         return float(np.min(self.charges))
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "max"})
+    @computed_field(json_schema_extra={"store_in": "db", "statistic": "max"})
     @property
     def max_magmom(self) -> t.Optional[float]:
         """Maximum magnetic moment magnitude across all sites."""
@@ -362,7 +364,7 @@ class StructureBaseModel(BaseModel):
             return None
         return float(np.max(np.linalg.norm(self.magmoms, axis=1)))
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "min"})
+    @computed_field(json_schema_extra={"store_in": "db", "statistic": "min"})
     @property
     def min_magmom(self) -> t.Optional[float]:
         """Minimum magnetic moment magnitude across all sites."""
@@ -370,7 +372,7 @@ class StructureBaseModel(BaseModel):
             return None
         return float(np.min(np.linalg.norm(self.magmoms, axis=1)))
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "max"})
+    @computed_field(json_schema_extra={"store_in": "db", "statistic": "max"})
     @property
     def max_magnetization(self) -> t.Optional[float]:
         """Maximum magnetization value across all sites."""
@@ -378,7 +380,7 @@ class StructureBaseModel(BaseModel):
             return None
         return float(np.max(self.magnetizations))
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db", "statistic": "min"})
+    @computed_field(json_schema_extra={"store_in": "db", "statistic": "min"})
     @property
     def min_magnetization(self) -> t.Optional[float]:
         """Minimum magnetization value across all sites."""
@@ -386,7 +388,7 @@ class StructureBaseModel(BaseModel):
             return None
         return float(np.min(self.magnetizations))
 
-    @computed_field(json_schema_extra={"property_type": "computed", "store_in": "db"})
+    @computed_field(json_schema_extra={"store_in": "db"})
     @property
     def n_sites(self) -> int:
         """Total number of sites in the structure."""

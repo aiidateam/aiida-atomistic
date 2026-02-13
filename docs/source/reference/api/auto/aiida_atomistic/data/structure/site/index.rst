@@ -195,6 +195,21 @@ Attributes
           {'position': 1e-06, 'mass': 0.001, 'charge': 0.0001, 'magmom': 0.01, 'magnetization': 0.01, 'weight': 0.0001}
 
 
+   .. py:method:: get_default_values() -> dict
+      :classmethod:
+
+      Extract default values from field metadata.
+
+      Returns a dictionary mapping property names to their default values
+      as defined in the json_schema_extra metadata of each field.
+
+      :return: dictionary with property names as keys and their default values
+
+      Example:
+          >>> Site.get_default_values()
+          {'mass': 0, 'charge': 0, 'magmom': array([0, 0, 0]), 'magnetization': 0, 'weight': (1,), 'kind_name': ''}
+
+
    .. py:method:: from_ase_atom(aseatom: Optional[ase.Atom] = None, tag_to_kind_name: bool = True, **kwargs) -> dict
       :classmethod:
 

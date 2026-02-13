@@ -10,7 +10,7 @@ from scipy.spatial import cKDTree
 from aiida.common.constants import elements
 from aiida.common.exceptions import UnsupportedSpeciesError
 
-from .constants import _atomic_masses, _CONVERSION_PLURAL_SINGULAR
+from .constants import _atomic_masses
 
 try:
     import ase  # noqa: F401
@@ -45,13 +45,13 @@ def _get_global_properties_from_model(model_class):
     # Check regular fields
     for field_name, field_info in model_class.model_fields.items():
         extra = field_info.json_schema_extra or {}
-        if extra.get("property_type") == "global":
+        if extra.get("property_type", "") == "global":
             global_props.append(field_name)
 
     # Check computed fields
     for field_name, computed_field_info in model_class.model_computed_fields.items():
         extra = getattr(computed_field_info, 'json_schema_extra', None) or {}
-        if extra.get("property_type") == "global":
+        if extra.get("property_type", "") == "global":
             global_props.append(field_name)
 
     return global_props
@@ -914,7 +914,7 @@ def check_plugin_unsupported_props(structure, plugin_properties: set) -> set:
     :rtype: set
     """
 
-    defined_properties = structure.get_defined_properties(exclude_computed=True)
+    defined_properties = structure.get_defined_properties(exclude_computed_without_singular=True)
     return defined_properties.difference(plugin_properties)
 
 

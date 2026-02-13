@@ -33,3 +33,25 @@ In the latter case, if `structure.properties.custom` is already defined, it will
 
 To delete a set of defined custom properties, use the `remove_custom` method, passing as input a list of keys (strings). To remove the entire custom dictionary, you
 can call the same method without specifying any input parameter.
+
+### When to Use Custom Properties
+
+Use custom properties when:
+- Your code has special parameters that are structure-related but not standard
+- You need to pass code-specific data that affects the calculation
+- The property will be used in the simulation
+
+### When NOT to Use Custom Properties
+
+Don't use custom properties for:
+- Metadata or annotations
+- Information not used in the calculation
+- Experimental context or provenance
+
+For these cases, use AiiDA extras instead:
+
+```python
+structure.base.extras.set("experimental_source", "XRD measurement")
+structure.base.extras.set("measurement_date", "2025-11-03")
+structure.base.extras.set("notes", "Sample prepared at 500K")
+```
