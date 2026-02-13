@@ -413,6 +413,9 @@ class StructureData(Data, GetterMixin):
     def to_builder(self) -> 'StructureBuilder':
         """Convert to a mutable StructureBuilder."""
         return StructureBuilder(**self.to_dict())
+    
+    def get_value(self) -> 'StructureBuilder':
+        return self.to_builder()
 
     def __repr__(self) -> str:
         """Return a concise string representation of the structure."""
