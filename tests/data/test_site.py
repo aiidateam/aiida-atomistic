@@ -313,3 +313,341 @@ class TestSiteConversion:
 
         assert site.charge == 1.0
         assert site.kind_name == "Cu1"
+
+    def test_from_ase_atom_with_kwargs_raises(self):
+        """Test that passing both aseatom and kwargs raises error."""
+        pytest.importorskip("ase")
+        from ase import Atom
+
+        ase_atom = Atom("Cu", position=[0.0, 0.0, 0.0])
+
+        with pytest.raises(ValueError, match="If you pass 'aseatom'"):
+            Site.from_ase_atom(ase_atom, charge=1.0)
+
+    def test_from_ase_atom_without_tag_to_kind_name(self):
+        """Test conversion from ASE Atom without tag_to_kind_name."""
+        pytest.importorskip("ase")
+        from ase import Atom
+
+        ase_atom = Atom("Cu", position=[0.0, 0.0, 0.0], tag=1)
+        site = Site.from_ase_atom(ase_atom, tag_to_kind_name=False)
+
+        assert site.symbol == "Cu"
+        assert site.kind_name is None or site.kind_name == ""
+
+    def test_from_ase_atom_with_scalar_magmom(self):
+        """Test conversion from ASE Atom with scalar magnetization."""
+        pytest.importorskip("ase")
+        from ase import Atom
+
+        ase_atom = Atom("Fe", position=[0.0, 0.0, 0.0], magmom=2.2)
+        site = Site.from_ase_atom(ase_atom)
+
+        assert site.magmom == 2.2
+
+    def test_from_ase_atom_with_zero_charge(self):
+        """Test that zero charge is not set."""
+        pytest.importorskip("ase")
+        from ase import Atom
+
+        ase_atom = Atom("Cu", position=[0.0, 0.0, 0.0], charge=0.0)
+        site = Site.from_ase_atom(ase_atom)
+
+        assert site.charge is None
+
+    def test_from_ase_atom_with_zero_magmom(self):
+        """Test that zero magmom is not set."""
+        pytest.importorskip("ase")
+        from ase import Atom
+
+        ase_atom = Atom("Fe", position=[0.0, 0.0, 0.0], magmom=0.0)
+        site = Site.from_ase_atom(ase_atom)
+
+        assert site.magnetization is None
+
+    def test_from_ase_atom_with_zero_vector_magmom(self):
+        """Test that zero vector magmom is not set."""
+        pytest.importorskip("ase")
+        from ase import Atom
+
+        ase_atom = Atom("Fe", position=[0.0, 0.0, 0.0], magmom=[0.0, 0.0, 0.0])
+        site = Site.from_ase_atom(ase_atom)
+
+        assert site.magmom is None
+
+    def test_from_kwargs_only(self):
+        """Test from_ase_atom with kwargs only (no aseatom)."""
+        site = Site.from_ase_atom(symbol="Cu", position=[1.0, 2.0, 3.0], charge=1.0)
+
+        assert site.symbol == "Cu"
+        assert np.allclose(site.position, [1.0, 2.0, 3.0])
+        assert site.charge == 1.0
+
+    def test_to_ase_with_magnetization(self):
+        """Test conversion to ASE with magnetization instead of magmom."""
+        pytest.importorskip("ase")
+
+        site = Site(
+            symbol="Fe",
+            position=[0.0, 0.0, 0.0],
+            magnetization=2.5,
+        )
+
+        ase_atom = site.to_ase()
+
+        assert ase_atom.symbol == "Fe"
+        assert ase_atom.magmom == 2.5
+
+    def test_to_ase_with_tag_from_kind_name(self):
+        """Test conversion to ASE with tag extracted from kind_name."""
+        pytest.importorskip("ase")
+
+        site = Site(
+            symbol="Cu",
+            position=[0.0, 0.0, 0.0],
+            kind_name="Cu2",
+        )
+
+        ase_atom = site.to_ase()
+
+        assert ase_atom.tag == 2
+
+    def test_to_ase_with_kind_name_no_tag(self):
+        """Test conversion to ASE with kind_name equal to symbol."""
+        pytest.importorskip("ase")
+
+        site = Site(
+            symbol="Cu",
+            position=[0.0, 0.0, 0.0],
+            kind_name="Cu",
+        )
+
+        ase_atom = site.to_ase()
+
+        assert ase_atom.tag == 0
+
+
+class TestSiteProperties:
+    """Test Site property methods and computed properties."""
+
+    def test_alloy_list_single_element(self):
+        """Test alloy_list property for single element."""
+        site = Site(symbol="Cu", position=[0.0, 0.0, 0.0])
+
+        # For non-alloy, alloy_list should return list with one element
+        alloy_list = site.alloy_list
+        assert alloy_list == ["Cu"]
+
+    def test_alloy_list_multiple_elements(self):
+        """Test alloy_list property for alloy."""
+        site = Site(
+            symbol="CuZn",  # String format for alloy
+            position=[0.0, 0.0, 0.0],
+            weight=(0.5, 0.5),
+        )
+
+        alloy_list = site.alloy_list
+        assert "Cu" in alloy_list
+        assert "Zn" in alloy_list
+
+    def test_has_vacancies_true(self):
+        """Test has_vacancies property when sum < 1."""
+        site = Site(
+            symbol=["Cu", "Zn"],
+            position=[0.0, 0.0, 0.0],
+            weight=(0.4, 0.4),  # Sum = 0.8 < 1.0
+        )
+
+        assert site.has_vacancies is True
+
+    def test_has_vacancies_false(self):
+        """Test has_vacancies property when sum = 1."""
+        site = Site(
+            symbol=["Cu", "Zn"],
+            position=[0.0, 0.0, 0.0],
+            weight=(0.5, 0.5),  # Sum = 1.0
+        )
+
+        assert site.has_vacancies is False
+
+    def test_has_vacancies_none_weight(self):
+        """Test has_vacancies returns False when weight is None."""
+        site = Site(symbol="Cu", position=[0.0, 0.0, 0.0])
+
+        assert site.has_vacancies is False
+
+    def test_get_default_thresholds(self):
+        """Test get_default_thresholds class method."""
+        thresholds = Site.get_default_thresholds()
+
+        assert isinstance(thresholds, dict)
+        assert "mass" in thresholds
+        assert "charge" in thresholds
+        assert "magmom" in thresholds
+
+    def test_get_default_values(self):
+        """Test get_default_values class method."""
+        defaults = Site.get_default_values()
+
+        assert isinstance(defaults, dict)
+        assert "mass" in defaults
+        assert "charge" in defaults
+        assert defaults["charge"] == 0
+
+    def test_get_magmom_coord_none(self):
+        """Test get_magmom_coord with None magmom."""
+        site = Site(symbol="Fe", position=[0.0, 0.0, 0.0])
+
+        result = site.get_magmom_coord()
+
+        assert result["starting_magnetization"] == 0
+        assert result["angle1"] == 0
+        assert result["angle2"] == 0
+
+    def test_get_magmom_coord_zero_vector(self):
+        """Test get_magmom_coord with zero vector."""
+        site = Site(symbol="Fe", position=[0.0, 0.0, 0.0], magmom=[0.0, 0.0, 0.0])
+
+        result = site.get_magmom_coord()
+
+        assert result["starting_magnetization"] == 0
+
+    def test_get_magmom_coord_spherical(self):
+        """Test get_magmom_coord in spherical coordinates."""
+        site = Site(symbol="Fe", position=[0.0, 0.0, 0.0], magmom=[0.0, 0.0, 2.2])
+
+        result = site.get_magmom_coord(coord="spherical")
+
+        assert result["starting_magnetization"] == pytest.approx(2.2)
+        assert result["angle1"] == pytest.approx(0.0)  # theta
+        assert result["angle2"] == pytest.approx(0.0)  # phi
+
+    def test_get_magmom_coord_cartesian(self):
+        """Test get_magmom_coord in cartesian coordinates."""
+        site = Site(symbol="Fe", position=[0.0, 0.0, 0.0], magmom=[1.0, 1.0, 1.0])
+
+        result = site.get_magmom_coord(coord="cartesian")
+
+        assert result["starting_magnetization"] == 1.0
+        assert result["angle1"] == 1.0
+        assert result["angle2"] == 1.0
+
+    def test_get_magmom_coord_invalid_coord(self):
+        """Test get_magmom_coord with invalid coordinate system."""
+        site = Site(symbol="Fe", position=[0.0, 0.0, 0.0], magmom=[0.0, 0.0, 2.2])
+
+        with pytest.raises(ValueError, match="can only be"):
+            site.get_magmom_coord(coord="invalid")
+
+    def test_get_magmom_coord_below_threshold(self):
+        """Test get_magmom_coord with magnitude below threshold."""
+        site = Site(symbol="Fe", position=[0.0, 0.0, 0.0], magmom=[1e-10, 1e-10, 1e-10])
+
+        result = site.get_magmom_coord(coord="spherical")
+
+        # Should return zeros if below threshold
+        assert result["starting_magnetization"] == 0.0
+
+
+class TestSiteRepr:
+    """Test Site string representation."""
+
+    def test_repr_minimal(self):
+        """Test __repr__ for minimal site."""
+        site = Site(symbol="Cu", position=[1.234, 2.345, 3.456])
+
+        repr_str = repr(site)
+
+        assert "Cu" in repr_str
+        assert "1.234" in repr_str or "1.23" in repr_str
+        assert "Site(" in repr_str
+
+    def test_repr_with_kind_name(self):
+        """Test __repr__ with kind_name different from symbol."""
+        site = Site(symbol="Cu", position=[0.0, 0.0, 0.0], kind_name="Cu1")
+
+        repr_str = repr(site)
+
+        assert "kind=Cu1" in repr_str
+
+    def test_repr_with_charge(self):
+        """Test __repr__ with charge."""
+        site = Site(symbol="Cu", position=[0.0, 0.0, 0.0], charge=1.5)
+
+        repr_str = repr(site)
+
+        assert "charge=1.50" in repr_str
+
+    def test_repr_with_magnetization(self):
+        """Test __repr__ with magnetization."""
+        site = Site(symbol="Fe", position=[0.0, 0.0, 0.0], magnetization=2.5)
+
+        repr_str = repr(site)
+
+        assert "magnetization=2.50" in repr_str
+
+    def test_repr_with_magmom(self):
+        """Test __repr__ with vector magnetic moment."""
+        site = Site(symbol="Fe", position=[0.0, 0.0, 0.0], magmom=[0.0, 0.0, 2.2])
+
+        repr_str = repr(site)
+
+        assert "magmom=" in repr_str
+
+    def test_repr_alloy(self):
+        """Test __repr__ for alloy site."""
+        site = Site(
+            symbol=["Cu", "Zn"],
+            position=[0.0, 0.0, 0.0],
+            weight=(0.6, 0.4),
+        )
+
+        repr_str = repr(site)
+
+        assert "weight=" in repr_str
+        assert "0.60" in repr_str or "0.6" in repr_str
+
+
+class TestSiteEdgeCases:
+    """Test edge cases and special scenarios."""
+
+    def test_site_with_zero_mass_uses_default(self):
+        """Test that zero mass is replaced with atomic mass."""
+        site = Site(symbol="Cu", position=[0.0, 0.0, 0.0], mass=0)
+
+        assert site.mass > 0
+        assert site.mass == pytest.approx(63.546)
+
+    def test_both_magmom_and_magnetization_raises(self):
+        """Test that specifying both magmom and magnetization raises error."""
+        with pytest.raises(ValueError, match="You can specify only one"):
+            Site(
+                symbol="Fe",
+                position=[0.0, 0.0, 0.0],
+                magmom=[0.0, 0.0, 2.2],
+                magnetization=2.5,
+            )
+
+    def test_alloy_without_weight_raises(self):
+        """Test that alloy without weight raises error."""
+        with pytest.raises(ValueError, match="weight"):
+            Site(
+                symbol=["Cu", "Zn"],
+                position=[0.0, 0.0, 0.0],
+            )
+
+    def test_position_frozen_after_creation(self):
+        """Test that position array is frozen after site creation."""
+        site = Site(symbol="Cu", position=[0.0, 0.0, 0.0])
+
+        # Position should be non-writable
+        with pytest.raises((ValueError, AttributeError)):
+            site.position[0] = 1.0
+
+    def test_magmom_frozen_after_creation(self):
+        """Test that magmom array is frozen after site creation."""
+        site = Site(symbol="Fe", position=[0.0, 0.0, 0.0], magmom=[0.0, 0.0, 2.2])
+
+        # Magmom should be non-writable
+        with pytest.raises((ValueError, AttributeError)):
+            site.magmom[0] = 1.0

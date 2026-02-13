@@ -380,7 +380,8 @@ class Site(BaseModel):
         atom_dict = self.model_dump()
         atom_dict["symbol"] = atom_dict.pop("symbol", None)
         atom_dict["position"] = atom_dict.pop("position", None)
-        atom_dict["magmom"] = atom_dict.pop("magmom", atom_dict.pop("magnetization", None))
+        magmom = atom_dict.pop("magmom", None)
+        atom_dict["magmom"] = atom_dict.pop("magnetization", None) if magmom is None else magmom
         atom_dict["momentum"] = atom_dict.pop("momentum", None)
         atom_dict["charge"] = atom_dict.pop("charge", None)
         atom_dict["mass"] = atom_dict.pop("mass", None)
