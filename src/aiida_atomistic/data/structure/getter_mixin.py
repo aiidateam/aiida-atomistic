@@ -442,7 +442,8 @@ class GetterMixin(HubbardGetterMixin):
 
     def to_dict(self):
             """
-            Convert the structure to a dictionary representation.
+            Convert the structure to a dictionary representation, ready to be used as input for the StructureBuilder or for serialization.
+            This is why it excludes computed fields, unsets and None: to avoid including properties that are not user-defined.
 
             :return: The structure as a dictionary.
             :rtype: dict
