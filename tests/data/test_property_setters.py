@@ -1,9 +1,20 @@
-"""Tests for property setter and remover methods in StructureBuilder."""
+"""Tests for property setter and remover methods in StructureBuilder.
+
+This module contains comprehensive tests organized into logical sections:
+1. BASIC PROPERTY SETTERS - Testing setter methods for various properties
+2. PROPERTY REMOVERS - Testing remover methods for all properties
+3. SITE MANIPULATION TESTS - Testing site manipulation methods (update, append, pop, clear) and edge cases
+4. INTEGRATION AND WORKFLOW TESTS - Testing combined workflows and real-world usage patterns
+"""
 import numpy as np
 import pytest
 
 from aiida_atomistic.data.structure import StructureBuilder, StructureData
 
+
+# ============================================================================
+# BASIC PROPERTY SETTERS
+# ============================================================================
 
 class TestPropertySetters:
     """Test setter methods for structure properties."""
@@ -111,6 +122,10 @@ class TestPropertySetters:
         assert np.allclose(structure.properties.sites[0].weight, [0.7, 0.3])
         assert structure.properties.sites[1].weight is None
 
+
+# ============================================================================
+# PROPERTY REMOVERS
+# ============================================================================
 
 class TestPropertyRemovers:
     """Test remover methods for structure properties."""
@@ -265,8 +280,13 @@ class TestPropertyRemovers:
         assert structure.properties.sites[0].charge is None
         assert structure.properties.sites[1].charge is None
 
-class TestSetterRemoverWorkflow:
-    """Test combined workflows of setting and removing properties."""
+
+# ============================================================================
+# SITE MANIPULATION TESTS
+# ============================================================================
+
+class TestSetterEdgeCases:
+    """Test edge cases and error handling in setter methods."""
 
     def test_set_then_remove_charges(self):
         """Test setting charges and then removing them."""
@@ -342,8 +362,13 @@ class TestSetterRemoverWorkflow:
         assert immutable.properties.charges is None
         assert 'charges' not in immutable.get_defined_properties()
 
-class TestCustomPropertySettersRemovers:
-    """Test setter and remover methods for custom properties in StructureBuilder."""
+
+# ============================================================================
+# INTEGRATION AND WORKFLOW TESTS
+# ============================================================================
+
+class TestSetterRemoverWorkflow:
+    """Test combined workflows of setting and removing properties."""
 
     def test_set_then_remove_charges(self):
         """Test setting charges and then removing them."""
@@ -374,3 +399,470 @@ class TestCustomPropertySettersRemovers:
 
         structure.remove_custom()
         assert structure.properties.custom is None
+
+
+class TestSetterEdgeCases:
+    """Test edge cases and error handling in setter methods."""
+
+    def test_set_cell_lengths_not_implemented(self):
+        """Test that set_cell_lengths raises NotImplementedError."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        with pytest.raises(NotImplementedError):
+            structure.set_cell_lengths([4.0, 4.0, 4.0])
+
+    def test_set_cell_angles_not_implemented(self):
+        """Test that set_cell_angles raises NotImplementedError."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        with pytest.raises(NotImplementedError):
+            structure.set_cell_angles([90, 90, 90])
+
+    def test_update_sites_single_index(self):
+        """Test updating a single site by index."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        # Update single site
+        structure.update_sites(0, charge=2.0, magmom=[0, 0, 2.5])
+
+        assert structure.properties.sites[0].charge == 2.0
+        assert np.allclose(structure.properties.sites[0].magmom, [0, 0, 2.5])
+        assert structure.properties.sites[1].charge is None  # Unchanged
+
+    def test_update_sites_list_of_indices(self):
+        """Test updating multiple sites by list of indices."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "Fe", "position": [1.5, 0, 0]},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        # Update multiple sites
+        structure.update_sites([0, 1], charge=2.0)
+
+        assert structure.properties.sites[0].charge == 2.0
+        assert structure.properties.sites[1].charge == 2.0
+        assert structure.properties.sites[2].charge is None  # Unchanged
+
+    def test_update_kind(self):
+        """Test updating all sites with a specific kind_name."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"},
+                {"symbol": "Fe", "position": [1.5, 0, 0], "kind_name": "Fe1"},
+                {"symbol": "Fe", "position": [0, 1.5, 0], "kind_name": "Fe2"},
+            ]
+        )
+
+        # Update all Fe1 sites
+        structure.update_kind("Fe1", charge=2.0)
+
+        assert structure.properties.sites[0].charge == 2.0
+        assert structure.properties.sites[1].charge == 2.0
+        assert structure.properties.sites[2].charge is None  # Different kind
+
+    def test_update_kind_no_kinds_defined(self):
+        """Test that update_kind raises error when no kinds are defined."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        with pytest.raises(ValueError, match="You cannot update a kind if the structure has no kinds defined"):
+            structure.update_kind("Fe1", charge=2.0)
+
+    def test_append_atom_with_kwargs(self):
+        """Test appending atom using kwargs."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        structure.append_atom(symbol="O", position=[1.5, 1.5, 1.5], charge=-2.0)
+
+        assert len(structure.properties.sites) == 2
+        assert structure.properties.sites[1].symbol == "O"
+        assert structure.properties.sites[1].charge == -2.0
+
+    def test_append_atom_no_params_raises_error(self):
+        """Test that append_atom without params raises error."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        with pytest.raises(ValueError, match="Must provide either 'atom' parameter or keyword arguments"):
+            structure.append_atom()
+
+    def test_append_atom_dict_with_kwargs_raises_error(self):
+        """Test that providing both dict and kwargs raises error."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        with pytest.raises(ValueError, match="Cannot provide both 'atom' as dict and keyword arguments"):
+            structure.append_atom({"symbol": "O", "position": [1.5, 1.5, 1.5]}, charge=-2.0)
+
+    def test_append_atom_site_with_kwargs_raises_error(self):
+        """Test that providing both Site and kwargs raises error."""
+        from aiida_atomistic.data.structure.site import Site
+
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        site = Site(symbol="O", position=[1.5, 1.5, 1.5])
+
+        with pytest.raises(ValueError, match="Cannot provide both 'atom' as Site and keyword arguments"):
+            structure.append_atom(site, charge=-2.0)
+
+    def test_append_atom_invalid_type_raises_error(self):
+        """Test that append_atom with invalid type raises error."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        with pytest.raises(TypeError, match="atom must be Site, dict, or None"):
+            structure.append_atom("invalid")
+
+    def test_append_atom_same_position_raises_error(self):
+        """Test that appending atom at same position raises error."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        with pytest.raises(ValueError, match="You cannot define two different sites to be in the same position"):
+            structure.append_atom(symbol="O", position=[0, 0, 0])
+
+    def test_append_atom_at_specific_index(self):
+        """Test appending atom at specific index."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        structure.append_atom(symbol="Cu", position=[0.5, 0.5, 0.5], index=1)
+
+        assert len(structure.properties.sites) == 3
+        assert structure.properties.sites[1].symbol == "Cu"
+        assert structure.properties.sites[2].symbol == "O"
+
+    def test_append_atom_index_out_of_range(self):
+        """Test that invalid index raises IndexError."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        with pytest.raises(IndexError, match="index .* out of range"):
+            structure.append_atom(symbol="O", position=[1.5, 1.5, 1.5], index=10)
+
+    def test_append_atom_to_empty_structure(self):
+        """Test appending atom to empty structure."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[]
+        )
+
+        structure.append_atom(symbol="Fe", position=[0, 0, 0])
+
+        assert len(structure.properties.sites) == 1
+        assert structure.properties.sites[0].symbol == "Fe"
+
+    def test_pop_atom_default(self):
+        """Test popping last atom."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        structure.pop_atom()
+
+        assert len(structure.properties.sites) == 1
+        assert structure.properties.sites[0].symbol == "Fe"
+
+    def test_pop_atom_specific_index(self):
+        """Test popping atom at specific index."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]},
+                {"symbol": "Cu", "position": [2.5, 2.5, 2.5]},
+            ]
+        )
+
+        structure.pop_atom(1)
+
+        assert len(structure.properties.sites) == 2
+        assert structure.properties.sites[0].symbol == "Fe"
+        assert structure.properties.sites[1].symbol == "Cu"
+
+    def test_clear_sites(self):
+        """Test clearing all sites."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
+            ]
+        )
+
+        structure.clear_sites()
+
+        assert len(structure.properties.sites) == 0
+        assert structure.properties.cell is not None  # Cell still there
+        assert structure.properties.pbc is not None  # PBC still there
+
+    def test_set_magmoms_length_mismatch(self):
+        """Test that setting magmoms with wrong length raises error."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        with pytest.raises(ValueError, match="The length of the magmoms list"):
+            structure.set_magmoms([[0, 0, 2.2]])  # Only 1 magmom for 2 sites
+
+    def test_set_magnetizations_length_mismatch(self):
+        """Test that setting magnetizations with wrong length raises error."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        with pytest.raises(ValueError, match="The length of the magnetizations array"):
+            structure.set_magnetizations([2.5])  # Only 1 value for 2 sites
+
+    def test_set_masses_length_mismatch(self):
+        """Test that setting masses with wrong length raises error."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        with pytest.raises(ValueError, match="The length of the masses list"):
+            structure.set_masses([56.0])  # Only 1 mass for 2 sites
+
+    def test_set_weights_length_mismatch(self):
+        """Test that setting weights with wrong length raises error."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": ["Fe", "Ni"], "position": [0, 0, 0], "weight": [0.5, 0.5]},
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        with pytest.raises(ValueError, match="The length of the weights array"):
+            structure.set_weights([[0.7, 0.3]])  # Only 1 weight for 2 sites
+
+    def test_set_tot_charge(self):
+        """Test setting total charge."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        structure.set_tot_charge(2.5)
+
+        assert structure.properties.tot_charge == 2.5
+
+    def test_set_tot_magnetization(self):
+        """Test setting total magnetization."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        structure.set_tot_magnetization(4.5)
+
+        assert structure.properties.tot_magnetization == 4.5
+
+    def test_remove_hubbard(self):
+        """Test removing hubbard property."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        # Set hubbard to some value
+        structure.properties.hubbard = "some_value"
+
+        # Remove hubbard
+        structure.remove_hubbard()
+
+        assert structure.properties.hubbard is None
+
+    def test_set_kind_names(self):
+        """Test setting kind_names for all sites."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        structure.set_kind_names(["Fe1", "Fe2"])
+
+        assert structure.properties.sites[0].kind_name == "Fe1"
+        assert structure.properties.sites[1].kind_name == "Fe2"
+
+    def test_set_kind_names_length_mismatch(self):
+        """Test that setting kind_names with wrong length raises error."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0]},
+                {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
+            ]
+        )
+
+        with pytest.raises(ValueError, match="The length of the kind_names list"):
+            structure.set_kind_names(["Fe1"])  # Only 1 name for 2 sites
+
+    def test_remove_kind_names(self):
+        """Test removing kind_names from all sites."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[
+                {"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"},
+                {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "kind_name": "Fe2"},
+            ]
+        )
+
+        structure.remove_kind_names()
+
+        assert structure.properties.sites[0].kind_name is None
+        assert structure.properties.sites[1].kind_name is None
+
+    def test_set_custom_new_dict(self):
+        """Test setting custom properties on structure without existing custom dict."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        assert structure.properties.custom is None
+
+        structure.set_custom({'my_property': 'value'})
+
+        assert structure.properties.custom == {'my_property': 'value'}
+
+    def test_remove_custom_no_dict(self):
+        """Test removing custom properties when none exist."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        # Should not raise error
+        structure.remove_custom()
+        assert structure.properties.custom is None
+
+    def test_remove_custom_specific_keys_not_exist(self):
+        """Test removing custom properties with keys that don't exist."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
+            custom={'prop1': 'value1'}
+        )
+
+        # Should not raise error for non-existent keys
+        structure.remove_custom(['prop2', 'prop3'])
+        assert structure.properties.custom == {'prop1': 'value1'}
+
+    def test_set_pbc(self):
+        """Test setting PBC."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        structure.set_pbc([False, False, True])
+
+        assert structure.properties.pbc == [False, False, True]
+
+    def test_set_cell(self):
+        """Test setting cell."""
+        structure = StructureBuilder(
+            cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+            pbc=[True, True, True],
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+        )
+
+        new_cell = [[4.0, 0, 0], [0, 4.0, 0], [0, 0, 4.0]]
+        structure.set_cell(new_cell)
+
+        assert np.allclose(structure.properties.cell, new_cell)

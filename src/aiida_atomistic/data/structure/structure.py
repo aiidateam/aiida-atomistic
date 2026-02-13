@@ -444,7 +444,7 @@ class StructureData(Data, GetterMixin):
 
         # Get property names from attributes metadata
         attributes_properties = set(
-            key[4:]  # Remove 'shape|' prefix
+            key[6:]  # Remove 'shape|' prefix (6 characters)
             for key in self.base.attributes.keys()
             if key.startswith('shape|')
         )
@@ -467,11 +467,22 @@ class StructureBuilder(GetterMixin, SetterMixin):
     _model = MutableStructureModel
 
     def __init__(self, sites:list[dict]=None, kinds:list[dict]=None, **kwargs):
+        """
+        Initialize a StructureBuilder instance.
 
+        :param sites: list of site dictionaries
+        :param kinds: list of kind dictionaries
+        :param kwargs: Additional properties (pbc, cell, etc.)
+        """
         from aiida_atomistic.data.structure.utils_kinds import sites_from_kinds
 
+        # if both sites and kinds are provided, we use kinds and we print a warning
+        # basically, we map kinds->sites, as the structure object is site-based
         if sites is not None and kinds is not None:
-            warnings.warn("Provided both `sites` and `kinds` information. Dropping the `sites` information and using only `kinds`.")
+            warnings.warn(
+                "Provided both `sites` and `kinds` information. "
+                "Dropping the `sites` information and using only `kinds`."
+            )
             sites = sites_from_kinds(kinds)
         elif kinds is not None:
             sites = sites_from_kinds(kinds)
@@ -485,8 +496,8 @@ class StructureBuilder(GetterMixin, SetterMixin):
 
     @classmethod
     def from_aiida(cls, aiida: 'StructureData'):
-        if not isinstance(aiida, StructureBuilder):
-            raise ValueError(f"Input aiida should be of type StructureBuilder, not {type(aiida)}")
+        if not isinstance(aiida, StructureData):
+            raise ValueError(f"Input aiida should be of type StructureData, not {type(aiida)}")
         return cls(**aiida.to_dict())
 
     def to_aiida(self) -> 'StructureData':
