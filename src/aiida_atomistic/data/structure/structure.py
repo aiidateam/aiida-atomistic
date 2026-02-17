@@ -315,7 +315,8 @@ class StructureData(Data, GetterMixin):
         # Save all arrays to a single compressed npz file
         if repository_dict:
             with tempfile.NamedTemporaryFile(suffix='.npz') as handle:
-                np.savez_compressed(handle, **repository_dict)
+                # Sort keys to ensure deterministic binary output for hashing
+                np.savez_compressed(handle, **{k: repository_dict[k] for k in sorted(repository_dict.keys())})
                 handle.flush()
                 handle.seek(0)
 

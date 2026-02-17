@@ -682,6 +682,56 @@ def test_load_properties_from_npz_no_file(aiida_profile_clean):
     assert isinstance(props, dict)
 
 
+def test_npz_deterministic_key_order(aiida_profile_clean):
+    """Test that NPZ files have deterministic key ordering for stable hashing."""
+    import numpy as np
+    
+    # Create a structure with multiple properties that will be stored in repository
+    structure = StructureData(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0, "magmom": [0, 0, 2.2]},
+            {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -1.0}
+        ]
+    )
+    structure.store()
+    
+    # Load the NPZ file and check key order
+    npz_data = structure._load_properties_from_npz()
+    
+    # Keys should be present (exact keys depend on what gets stored in repository)
+    assert len(npz_data) > 0, "NPZ should contain data"
+    
+    # Get the keys as a list
+    keys = list(npz_data.keys())
+    
+    # Keys should be in sorted order
+    assert keys == sorted(keys), f"NPZ keys should be sorted, but got: {keys}"
+    
+    # Create another identical structure - should have same key order
+    structure2 = StructureData(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0, "magmom": [0, 0, 2.2]},
+            {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -1.0}
+        ]
+    )
+    structure2.store()
+    
+    npz_data2 = structure2._load_properties_from_npz()
+    keys2 = list(npz_data2.keys())
+    
+    # Key order should be identical
+    assert keys == keys2, "Identical structures should have same NPZ key order"
+    
+    # Repository hashes should match (deterministic binary output)
+    hash1 = structure.base.repository.hash()
+    hash2 = structure2.base.repository.hash()
+    assert hash1 == hash2, "Identical structures should have identical repository hashes"
+
+
 def test_properties_getter_unstored():
     """Test properties getter for unstored node."""
     structure = StructureData(
