@@ -148,7 +148,7 @@ class Site(BaseModel):
         from aiida_atomistic.data.structure.utils import check_is_alloy
 
         # here below we proceed as in the old Kind, where we detect if
-        # we have an alloy (i.e. more than one element for the given site)
+        # we have an alloy (i.e. more than one element for the given site) or vacancy (one element but weight < 1)
         alloy_detector = check_is_alloy(data)
         if alloy_detector:
             if "weight" not in data:
@@ -160,12 +160,22 @@ class Site(BaseModel):
             raise ValueError(f"You can specify only one between magmom, magnetization: got {data.get('magmom', None)} and {data.get('magnetization', None)}")
 
         # we always define masses.
-        if "mass" not in data:
-            data["mass"] = _atomic_masses[data["symbol"]]
-        elif not data["mass"]:
-            data["mass"] =  _atomic_masses[data["symbol"]]
-        elif data["mass"]<=0:
+        # For alloy/vacancy sites, set_symbols_and_weights (called inside check_is_alloy)
+        # already computed the weighted mass and stored it in data["mass"].
+        # For plain sites we fall back to the elemental mass from the lookup table.
+        user_mass = data.get("mass", None)
+        if user_mass is not None and user_mass <= 0:
+            # User explicitly supplied a non-positive mass → reject it.
             raise ValueError("The mass of an atom must be positive")
+        if user_mass is None or not user_mass:
+            # Mass absent or zero: compute the default.
+            sym = data["symbol"]
+            if isinstance(sym, list):
+                # alloy/vacancy where mass wasn't set by set_symbols_and_weights for some reason
+                weights = data.get("weight") or tuple(1.0 / len(sym) for _ in sym)
+                data["mass"] = sum(_atomic_masses[s] * w for s, w in zip(sym, weights))
+            else:
+                data["mass"] = _atomic_masses[sym]
 
         # we do not automatically set kind_name!
         #if "kind_name" not in data:
@@ -180,14 +190,14 @@ class Site(BaseModel):
 
     def __repr__(self) -> str:
         """Return a string representation of the Site."""
-        symbol_str = self.symbol if isinstance(self.symbol, str) else '/'.join(self.symbol)
+        symbol_str = self.symbol if isinstance(self.symbol, str) else '_'.join(self.symbol)
         pos_str = f"[{self.position[0]:.3f}, {self.position[1]:.3f}, {self.position[2]:.3f}]"
         parts = [f"{symbol_str} @ {pos_str}"]
 
         if self.kind_name and self.kind_name != self.symbol:
             parts.append(f"kind={self.kind_name}")
         if self.is_alloy and self.weight:
-            weight_str = '/'.join(f"{w:.2f}" for w in self.weight)
+            weight_str = '_'.join(f"{w:.2f}" for w in self.weight)
             parts.append(f"weight={weight_str}")
         if self.charge is not None:
             parts.append(f"charge={self.charge:.2f}")

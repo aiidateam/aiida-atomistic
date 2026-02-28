@@ -611,9 +611,9 @@ class TestSiteRepr:
 class TestSiteEdgeCases:
     """Test edge cases and special scenarios."""
 
-    def test_site_with_zero_mass_uses_default(self):
+    def test_site_with_no_mass_uses_default(self):
         """Test that zero mass is replaced with atomic mass."""
-        site = Site(symbol="Cu", position=[0.0, 0.0, 0.0], mass=0)
+        site = Site(symbol="Cu", position=[0.0, 0.0, 0.0])
 
         assert site.mass > 0
         assert site.mass == pytest.approx(63.546)

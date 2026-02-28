@@ -78,7 +78,7 @@ sites = [
         "symbol": ["Cu", "Zn"],
         "position": [0.0, 0.0, 0.0],
         "mass": 1.008,
-        "weight": (0.6, 0.6)
+        "weight": (0.6, 0.4)
     }
 ]
 ```
@@ -445,7 +445,7 @@ structuredata = StructureData.from_builder(builder)
 
 # Immutable → Mutable (for editing)
 structurebuilder = structuredata.to_builder()
-structurebuilder = StructureBuilder.from_aiida(builder)
+structurebuilder = StructureBuilder.from_aiida(structuredata)
 
 ```
 
