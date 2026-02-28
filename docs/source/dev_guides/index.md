@@ -7,4 +7,5 @@ Guides for developers who want to contribute to `aiida-atomistic` code or to mod
 
 dev_adding_properties
 dev_plugin_migration
+dev_repository_storage
 ```

@@ -948,3 +948,130 @@ def test_validate_no_shape_metadata(aiida_profile_clean):
 
     # Validation should pass
     assert structure._validate()
+
+
+# ---------------------------------------------------------------------------
+# Slicing / __getitem__ tests
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def six_site_builder():
+    """StructureBuilder with 6 Fe sites, each with a distinct charge."""
+    sites = [
+        {"symbol": "Fe", "position": [0.0, 0.0, float(i)], "charge": float(i)}
+        for i in range(6)
+    ]
+    return StructureBuilder(
+        cell=np.eye(3) * 10.0,
+        pbc=[True, True, True],
+        sites=sites,
+    )
+
+
+@pytest.fixture
+def six_site_structure(six_site_builder):
+    """Unstored StructureData with the same 6-site layout."""
+    return six_site_builder.to_aiida()
+
+
+def test_len_builder(six_site_builder):
+    """len() on a StructureBuilder returns the number of sites."""
+    assert len(six_site_builder) == 6
+
+
+def test_len_structure(six_site_structure):
+    """len() on a StructureData returns the number of sites."""
+    assert len(six_site_structure) == 6
+
+
+def test_getitem_int_builder(six_site_builder):
+    """Integer index on StructureBuilder returns a one-site StructureBuilder."""
+    result = six_site_builder[2]
+    assert isinstance(result, StructureBuilder)
+    assert len(result) == 1
+    assert result.properties.sites[0].charge == 2.0
+
+
+def test_getitem_int_structure(six_site_structure):
+    """Integer index on StructureData returns a one-site StructureData."""
+    result = six_site_structure[2]
+    assert isinstance(result, StructureData)
+    assert len(result) == 1
+    assert result.properties.sites[0].charge == 2.0
+
+
+def test_getitem_negative_index(six_site_builder):
+    """Negative integer index selects from the end."""
+    result = six_site_builder[-1]
+    assert len(result) == 1
+    assert result.properties.sites[0].charge == 5.0
+
+
+def test_getitem_slice(six_site_builder):
+    """Slice returns the correct sub-set of sites."""
+    result = six_site_builder[1:4]
+    assert isinstance(result, StructureBuilder)
+    assert len(result) == 3
+    charges = [s.charge for s in result.properties.sites]
+    assert charges == [1.0, 2.0, 3.0]
+
+
+def test_getitem_slice_structure(six_site_structure):
+    """Slice on StructureData returns a StructureData."""
+    result = six_site_structure[0:3]
+    assert isinstance(result, StructureData)
+    assert len(result) == 3
+
+
+def test_getitem_stride(six_site_builder):
+    """Strided slice selects every other site."""
+    result = six_site_builder[::2]
+    assert len(result) == 3
+    charges = [s.charge for s in result.properties.sites]
+    assert charges == [0.0, 2.0, 4.0]
+
+
+def test_getitem_list(six_site_builder):
+    """List index picks an arbitrary, non-contiguous selection."""
+    result = six_site_builder[[0, 3, 5]]
+    assert isinstance(result, StructureBuilder)
+    assert len(result) == 3
+    charges = [s.charge for s in result.properties.sites]
+    assert charges == [0.0, 3.0, 5.0]
+
+
+def test_getitem_numpy_array(six_site_builder):
+    """1-D numpy integer array works like a list index."""
+    idx = np.array([1, 4])
+    result = six_site_builder[idx]
+    assert len(result) == 2
+    charges = [s.charge for s in result.properties.sites]
+    assert charges == [1.0, 4.0]
+
+
+def test_getitem_preserves_cell_and_pbc(six_site_builder):
+    """Cell and pbc are preserved unchanged after slicing."""
+    result = six_site_builder[0:2]
+    assert np.allclose(result.properties.cell, six_site_builder.properties.cell)
+    assert list(result.properties.pbc) == list(six_site_builder.properties.pbc)
+
+
+def test_getitem_out_of_range(six_site_builder):
+    """Out-of-range integer index raises IndexError."""
+    with pytest.raises(IndexError):
+        _ = six_site_builder[10]
+
+    with pytest.raises(IndexError):
+        _ = six_site_builder[-7]
+
+
+def test_getitem_invalid_type(six_site_builder):
+    """Unsupported index type raises TypeError."""
+    with pytest.raises(TypeError):
+        _ = six_site_builder["bad"]
+
+
+def test_getitem_list_non_int(six_site_builder):
+    """List containing a non-integer element raises TypeError."""
+    with pytest.raises(TypeError):
+        _ = six_site_builder[[0, 1.5]]
