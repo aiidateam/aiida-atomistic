@@ -40,7 +40,7 @@ class StructureBaseModel(BaseModel):
     sites: list[Site] = Field(
         default=[],
         description="List of sites in the structure",
-        json_schema_extra={"store_in": "db", "property_type": "global"},
+        json_schema_extra={"property_type": "global"},
     )
 
     # global and more specific properties
@@ -197,7 +197,7 @@ class StructureBaseModel(BaseModel):
             return None
         return np.array([site.position for site in self.sites])
 
-    @computed_field(json_schema_extra={"store_in": "db","singular_form": "kind_name"})
+    @computed_field(json_schema_extra={"store_in": "repository","singular_form": "kind_name"})
     @property
     def kind_names(self) -> t.List[str]:
         """
@@ -210,7 +210,7 @@ class StructureBaseModel(BaseModel):
             return None
         return FrozenList([site.kind_name if site.kind_name is not None else site.symbol for site in self.sites])
 
-    @computed_field(json_schema_extra={"store_in": "db","singular_form": "symbol"})
+    @computed_field(json_schema_extra={"store_in": "repository","singular_form": "symbol"})
     @property
     def symbols(self) -> t.List[str]:
         """
@@ -393,6 +393,12 @@ class StructureBaseModel(BaseModel):
     def n_sites(self) -> int:
         """Total number of sites in the structure."""
         return len(self.sites)
+    
+    @computed_field(json_schema_extra={"store_in": "db"})
+    @property
+    def n_kinds(self) -> int:
+        """Total number of sites in the structure."""
+        return len(self.kinds) if self.kinds is not None else 0
 
     def __repr__(self) -> str:
         from pprint import pformat

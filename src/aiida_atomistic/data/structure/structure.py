@@ -83,6 +83,15 @@ class StructureData(Data, GetterMixin):
             return arr.dtype.kind in {"i", "f", "u", "c"}
         return False
 
+    @staticmethod
+    def _is_string_array(value) -> bool:
+        """Return True if the value is a string array (list of strings or numpy unicode array)."""
+        if isinstance(value, np.ndarray):
+            return value.dtype.kind in {"U", "S"}
+        if isinstance(value, list) and value and all(isinstance(v, str) for v in value):
+            return True
+        return False
+
     @classmethod
     def get_queryable_properties(cls, include_internal: bool = False) -> dict:
         """
@@ -272,7 +281,7 @@ class StructureData(Data, GetterMixin):
             store_in = json_schema_extra.get(cls._storage_metadata_key, '').lower()
         else:
             store_in = 'db'  # default to db for unknown properties
-
+        
         return store_in
 
     def _store_properties(self):
@@ -309,6 +318,23 @@ class StructureData(Data, GetterMixin):
                 repository_dict[prop_name] = arr
                 if self._store_shape_metadata:
                     database_dict[f'shape|{prop_name}'] = list(arr.shape)
+            elif target == "repository" and self._is_string_array(value):
+                arr = np.asarray(value, dtype=str)
+                repository_dict[prop_name] = arr
+                if self._store_shape_metadata:
+                    database_dict[f'shape|{prop_name}'] = list(arr.shape)
+            elif prop_name == 'site_indices':
+                # site_indices is a ragged list-of-lists (one per kind, variable length because of different number of sites per kind).
+                # Encode as two flat 1D int arrays using CSR format so the npz stays
+                # homogeneous (allow_pickle=False compatible):
+                #   site_indices_flat    : all indices concatenated, shape (total_sites,)
+                #   site_indices_offsets : cumulative start positions, shape (n_kinds + 1,)
+                # e.g. [[0,1],[2],[3,4,5]] → flat=[0,1,2,3,4,5], offsets=[0,2,3,6]
+                flat = np.array([idx for sublist in value for idx in sublist], dtype=np.int64)
+                lengths = np.array([len(sublist) for sublist in value], dtype=np.int64)
+                offsets = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
+                repository_dict['site_indices_flat'] = flat
+                repository_dict['site_indices_offsets'] = offsets
             else:
                 database_dict[prop_name] = value
 
@@ -343,7 +369,23 @@ class StructureData(Data, GetterMixin):
         with self.base.repository.open(self._properties_filename, mode='rb') as handle:
             npz_data = np.load(handle, allow_pickle=False)
             # Convert to regular dict (npz returns NpzFile object)
-            properties = {key: npz_data[key] for key in npz_data.files}
+            # String arrays (dtype 'U' or 'S') are converted back to Python lists
+            properties = {}
+            for key in npz_data.files:
+                arr = npz_data[key]
+                if arr.dtype.kind in {"U", "S"}:
+                    properties[key] = arr.tolist()
+                else:
+                    properties[key] = arr
+
+            # Decode CSR-encoded site_indices back into list-of-lists
+            if 'site_indices_flat' in properties and 'site_indices_offsets' in properties:
+                flat = properties.pop('site_indices_flat')
+                offsets = properties.pop('site_indices_offsets')
+                properties['site_indices'] = [
+                    flat[offsets[i]:offsets[i + 1]].tolist()
+                    for i in range(len(offsets) - 1)
+                ]
 
         # Cache if stored
         if self.is_stored:

@@ -644,7 +644,8 @@ def test_store_properties_with_kind_compression(aiida_profile_clean):
     )
 
     # Should have kind_names in attributes
-    assert 'kind_names' in structure.base.attributes.all
+    assert 'n_kinds' in structure.base.attributes.all
+    assert structure.base.attributes.all['n_kinds'] == 1
 
 
 def test_load_properties_from_npz(aiida_profile_clean):

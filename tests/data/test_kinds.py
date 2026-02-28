@@ -178,16 +178,16 @@ class TestKindsDetection:
         structure = StructureData(**complex_example_structure_dict_for_kinds)
 
         # Check that kind_names is in attributes
-        assert "kind_names" in structure.base.attributes.all
+        assert "n_kinds" in structure.base.attributes.all
 
         # Check that sites maintain their structure (not compressed, site-based model)
-        stored_symbols = structure.base.attributes.get("symbols")
-        assert len(stored_symbols) == 8  # 8 sites (site-based, not kind-compressed)
+        n_sites = structure.base.attributes.get("n_sites")
+        assert n_sites == 8  # 8 sites (site-based, not kind-compressed)
 
         # But kind_names should have been assigned
-        kind_names = structure.base.attributes.get("kind_names")
-        assert kind_names is not None
-        assert len(set(kind_names)) == 4  # 4 unique kinds
+        n_kinds = structure.base.attributes.get("n_kinds")
+        assert n_kinds is not None
+        assert n_kinds == 4  # 4 unique kinds
 
 
 class TestKindsWorkflow:
