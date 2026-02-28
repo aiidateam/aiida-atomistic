@@ -11,6 +11,56 @@ from aiida_atomistic.data.structure.models import MutableStructureModel, Immutab
 from aiida_atomistic.data.structure.setter_mixin import SetterMixin
 from aiida_atomistic.data.structure.getter_mixin import GetterMixin
 
+
+def _resolve_site_indices(sites, index):
+    """
+    Validate *index* against *sites* and return the selected sub-list.
+
+    This is the single shared implementation used by both
+    :meth:`StructureData.__getitem__` and :meth:`StructureBuilder.__getitem__`
+    so that index handling and error messages are identical in both classes.
+
+    :param sites: The full list of site objects (``Site`` or ``FrozenSite``).
+    :param index: An ``int``, ``slice``, ``list``/``tuple`` of ints, or a
+        1-D integer numpy array.
+    :return: A list of the selected site objects.
+    :raises IndexError: If any integer index is out of range.
+    :raises TypeError: If *index* is not a supported type, or if a
+        list/array contains non-integer elements.
+    """
+    n = len(sites)
+
+    if isinstance(index, (int, np.integer)):
+        if index < -n or index >= n:
+            raise IndexError(
+                f"Site index {index} out of range for structure with {n} sites."
+            )
+        return [sites[int(index)]]
+
+    if isinstance(index, slice):
+        return list(sites[index])
+
+    if isinstance(index, (list, tuple, np.ndarray)):
+        result = []
+        for raw in index:
+            if not isinstance(raw, (int, np.integer)):
+                raise TypeError(
+                    f"All elements of an index list must be integers, got {type(raw)}."
+                )
+            i = int(raw)
+            if i < -n or i >= n:
+                raise IndexError(
+                    f"Site index {i} out of range for structure with {n} sites."
+                )
+            result.append(sites[i])
+        return result
+
+    raise TypeError(
+        f"Unsupported index type {type(index)}. "
+        "Use int, slice, or a list/array of ints."
+    )
+
+
 class StructureData(Data, GetterMixin):
     """
     A StructureData class that stores properties in the repository instead of attributes.
@@ -342,6 +392,7 @@ class StructureData(Data, GetterMixin):
         if repository_dict:
             with tempfile.NamedTemporaryFile(suffix='.npz') as handle:
                 # Sort keys to ensure deterministic binary output for hashing
+                # savez_compressed will indeed respect the order of keys, for Python 3.7+ where dicts maintain insertion order, but we sort explicitly to be safe and clear
                 np.savez_compressed(handle, **{k: repository_dict[k] for k in sorted(repository_dict.keys())})
                 handle.flush()
                 handle.seek(0)
@@ -356,23 +407,88 @@ class StructureData(Data, GetterMixin):
         for key, value in database_dict.items():
             self.base.attributes.set(key, value)
 
-    def _load_properties_from_npz(self) -> dict:
+    def _load_properties_from_npz(self, keys: list = None) -> dict:
         """
-        Load all properties from the npz file in the repository.
+        Load properties from the npz file in the repository.
 
-        :return: Dictionary of property name -> numpy array
+        **For developers — selective loading**
+
+        The ``.npz`` container is a ZIP archive where every property is stored
+        as an independent ``.npy`` entry.  ``NpzFile.__getitem__`` (numpy's
+        internal accessor) uses ``zipfile.ZipFile.open(key)`` to seek directly
+        to the requested entry in the central ZIP directory — it does **not**
+        decompress any other entries.  This means that passing ``keys`` loads
+        and decompresses *only* the requested properties, leaving the rest
+        untouched.  For large structures with many heavy arrays this can give a
+        significant speed and memory benefit.
+
+        Usage example::
+
+            # Load only positions (avoids decompressing charges, magmoms, …)
+            positions = node._load_properties_from_npz(keys=['positions'])['positions']
+
+            # Load two properties at once
+            data = node._load_properties_from_npz(keys=['positions', 'symbols'])
+
+            # site_indices is stored internally as two CSR arrays; the key
+            # expansion is handled automatically:
+            data = node._load_properties_from_npz(keys=['site_indices'])
+
+        **Known limitation — no sliced / partial row access**
+
+        Reading a slice of rows (e.g. ``positions[0:100]``) is **not**
+        possible with the current ``.npz`` format.  The ZIP compression codec
+        (DEFLATE) is a streaming algorithm: to reach byte offset *N* inside a
+        compressed entry the entire stream from byte 0 must be decompressed
+        first.  ``mmap_mode`` in ``numpy.load`` is also silently ignored for
+        ``.npz`` files (it only applies to bare ``.npy`` files on disk).
+
+        Future approaches that would enable true random / sliced access:
+
+        * Store each property as a **separate ``.npy`` object** in the AiiDA
+          repository.  A ``.npy`` file holds exactly **one** array, so this
+          requires one ``put_object_from_filelike`` call per property (e.g.
+          ``positions.npy``, ``charges.npy``, ``symbols.npy``, …) instead of
+          the single ``properties.npz`` used today.  The trade-off is more
+          repository objects and no compression, but ``.npy`` files on disk
+          support ``np.load(..., mmap_mode='r')`` which memory-maps the array
+          and allows zero-copy slicing without loading the full file.
+        * Switch the container format to **Zarr** or **HDF5** (h5py), both of
+          which pack multiple arrays into one file *and* store them in
+          fixed-size compressed chunks, enabling direct chunk-level random
+          access without touching the rest of the file.
+
+        :param keys: Optional list of property names to load.  If ``None``
+            (default) all properties stored in the file are loaded.  Unknown
+            keys are silently ignored.
+        :return: Dictionary of property name -> numpy array (or Python list
+            for string properties).
         """
         if self._properties_filename not in self.base.repository.list_object_names():
             return {}
 
-        # Read from repository
         with self.base.repository.open(self._properties_filename, mode='rb') as handle:
             npz_data = np.load(handle, allow_pickle=False)
-            # Convert to regular dict (npz returns NpzFile object)
-            # String arrays (dtype 'U' or 'S') are converted back to Python lists
+
+            # Determine which internal npz keys to read.
+            # site_indices is stored as two CSR arrays, so expand accordingly.
+            if keys is None:
+                keys_to_read = list(npz_data.files)
+            else:
+                # Always include CSR pair when site_indices is requested
+                internal_keys = set()
+                for k in keys:
+                    if k == 'site_indices':
+                        internal_keys.update(['site_indices_flat', 'site_indices_offsets'])
+                    else:
+                        internal_keys.add(k)
+                keys_to_read = [k for k in npz_data.files if k in internal_keys]
+
+            # Only the keys in keys_to_read are decompressed from the ZIP.
+            # String arrays (dtype 'U' or 'S') are converted back to Python lists.
             properties = {}
-            for key in npz_data.files:
-                arr = npz_data[key]
+            for key in keys_to_read:
+                arr = npz_data[key]  # decompresses only this one ZIP entry
                 if arr.dtype.kind in {"U", "S"}:
                     properties[key] = arr.tolist()
                 else:
@@ -387,8 +503,8 @@ class StructureData(Data, GetterMixin):
                     for i in range(len(offsets) - 1)
                 ]
 
-        # Cache if stored
-        if self.is_stored:
+        # Cache the full load (only when all keys were requested)
+        if keys is None and self.is_stored:
             self._cached_npz_properties = properties
 
         return properties
@@ -456,9 +572,66 @@ class StructureData(Data, GetterMixin):
     def to_builder(self) -> 'StructureBuilder':
         """Convert to a mutable StructureBuilder."""
         return StructureBuilder(**self.to_dict())
-    
+
     def get_value(self) -> 'StructureBuilder':
         return self.to_builder()
+
+    def __len__(self) -> int:
+        """Return the number of sites in the structure."""
+        return len(self.properties.sites)
+
+    def __getitem__(self, index) -> 'StructureData':
+        """
+        Return a new (unstored) :class:`StructureData` containing only the
+        sites selected by ``index``.
+
+        Supported index types:
+
+        * **int** — single site, e.g. ``node[0]`` or ``node[-1]``
+        * **slice** — contiguous or strided range, e.g. ``node[10:20]``
+          or ``node[::2]``
+        * **list / tuple of ints** — arbitrary selection, e.g.
+          ``node[[0, 3, 7]]``
+        * **numpy integer array** — same as list, e.g.
+          ``node[np.array([0, 3, 7])]``
+
+        Cell, pbc and all other global properties (``tot_charge``,
+        ``tot_magnetization``, ``custom``, …) are preserved unchanged in the
+        returned node.  Per-site global aggregates such as ``formula`` are
+        recomputed automatically from the new site list.
+
+        :param index: An ``int``, ``slice``, ``list``/``tuple`` of ints, or a
+            1-D integer numpy array selecting the desired site indices.
+        :return: A new, **unstored** :class:`StructureData` with the selected
+            sites.  Call ``.store()`` if persistence is needed.
+        :raises IndexError: If any index is out of range.
+        :raises TypeError: If ``index`` is not one of the supported types.
+
+        Examples::
+
+            # Single site as a one-site StructureData
+            one = node[0]
+
+            # First ten sites
+            first_ten = node[0:10]
+
+            # Every other site
+            even = node[::2]
+
+            # Arbitrary selection, then store
+            subset = node[[0, 5, 12]]
+            subset.store()
+        """
+        import copy
+
+        selected = _resolve_site_indices(self.properties.sites, index)
+        new_dict = copy.deepcopy(self.to_dict())
+        new_dict['sites'] = [
+            s.model_dump(exclude_unset=True, exclude_none=True, warnings=False)
+            if hasattr(s, 'model_dump') else dict(s)
+            for s in selected
+        ]
+        return StructureData(**new_dict)
 
     def __repr__(self) -> str:
         """Return a concise string representation of the structure."""
@@ -548,6 +721,68 @@ class StructureBuilder(GetterMixin, SetterMixin):
 
     def to_aiida(self) -> 'StructureData':
         return StructureData(**self.to_dict())
+
+    def __len__(self) -> int:
+        """Return the number of sites in the structure."""
+        return len(self.properties.sites)
+
+    def __getitem__(self, index) -> 'StructureBuilder':
+        """
+        Return a new :class:`StructureBuilder` containing only the sites selected
+        by ``index``.
+
+        Supported index types:
+
+        * **int** — single site, e.g. ``builder[0]`` or ``builder[-1]``
+        * **slice** — contiguous or strided range, e.g. ``builder[10:20]``
+          or ``builder[::2]``
+        * **list / tuple of ints** — arbitrary selection, e.g.
+          ``builder[[0, 3, 7]]``
+        * **numpy integer array** — same as list, e.g.
+          ``builder[np.array([0, 3, 7])]``
+
+        Cell, pbc and all other global properties (``tot_charge``,
+        ``tot_magnetization``, ``custom``, …) are preserved unchanged in the
+        returned builder.  Per-site global aggregates such as ``formula`` are
+        recomputed automatically from the new site list.
+
+        .. note::
+            This operates on the **site-based** representation.  If the
+            original structure was built with ``kinds=``, the builder already
+            holds the expanded site list, so slicing is always well-defined.
+
+        :param index: An ``int``, ``slice``, ``list``/``tuple`` of ints, or a
+            1-D integer numpy array selecting the desired site indices.
+        :return: A new :class:`StructureBuilder` with the selected sites.
+        :raises IndexError: If any index is out of range.
+        :raises TypeError: If ``index`` is not one of the supported types.
+
+        Examples::
+
+            b = StructureBuilder(sites=[...], cell=..., pbc=...)
+
+            # Single site
+            one = b[0]
+
+            # First ten sites
+            first_ten = b[0:10]
+
+            # Every other site
+            even = b[::2]
+
+            # Arbitrary selection
+            subset = b[[0, 5, 12, 99]]
+        """
+        import copy
+
+        selected = _resolve_site_indices(self.properties.sites, index)
+        new_dict = copy.deepcopy(self.to_dict())
+        new_dict['sites'] = [
+            s.model_dump(exclude_unset=True, exclude_none=True, warnings=False)
+            if hasattr(s, 'model_dump') else dict(s)
+            for s in selected
+        ]
+        return StructureBuilder(**new_dict)
 
     def __repr__(self) -> str:
         """Return a concise string representation of the structure."""

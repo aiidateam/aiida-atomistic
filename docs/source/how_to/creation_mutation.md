@@ -527,6 +527,96 @@ structure.to_file('my_structure.cif')
 structure.to_file('my_structure.xyz')
 ```
 
+## Slicing structures
+
+Both `StructureData` and `StructureBuilder` support Python-style indexing to
+extract a subset of sites into a new structure.
+
+:::{important}
+The return type depends on the class you slice:
+
+- **`StructureBuilder[…]`** → a new `StructureBuilder` (mutable, can be edited
+  further before storing).
+- **`StructureData[…]`** → a new, **unstored** `StructureData` node. Call
+  `.store()` when you are ready to persist the result.
+:::
+
+All global properties — `cell`, `pbc`, `tot_charge`, `tot_magnetization`,
+`custom`, etc. — are **preserved** in the result unchanged.  Derived per-site
+quantities such as `formula` and `n_sites` are recomputed automatically from the
+new site list.
+
+### Supported index types
+
+| Index type | Example | Description |
+| --- | --- | --- |
+| `int` | `s[0]`, `s[-1]` | Single site (negative indices supported) |
+| `slice` | `s[10:20]`, `s[::2]` | Contiguous or strided range |
+| `list` / `tuple` of ints | `s[[0, 5, 12]]` | Arbitrary, possibly non-contiguous selection |
+| 1-D numpy integer array | `s[np.array([0, 5, 12])]` | Same as list |
+
+### Examples
+
+```python
+from aiida_atomistic.data.structure import StructureData, StructureBuilder
+import numpy as np
+
+# --- build a small 6-site structure ---
+sites = [
+    {"symbol": "Fe", "position": [0.0, 0.0, float(i)], "charge": float(i)}
+    for i in range(6)
+]
+builder = StructureBuilder(
+    cell=np.eye(3) * 10.0,
+    pbc=[True, True, True],
+    sites=sites,
+)
+
+# int — one site
+one = builder[0]
+print(one.properties.formula)   # Fe
+
+# slice — first three sites
+first3 = builder[0:3]
+print(first3.properties.formula)  # Fe3
+
+# slice with stride — every other site
+even = builder[::2]
+print(len(even))  # 3
+
+# list — arbitrary selection
+subset = builder[[0, 2, 5]]
+print(subset.properties.formula)  # Fe3
+
+# negative index
+last = builder[-1]
+print(last.properties.sites[0].position)  # [0. 0. 5.]
+```
+
+### Slicing a stored `StructureData` node
+
+`StructureData` supports exactly the same indexing syntax and returns a new,
+**unstored** `StructureData` node each time.  The original node is never modified.
+
+```python
+# Assume `node` is a stored StructureData retrieved from the database
+node = load_node(pk=42)
+
+# Extract the first 100 sites and store as a new node
+sub = node[0:100]
+sub.store()
+
+# Arbitrary selection from a mask
+mask = np.where(np.array(node.properties.charges) > 0.5)[0]
+charged = node[mask]
+charged.store()
+```
+
+:::{note}
+`len(node)` and `len(builder)` return the number of sites, consistent with the
+indexing behaviour.
+:::
+
 ## Complete Example: Building a Complex Structure
 
 Here's a complete workflow showing structure creation and modification:
@@ -572,7 +662,8 @@ print(f"Total charge: {np.sum(final_structure.properties.charges)}")
 ```
 
 **Output:**
-```
+
+```text
 Structure: Fe2O2
 Kinds: {'Fe1', 'Fe2', 'O1'}
 Cell volume: 125.00 Å³
@@ -581,3 +672,4 @@ Final structure ready for calculations!
 Is alloy: False
 Total charge: -1.0
 ```
+
