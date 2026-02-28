@@ -2,7 +2,7 @@ import typing as t
 from pydantic import BaseModel, Field, field_validator, ConfigDict, computed_field, model_validator
 import numpy as np
 
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from aiida_atomistic.data.structure.site import Site, FrozenList, freeze_nested, FrozenSite, NumpyArray
 from aiida_atomistic.data.structure.kind import Kind
@@ -157,18 +157,6 @@ class StructureBaseModel(BaseModel):
 
     @computed_field(json_schema_extra={"store_in": "db"})
     @property
-    def formula(self) -> str:
-        """
-        Get the chemical formula of the structure.
-
-        Returns:
-            str: The chemical formula of the structure.
-        """
-        from aiida_atomistic.data.structure.utils import get_formula
-        return get_formula(self.sites)
-
-    @computed_field(json_schema_extra={"store_in": "db"})
-    @property
     def is_alloy(self) -> dict:
         """
         Computed field to determine if the structure is an alloy.
@@ -182,6 +170,38 @@ class StructureBaseModel(BaseModel):
         Computed field to determine if the structure has vacancies.
         """
         return any(_.has_vacancies for _ in self.sites)
+    
+    @computed_field(json_schema_extra={"store_in": "db"})
+    @property
+    def composition(self) -> dict:
+        """
+        Get the chemical composition of the structure.
+
+        For ordinary structures (no alloys, no vacancies) each site contributes
+        exactly 1 to its element count, equivalent to ``Counter(symbols)``.
+
+        For alloy / vacancy sites the contribution of each element is weighted
+        by the corresponding occupation ``weight``.  Weights that round to zero
+        (below 1e-6) are omitted so that vacancy pseudo-elements never appear.
+
+        Returns:
+            dict: Mapping of element symbol → total (possibly fractional) count,
+                  e.g. ``{"Fe": 2, "O": 3}`` or ``{"Fe": 1.5, "Mn": 0.5}``.
+        """
+        if not (self.is_alloy or self.has_vacancies):
+            # Fast path: every site has a single plain string symbol
+            return dict(Counter(self.symbols))
+
+        # Slow path: alloy / vacancy sites carry a list of symbols + weights
+        comp: dict[str, float] = {}
+        for site in self.sites:
+            symbols = site.symbol if isinstance(site.symbol, list) else [site.symbol]
+            weights = list(site.weight) if site.weight is not None else [1.0] * len(symbols)
+            for sym, w in zip(symbols, weights):
+                if w < 1e-6:    # skip vacancy contributions
+                    continue
+                comp[sym] = comp.get(sym, 0.0) + w
+        return {k: (int(v) if v == int(v) else round(v, 6)) for k, v in comp.items()}
 
     # HERE I AM DEFINING EXPLICITLY THE COMPUTED FIELDS LIKE POSITIONS AND KINDS, but maybe we can do it with some metaclass.
     @computed_field(json_schema_extra={"store_in": "repository","singular_form": "position"})
@@ -208,7 +228,11 @@ class StructureBaseModel(BaseModel):
         """
         if all(site.kind_name is None for site in self.sites):
             return None
-        return FrozenList([site.kind_name if site.kind_name is not None else site.symbol for site in self.sites])
+        return FrozenList([
+            site.kind_name if site.kind_name is not None
+            else (site.symbol if isinstance(site.symbol, str) else ''.join(site.symbol))
+            for site in self.sites
+        ])
 
     @computed_field(json_schema_extra={"store_in": "repository","singular_form": "symbol"})
     @property
@@ -311,6 +335,8 @@ class StructureBaseModel(BaseModel):
         # Mapping of kind_name -> site indices
         kind_to_indices = defaultdict(list)
         for i, name in enumerate(self.kind_names):
+            # kind_names entries are already plain strings (symbol joined by '/'
+            # for alloy sites), so they are always hashable.
             kind_to_indices[name].append(i)
 
         positions_array = self.positions
@@ -319,7 +345,9 @@ class StructureBaseModel(BaseModel):
         seen_kinds = set()
 
         for site in self.sites:
-            kind_name = site.kind_name if site.kind_name else site.symbol
+            kind_name = site.kind_name if site.kind_name else (
+                site.symbol if isinstance(site.symbol, str) else '_'.join(site.symbol)
+            )
 
             # Skip if we've already processed this kind
             if kind_name in seen_kinds:
@@ -400,6 +428,17 @@ class StructureBaseModel(BaseModel):
         """Total number of sites in the structure."""
         return len(self.kinds) if self.kinds is not None else 0
 
+    @property
+    def formula(self, mode="hill", separator="") -> str:
+        """
+        Get the chemical formula of the structure.
+
+        Returns:
+            str: The chemical formula of the structure.
+        """
+        from aiida_atomistic.data.structure.utils import get_formula
+        return get_formula(self.sites, mode, separator)
+    
     def __repr__(self) -> str:
         from pprint import pformat
         pformatted = pformat(self.model_dump())

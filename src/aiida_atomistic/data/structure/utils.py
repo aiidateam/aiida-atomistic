@@ -875,11 +875,10 @@ def set_symbols_and_weights(new_data):
         new_data["weight"] = weights_tuple
 
         if "mass" not in new_data.keys() or np.isnan(new_data.get("mass", None)) or new_data.get("mass", None) == 0:
-            # Weighted mass
-            w_sum = sum(weights_tuple)
-            normalized_weights = (i / w_sum for i in weights_tuple)
+            # Weighted mass: use raw weights (not normalized) so that vacancy sites
+            # (w_sum < 1) correctly get a fractional mass, e.g. 0.7 * m(Fe).
             element_masses = (_atomic_masses[sym] for sym in symbols_tuple)
-            new_data["mass"] = sum(i * j for i, j in zip(normalized_weights, element_masses))
+            new_data["mass"] = sum(w * m for w, m in zip(weights_tuple, element_masses))
 
 def check_is_alloy(data):
     """Check if the data is an alloy or not.
@@ -900,9 +899,13 @@ def check_is_alloy(data):
         else:
             return None
     if len(new_data.get("weight", [1,])) == 1:
-        if new_data["symbol"] not in _valid_symbols:
+        if isinstance(new_data["symbol"], str) and new_data["symbol"] not in _valid_symbols:
             raise ValueError(f'This is not a valid element: {new_data["symbol"]}')
-        return None
+        if new_data.get("weight", (1,))[0] == 1:
+            # weight == 1 and single element: plain site, neither alloy nor vacancy
+            return None
+        # weight < 1 → single-element vacancy; fall through to
+        # set_symbols_and_weights so the weighted mass is computed correctly
     set_symbols_and_weights(new_data)
     return new_data
 

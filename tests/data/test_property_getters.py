@@ -373,7 +373,7 @@ class TestMethodGetters:
         # Should include all computed fields
         assert 'charges' in defined
         assert 'positions' in defined
-        assert 'formula' in defined
+        assert 'composition' in defined
         assert 'cell_volume' in defined
 
     def test_get_defined_properties_no_charges(self):
@@ -455,7 +455,7 @@ class TestMethodGetters:
         assert isinstance(computed_data, set)
 
         # Should include computed properties
-        for prop in ['formula', 'cell_volume', 'dimensionality', 'positions', 'charges', 'magmoms']:
+        for prop in ['composition', 'cell_volume', 'dimensionality', 'positions', 'charges', 'magmoms']:
             assert prop in computed_builder
             assert prop in computed_data
 

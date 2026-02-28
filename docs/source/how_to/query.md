@@ -11,8 +11,11 @@ This page only concerns the `StructureData` object, as the `StructureBuilder` is
 
 **Database (queryable via QueryBuilder):**
 - Global properties: `pbc`, `cell`, `periodicity`, `tot_magnetization`, `tot_charge`, `hubbard`, `custom` and so on. You can see the whole set accessing `StructureData.get_supported_properties()['global']`
-- Computed properties: `formula`, `cell_volume`, `dimensionality`, `is_alloy`, `has_vacancies`, `symbols`, `kind_names`, `n_sites` and so on. You can see the whole set accessing `StructureData.get_computed_properties()['global']`
+- Computed properties: `composition`, `cell_volume`, `dimensionality`, `is_alloy`, `has_vacancies`, `symbols`, `kind_names`, `n_sites` and so on. You can see the whole set accessing `StructureData.get_computed_properties()['global']`
 
+**Not stored (computed on-the-fly only):**
+
+- `formula` — use `structure.properties.formula` to access it, but it **cannot** be queried. Use `composition` for database queries instead.
 
 **Repository (not queryable, loaded on access):**
 - Per-site arrays: `positions`, `masses`, `charges`, `magmoms`, `magnetizations`, `weights`
@@ -36,11 +39,11 @@ StructureData.get_queryable_properties()
 
 **Queryable properties include:**
 - **Global**: `pbc`, `cell`, `periodicity`, `tot_magnetization`, `tot_charge`, `hubbard`, `custom`
-- **Computed**: `formula`, `cell_volume`, `dimensionality`, `is_alloy`, `has_vacancies`, `symbols`, `kind_names`, `n_sites`
+- **Computed**: `composition`, `cell_volume`, `dimensionality`, `is_alloy`, `has_vacancies`, `symbols`, `kind_names`, `n_sites`
 - **Statistics**: `max_charge`, `min_charge`, `max_magmom`, `min_magmom`, `max_magnetization`, `min_magnetization`
 
 :::{note}
-**Per-site arrays like `positions`, `masses`, `charges`, `magmoms`, `magnetizations`, and `weights` are stored in the repository and cannot be queried directly.** Instead, use the statistical properties (`max_charge`, `min_charge`, etc.) to filter structures by value ranges.
+**`formula` is no longer stored in the database** and therefore cannot be queried. Use `composition` instead — it is a `dict` mapping element symbols to their count, e.g. `{"Fe": 2, "O": 3}`, and is fully queryable.
 :::
 
 ## Examples of simple queries
@@ -142,13 +145,15 @@ print(f"PK: {result[3]}")
 
 ### Structures by Number of Atoms
 
+Use `attributes.n_sites` for total atom count:
+
 ```python
 # Less than 6 atoms
 nr_atoms = 6
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes.symbols': {'shorter': nr_atoms}}
+    filters={'attributes.n_sites': {'<': nr_atoms}}
 )
 print(f"Structures with < {nr_atoms} atoms: {len(qb.all())}")
 
@@ -157,7 +162,7 @@ nr_atoms = 5
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes.symbols': {'longer': nr_atoms}}
+    filters={'attributes.n_sites': {'>': nr_atoms}}
 )
 print(f"Structures with > {nr_atoms} atoms: {len(qb.all())}")
 
@@ -166,10 +171,7 @@ nr_atoms = 2
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes.symbols': {'and': [
-        {'shorter': nr_atoms + 1},
-        {'longer': nr_atoms - 1}
-    ]}}
+    filters={'attributes.n_sites': nr_atoms}
 )
 print(f"Structures with exactly {nr_atoms} atoms: {len(qb.all())}")
 ```
@@ -237,211 +239,85 @@ Statistical properties enable efficient filtering without loading large arrays:
 
 ### Specific Chemical Formula
 
+`formula` is no longer stored in the database. Use `composition` to search by element
+content instead. `composition` is a `dict` like `{"Fe": 2, "O": 3}`, stored as a
+JSON attribute, so all standard QueryBuilder dict/key filters apply.
+
 ```python
-formula = 'HO'
+# Structures containing iron
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes.formula': formula}  # or {'==': formula}
+    filters={'attributes.composition': {'has_key': 'Fe'}}
 )
-print(f"Structures with formula {formula}: {len(qb.all())}")
+print(f"Structures containing Fe: {len(qb.all())}")
+
+# Structures containing both Fe and O
+qb = QueryBuilder()
+qb.append(
+    StructureData,
+    filters={'attributes.composition': {'and': [
+        {'has_key': 'Fe'},
+        {'has_key': 'O'},
+    ]}}
+)
+print(f"Fe-O structures: {len(qb.all())}")
 ```
 
 ### Specific Number of Atoms of an Element
 
-For multiple atoms of the same element:
+Because `composition` is a queryable dict, you can filter on the **count** of an element
+directly — no regex needed:
 
 ```python
-element = 'H'
-nr_atoms = 2
+# Exactly 2 Fe atoms
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={
-        'attributes.formula': {'like': f'%{element}{nr_atoms}%'}
-    },
-    project=['attributes.formula', 'id']
+    filters={'attributes.composition.Fe': 2},
+    project=['attributes.composition', 'id']
 )
-print(f"Structures with {nr_atoms} {element} atoms: {len(qb.all())}")
-```
+print(f"Structures with exactly 2 Fe: {len(qb.all())}")
 
-:::{warning}
-This approach may match unintended formulas (e.g., searching for `Mn2` might also match `Mn20`). Use regex post-processing for precise matches.
-:::
-
-### Exactly One Atom of an Element
-
-For a single atom, use regex to ensure no digits follow:
-
-```python
-import re
-
-element = 'H'
+# At least 3 H atoms
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes.formula': {'like': f'%{element}%'}},
-    project=['attributes.formula', 'id']
+    filters={'attributes.composition.H': {'>': 2}},
+    project=['attributes.composition', 'id']
 )
-
-res = []
-for struct in qb.iterall():
-    formula = struct[0]
-    # Match H not followed by any digit
-    if formula and re.search(f'{element}(?![0-9])', formula):
-        res.append(struct)
-
-print(f"Structures with exactly one {element}: {len(res)}")
-```
-
-**Regex explanation:**
-- `H` - matches the element symbol
-- `(?![0-9])` - negative lookahead: ensures H is NOT followed by a digit
-- This matches formulas where H appears alone (exactly 1 atom)
-
-### Exactly N Atoms of an Element
-
-For precise matching of specific atom counts:
-
-```python
-element = 'Mn'
-nr_atoms = 2
-qb = QueryBuilder()
-qb.append(
-    StructureData,
-    filters={'attributes.formula': {'like': f'%{element}{nr_atoms}%'}},
-    project=['attributes.formula', 'id']
-)
-
-res = []
-for struct in qb.iterall():
-    formula = struct[0]
-    # Match element followed by the number, but not by another digit
-    if formula and re.search(f'{element}{nr_atoms}(?![0-9])', formula):
-        res.append(struct)
-
-print(f"Structures with exactly {nr_atoms} {element}: {len(res)}")
-print(f"Formulas: {[s[0] for s in res]}")
+print(f"Structures with ≥ 3 H: {len(qb.all())}")
 ```
 
 ### Binaries and Ternaries
 
-Find structures with specific numbers of elements using regex:
+`composition` stores one key per distinct element, so the number of keys equals the
+number of distinct elements. Use `has_key` / `!has_key` to check for the presence of
+elements, or load the node and check `len(structure.properties.composition)`:
 
 ```python
-import re
+# Binary compounds (exactly 2 distinct elements) — database-side pre-filter
+# then Python-side length check
+qb = QueryBuilder()
+qb.append(StructureData, project=['*'])
 
-# Binary compounds (2 elements)
-number_of_elements = 2
+binaries = [
+    s for (s,) in qb.iterall()
+    if len(s.properties.composition) == 2
+]
+print(f"Binary compounds: {len(binaries)}")
+print(f"Examples: {[s.properties.formula for s in binaries[:5]]}")
+
+# If your database is large, pre-filter with a known element to reduce the scan:
 qb = QueryBuilder()
 qb.append(
     StructureData,
-    filters={'attributes.symbols': {'longer': number_of_elements - 1}},
-    project=['attributes.formula', 'id']
+    filters={'attributes.composition': {'has_key': 'Fe'}},
+    project=['*']
 )
-
-res = []
-for struct in qb.iterall():
-    formula = struct[0]
-    # Pattern: exactly 2 occurrences of [Capital][lowercase]*[digits]*
-    pattern = '^' + '[A-Z][a-z]*[0-9]*' * number_of_elements + '$'
-    if formula and re.search(pattern, formula):
-        res.append(struct)
-
-print(f"Binary compounds: {len(res)}")
-print(f"Examples: {[s[0] for s in res[:5]]}")
-
-# Ternary compounds (3 elements)
-number_of_elements = 3
-qb = QueryBuilder()
-qb.append(
-    StructureData,
-    filters={'attributes.symbols': {'longer': number_of_elements - 1}},
-    project=['attributes.formula', 'id']
-)
-
-res = []
-for struct in qb.iterall():
-    formula = struct[0]
-    pattern = '^' + '[A-Z][a-z]*[0-9]*' * number_of_elements + '$'
-    if formula and re.search(pattern, formula):
-        res.append(struct)
-
-print(f"Ternary compounds: {len(res)}")
+fe_binaries = [
+    s for (s,) in qb.iterall()
+    if len(s.properties.composition) == 2
+]
+print(f"Fe-containing binaries: {len(fe_binaries)}")
 ```
-
-**Regex pattern explanation:**
-- `^` - start of string
-- `[A-Z]` - capital letter (element symbol start)
-- `[a-z]*` - zero or more lowercase letters (element symbol continuation)
-- `[0-9]*` - zero or more digits (stoichiometry)
-- Repeated `number_of_elements` times
-- `$` - end of string
-
-This ensures the formula has exactly the specified number of element symbols.
-
-## Best Practices
-
-1. **Filter early**: Use QueryBuilder filters to reduce the result set before post-processing
-2. **Project efficiently**: Only retrieve the attributes you need
-3. **Use statistical properties**: Query `max_charge`, `min_charge`, etc. instead of loading full arrays
-4. **Use regex carefully**: Regex post-processing is powerful but slower than database filters
-5. **Check for None**: Always validate that projected values exist before using them in regex
-6. **Combine filters**: Use `and`, `or`, and negation (`!`) to build complex queries
-7. **Understand storage locations**: Database properties are fast to query; repository properties require loading the node
-
-:::{note}
-**Storage Model Impact on Queries**
-
-- **Fast queries**: Properties in the database (`formula`, `symbols`, `n_sites`, statistics)
-- **Requires loading**: Per-site arrays in the repository (`positions`, `charges`, `magmoms`)
-- **Best practice**: Filter using database properties first, then load nodes to access repository arrays
-
-Example efficient workflow:
-```python
-# First: Filter in database by statistics
-qb = QueryBuilder()
-qb.append(
-    StructureData,
-    filters={'attributes': {'and': [
-        {'max_charge': {'>': 1.0}},
-        {'formula': {'like': '%Fe%'}}
-    ]}}
-)
-
-# Then: Load only matching nodes to access full charge arrays
-for (structure,) in qb.iterall():
-    charges = structure.properties.charges  # Loads from repository
-    # Process individual charge values...
-```
-:::
-
-## Performance Tips
-
-- **Use `qb.iterall()`** instead of `qb.all()` for large result sets to avoid loading everything into memory
-- **Filter at database level**: Apply as many filters as possible using QueryBuilder before loading nodes
-- **Use statistical properties**: Query `max_charge`, `min_charge`, etc. to avoid loading repository arrays
-- **Use `project`** to retrieve only needed database attributes
-- **Load repository data last**: Access `positions`, `charges`, `magmoms` only after filtering
-- **For very large databases**: Consider adding pagination with `limit` and `offset`
-
-:::{important}
-**Performance Comparison**
-
-**Fast** (database query only):
-```python
-qb = QueryBuilder()
-qb.append(StructureData, filters={'attributes.max_charge': {'>': 1.0}})
-results = qb.all()  # Fast - no repository access
-```
-
-**Slow** (loading all arrays):
-```python
-qb = QueryBuilder()
-qb.append(StructureData)
-for (s,) in qb.iterall():
-    if "charges" in s.get_defined_properties():
-        if max(s.properties.charges) > 1.0:  # Slow - loads from repository for every structure with charges
-            results.append(s)
-```
-:::

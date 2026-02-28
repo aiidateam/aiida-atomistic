@@ -687,7 +687,7 @@ class TestGetDefinedProperties:
 
         # Should include everything
         assert "charges" in defined  # Site array
-        assert "formula" in defined  # Pure computed
+        assert "composition" in defined  # Pure computed
         assert "cell_volume" in defined  # Pure computed
         assert "is_alloy" in defined  # Pure computed
 

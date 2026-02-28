@@ -430,7 +430,7 @@ def test_site_repr():
     # Alloy site
     site5 = Site(symbol=['Fe', 'Co'], position=[3, 3, 3], weight=(0.5, 0.5), kind_name='alloy1')
     repr_str = repr(site5)
-    assert 'Fe/Co' in repr_str
+    assert 'Fe_Co' in repr_str
     assert 'weight=' in repr_str
     assert '0.50' in repr_str
 
@@ -561,7 +561,9 @@ def test_get_queryable_properties_basic():
     # Check that common properties are in correct categories
     assert 'cell' in props['queryable']
     assert 'pbc' in props['queryable']
-    assert 'formula' in props['queryable']
+    # composition is stored in db and is queryable; formula is not stored
+    assert 'composition' in props['queryable']
+    assert 'formula' not in props['queryable']
 
     # Arrays stored in npz should not be queryable
     assert 'positions' in props['not_queryable']
@@ -604,8 +606,161 @@ def test_detect_storage_backend_for_regular_fields():
 
 def test_detect_storage_backend_for_computed_fields():
     """Test storage backend detection for computed fields."""
-    backend = StructureData.detect_storage_backend('formula')
-    assert isinstance(backend, str)
+    # composition is stored in db
+    backend = StructureData.detect_storage_backend('composition')
+    assert backend in ['db', 'attribute', 'attributes']
+
+
+def test_composition_field():
+    """composition is a queryable dict of element → count."""
+    structure = StructureData(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            {"symbol": "Fe", "position": [0, 0, 0]},
+            {"symbol": "O",  "position": [1, 0, 0]},
+            {"symbol": "O",  "position": [2, 0, 0]},
+        ]
+    )
+    comp = structure.properties.composition
+    assert isinstance(comp, dict)
+    assert comp["Fe"] == 1
+    assert comp["O"] == 2
+    assert len(comp) == 2
+
+
+def test_composition_alloy():
+    """composition accumulates weighted counts for alloy sites."""
+    structure = StructureData(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            # alloy site: 50 % Fe, 50 % Mn
+            {"symbol": ["Fe", "Mn"], "weight": (0.5, 0.5), "position": [0, 0, 0]},
+            {"symbol": "O", "position": [1, 0, 0]},
+        ]
+    )
+    comp = structure.properties.composition
+    assert comp["Fe"] == 0.5
+    assert comp["Mn"] == 0.5
+    assert comp["O"] == 1
+
+
+def test_composition_vacancy():
+    """composition omits the vacancy (zero-weight) contribution."""
+    structure = StructureData(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            # 70 % Fe, 30 % vacancy → only Fe appears, with weight 0.7
+            {"symbol": "Fe", "weight": (0.7,), "position": [0, 0, 0]},
+            {"symbol": "O", "position": [1, 0, 0]},
+        ]
+    )
+    comp = structure.properties.composition
+    assert abs(comp["Fe"] - 0.7) < 1e-6
+    assert comp["O"] == 1
+    assert len(comp) == 2  # no phantom vacancy element
+
+
+def test_kinds_alloy_with_kind_name():
+    """kinds must not crash when alloy sites have an explicit kind_name."""
+    from aiida_atomistic.data.structure.structure import StructureBuilder
+    builder = StructureBuilder(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            # alloy site with an explicit kind_name
+            {"symbol": ["Fe", "Mn"], "weight": (0.5, 0.5),
+             "position": [0, 0, 0], "kind_name": "FeMn1"},
+            {"symbol": "O", "position": [1, 0, 0], "kind_name": "O1"},
+        ]
+    )
+    kinds = builder.kinds
+    assert kinds is not None
+    kind_names = {k.kind_name for k in kinds}
+    assert "FeMn1" in kind_names
+    assert "O1" in kind_names
+
+
+def test_kinds_alloy_without_kind_name():
+    """kinds falls back to 'Fe_Mn' string for alloy sites with no kind_name."""
+    from aiida_atomistic.data.structure.structure import StructureBuilder
+    builder = StructureBuilder(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            {"symbol": ["Fe", "Mn"], "weight": (0.5, 0.5), "position": [0, 0, 0]},
+            {"symbol": "O", "position": [1, 0, 0], "kind_name": "O"},
+        ]
+    )
+    # must not raise TypeError: unhashable type 'list'
+    kinds = builder.kinds
+    assert kinds is not None
+    kind_names = {k.kind_name for k in kinds}
+    assert "Fe_Mn" in kind_names
+
+
+def test_mass_alloy_site():
+    """Mass of an alloy site is the weight-average of elemental masses."""
+    from aiida_atomistic.data.structure.structure import StructureBuilder
+    from aiida_atomistic.data.structure.constants import _atomic_masses  # noqa: PLC0415
+    builder = StructureBuilder(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            {"symbol": ["Fe", "Mn"], "weight": (0.5, 0.5), "position": [0, 0, 0]},
+        ]
+    )
+    expected = 0.5 * _atomic_masses["Fe"] + 0.5 * _atomic_masses["Mn"]
+    assert abs(builder.properties.sites[0].mass - expected) < 1e-6
+
+
+def test_mass_vacancy_site():
+    """Mass of a vacancy site is the elemental mass weighted by occupation."""
+    from aiida_atomistic.data.structure.structure import StructureBuilder
+    from aiida_atomistic.data.structure.constants import _atomic_masses  # noqa: PLC0415
+    builder = StructureBuilder(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            {"symbol": "Fe", "weight": (0.7,), "position": [0, 0, 0]},
+        ]
+    )
+    expected = 0.7 * _atomic_masses["Fe"]
+    assert abs(builder.properties.sites[0].mass - expected) < 1e-6
+
+
+def test_composition_stored_as_attribute(aiida_profile_clean):
+    """After storing, composition appears as a DB attribute."""
+    structure = StructureData(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[
+            {"symbol": "Fe", "position": [0, 0, 0]},
+            {"symbol": "O",  "position": [1, 0, 0]},
+        ]
+    )
+    structure.store()
+    attrs = dict(structure.base.attributes.all)
+    assert "composition" in attrs
+    assert attrs["composition"]["Fe"] == 1
+    assert attrs["composition"]["O"] == 1
+    # formula must NOT be stored as an attribute
+    assert "formula" not in attrs
+
+
+def test_formula_not_in_attributes(aiida_profile_clean):
+    """formula is a plain property and must never appear in DB attributes."""
+    structure = StructureData(
+        cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
+        pbc=[True, True, True],
+        sites=[{"symbol": "Cu", "position": [0, 0, 0]}]
+    )
+    structure.store()
+    assert "formula" not in dict(structure.base.attributes.all)
+    # but it is still accessible as a plain property
+    assert structure.properties.formula == "Cu"
 
 
 def test_detect_storage_backend_for_unknown():
