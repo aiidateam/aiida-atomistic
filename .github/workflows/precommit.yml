@@ -1,4 +1,4 @@
-name: ci
+name: pre-commit
 
 on: [push, pull_request]
 
@@ -19,5 +19,7 @@ jobs:
         pip install -e .[pre-commit]
     - name: Run pre-commit
       run: |
+        pre-commit clean
+        git add .pre-commit-config.yaml
         pre-commit install
         pre-commit run --all-files || ( git status --short ; git diff ; exit 1 )
