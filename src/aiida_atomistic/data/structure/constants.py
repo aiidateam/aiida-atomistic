@@ -1,6 +1,5 @@
 """Constants used throughout the structure module."""
 
-import numpy as np
 from aiida.common.constants import elements
 
 _MASS_THRESHOLD = 1.0e-3

@@ -8,7 +8,7 @@ Welcome to the aiida-atomistic tutorials! These step-by-step tutorials will get 
 
     ---
 
-    **Duration**: ~5 minutes 
+    **Duration**: ~5 minutes
 
     **Level**: Beginner
 
@@ -21,8 +21,8 @@ Welcome to the aiida-atomistic tutorials! These step-by-step tutorials will get 
 
     ---
 
-    **Duration**: ~10 minutes 
-    
+    **Duration**: ~10 minutes
+
     **Level**: Intermediate
 
     Use your structures in real computational workflows with Quantum ESPRESSO:

@@ -1,4 +1,5 @@
 """Tests for Kind model and kinds detection functionality."""
+
 import numpy as np
 import pytest
 
@@ -222,7 +223,7 @@ class TestKindsWorkflow:
         new_sites = []
         for site in mutable.properties.sites:
             site_dict = site.model_dump()
-            site_dict['charge'] = 2.0
+            site_dict["charge"] = 2.0
             new_sites.append(Site(**site_dict))  # Create Site objects
         mutable.properties.sites = new_sites
 
@@ -283,9 +284,7 @@ class TestKindsEdgeCases:
         structure_dict = {
             "pbc": [True, True, True],
             "cell": [[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]],
-            "sites": [
-                {"symbol": "H", "position": [0.0, 0.0, 0.0], "kind_name": "H1"}
-            ],
+            "sites": [{"symbol": "H", "position": [0.0, 0.0, 0.0], "kind_name": "H1"}],
         }
 
         structure = StructureData(**structure_dict)
@@ -315,9 +314,24 @@ class TestKindsEdgeCases:
             "pbc": [True, True, True],
             "cell": [[5.0, 0.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 5.0]],
             "sites": [
-                {"symbol": "Cu", "position": [0.0, 0.0, 0.0], "charge": 1.0, "kind_name": "Cu1"},
-                {"symbol": "Cu", "position": [1.0, 0.0, 0.0], "charge": 1.0, "kind_name": "Cu1"},
-                {"symbol": "Cu", "position": [2.0, 0.0, 0.0], "charge": 1.0, "kind_name": "Cu1"},
+                {
+                    "symbol": "Cu",
+                    "position": [0.0, 0.0, 0.0],
+                    "charge": 1.0,
+                    "kind_name": "Cu1",
+                },
+                {
+                    "symbol": "Cu",
+                    "position": [1.0, 0.0, 0.0],
+                    "charge": 1.0,
+                    "kind_name": "Cu1",
+                },
+                {
+                    "symbol": "Cu",
+                    "position": [2.0, 0.0, 0.0],
+                    "charge": 1.0,
+                    "kind_name": "Cu1",
+                },
             ],
         }
 

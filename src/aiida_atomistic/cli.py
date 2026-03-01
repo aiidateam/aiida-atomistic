@@ -5,6 +5,7 @@ Register new commands either via the "console_scripts" entry point or plug them
 directly into the 'verdi' command by using AiiDA-specific entry points like
 "aiida.cmdline.data" (both in the setup.json file).
 """
+
 import sys
 
 import click

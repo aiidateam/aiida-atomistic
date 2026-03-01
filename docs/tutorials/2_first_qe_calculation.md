@@ -8,12 +8,16 @@ This guide demonstrates how to use aiida-atomistic structures in computational w
 
 Ensure you have the necessary packages and codes installed, which you can verify by following the corresponding [installation guide](https://aiida-quantumespresso.readthedocs.io/en/stable/get_started/installation.html).
 
-:::{important}
-For now, please install these versions of the following packages:
-- aiida-core: dev/atomistic branch from https://github.com/mikibonacci/aiida-core.git
-- aiida-pseudo: dev/atomistic branch from https://github.com/mikibonacci/aiida-pseudo.git
-- aiida-quantumespresso: dev/atomistic branch from https://github.com/mikibonacci/aiida-quantumespresso.git
-:::
+!!! note "Compatible AiiDA and other plugins version with aiida-atomistic"
+
+    For now, please install these versions of the following packages:
+
+    - aiida-core: dev/atomistic branch from https://github.com/mikibonacci/aiida-core.git
+    - aiida-pseudo: dev/atomistic branch from https://github.com/mikibonacci/aiida-pseudo.git
+    - aiida-quantumespresso: dev/atomistic branch from https://github.com/mikibonacci/aiida-quantumespresso.git
+
+    You can install all of them by running `pip install .[run]`.
+
 
 If not already done, remember to install the `sssp` pseudopotentials:
 

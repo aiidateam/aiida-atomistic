@@ -1,8 +1,10 @@
 """Pytest fixtures for aiida-atomistic tests."""
+
 import numpy as np
 import pytest
 
 pytest_plugins = ["aiida.manage.tests.pytest_fixtures"]
+
 
 @pytest.fixture(scope="function", autouse=True)
 def clear_database_auto(clear_database):  # pylint: disable=unused-argument
@@ -32,6 +34,7 @@ def supported_properties():
         "weights",
     ]
 
+
 @pytest.fixture
 def example_structure_dict():
     """Basic structure dictionary with one site."""
@@ -54,15 +57,17 @@ def example_structure_dict():
 def example_dumped_structure_dict():
     """Expected dictionary after to_dict() method."""
     return {
-        'pbc': [True, True, True],
-        'cell': np.array([[2.7, 0., 0.],
-                          [0., 2.7, 0.],
-                          [0., 0., 1.6]]),
-        'sites': [{'symbol': 'Cu',
-                   'position': np.array([0., 0., 0.]),
-                   'mass': 63.546,
-                   'charge': 1.0,
-                   'kind_name': 'Cu1'}],
+        "pbc": [True, True, True],
+        "cell": np.array([[2.7, 0.0, 0.0], [0.0, 2.7, 0.0], [0.0, 0.0, 1.6]]),
+        "sites": [
+            {
+                "symbol": "Cu",
+                "position": np.array([0.0, 0.0, 0.0]),
+                "mass": 63.546,
+                "charge": 1.0,
+                "kind_name": "Cu1",
+            }
+        ],
     }
 
 
@@ -301,6 +306,7 @@ def structure_with_charges():
 def ase_silicon_structure():
     """ASE silicon structure for conversion tests."""
     from ase.build import bulk
+
     return bulk("Si", "diamond", a=5.43)
 
 
@@ -308,6 +314,7 @@ def ase_silicon_structure():
 def ase_magnetic_structure():
     """ASE structure with magnetic moments."""
     from ase.build import bulk
+
     atoms = bulk("Fe", "bcc", a=2.87)
     atoms.set_initial_magnetic_moments([2.2, 2.2])
     return atoms
@@ -318,6 +325,7 @@ def pymatgen_structure():
     """Pymatgen structure for conversion tests."""
     try:
         from pymatgen.core import Lattice, Structure
+
         coords = [[0, 0, 0], [0.75, 0.5, 0.75]]
         lattice = Lattice.from_parameters(
             a=3.84, b=3.84, c=3.84, alpha=120, beta=90, gamma=60

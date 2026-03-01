@@ -224,7 +224,7 @@ qb.append(
 print(f"Structures with charges in ({min_charge}, {max_charge}): {len(qb.all())}")
 ```
 
-!!! tip 
+!!! tip
 **Using Statistics for Efficient Queries**
 
     Statistical properties enable efficient filtering without loading large arrays:

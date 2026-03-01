@@ -1,4 +1,5 @@
 """Tests for Site model and related functionality."""
+
 import numpy as np
 import pytest
 from pydantic import ValidationError

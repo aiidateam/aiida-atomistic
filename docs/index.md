@@ -60,10 +60,10 @@ If you use this plugin for your research, please cite the following work:
 
 ## Acknowledgements
 
-We acknowledge support from the [NCCR MARVEL](http://nccr-marvel.ch/) funded by the Swiss National Science Foundation and the EU Centre of Excellence ["MaX – Materials Design at the Exascale"](http://www.max-centre.eu/) (Horizon 2020 EINFRA-5, Grant No. 676598). 
+We acknowledge support from the [NCCR MARVEL](http://nccr-marvel.ch/) funded by the Swiss National Science Foundation and the EU Centre of Excellence ["MaX – Materials Design at the Exascale"](http://www.max-centre.eu/) (Horizon 2020 EINFRA-5, Grant No. 676598).
 
 ![marvel](images/MARVEL.png){ width="250" }
-![max](images/MaX.png){ width="300" } 
+![max](images/MaX.png){ width="300" }
 
 [aiida]: http://aiida.net
 [aiida-core documentation]: https://aiida.readthedocs.io/projects/aiida-core/en/latest/intro/get_started.html

@@ -3,8 +3,16 @@ import numpy as np
 import typing as t
 import re
 from typing import Annotated
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator, BeforeValidator, PlainSerializer, WithJsonSchema
-from pydantic_core import core_schema
+from pydantic import (
+    BaseModel,
+    Field,
+    ConfigDict,
+    field_validator,
+    model_validator,
+    BeforeValidator,
+    PlainSerializer,
+    WithJsonSchema,
+)
 
 try:
     import ase  # noqa: F401
@@ -22,8 +30,8 @@ from .constants import (
     _atomic_masses,
     _MAGMOM_THRESHOLD,
     _SUM_THRESHOLD,
-    _valid_symbols,
 )
+
 
 # Helper to make numpy arrays work with Pydantic JSON schema
 def _validate_array(v):
@@ -32,19 +40,22 @@ def _validate_array(v):
         return v
     return np.array(v)
 
+
 def _serialize_array(v):
     """Serialize numpy array to list."""
     if isinstance(v, np.ndarray):
         return v.tolist()
     return v
 
+
 # Type alias for numpy arrays that works with Pydantic
 NumpyArray = Annotated[
     np.ndarray,
     BeforeValidator(_validate_array),
     PlainSerializer(_serialize_array),
-    WithJsonSchema({'type': 'array', 'items': {'type': 'number'}}),
+    WithJsonSchema({"type": "array", "items": {"type": "number"}}),
 ]
+
 
 def freeze_nested(obj):
     """
@@ -63,6 +74,7 @@ def freeze_nested(obj):
         return FrozenList(freeze_nested(v) for v in obj)
     else:
         return obj
+
 
 class FrozenList(list):
     """
@@ -86,20 +98,22 @@ class FrozenList(list):
             """
         )
 
+
 class Site(BaseModel):
     """This class contains the core information about a given site of the system.
 
     It can be a single atom, or an alloy, or even contain vacancies.
 
     """
+
     _mutable: t.ClassVar[bool] = True
 
     model_config = ConfigDict(
-        from_attributes = True,
-        frozen = False,
-        arbitrary_types_allowed = True,
-        validate_assignment = True
-        )
+        from_attributes=True,
+        frozen=False,
+        arbitrary_types_allowed=True,
+        validate_assignment=True,
+    )
 
     symbol: t.Union[str, t.List[str]]  # validation is done in the check_is_alloy
     position: NumpyArray = Field(
@@ -107,32 +121,26 @@ class Site(BaseModel):
         max_length=3,
     )
     mass: t.Optional[float] = Field(
-        gt=0,
-        json_schema_extra={"threshold": 1e-3, "default": 0}
+        gt=0, json_schema_extra={"threshold": 1e-3, "default": 0}
     )
     charge: t.Optional[float] = Field(
-        default=None,
-        json_schema_extra={"threshold": 1e-2, "default": 0}
+        default=None, json_schema_extra={"threshold": 1e-2, "default": 0}
     )
     magmom: t.Optional[NumpyArray] = Field(
         default=None,
-        json_schema_extra={"threshold": 1e-2, "default": np.array([0, 0, 0])}
+        json_schema_extra={"threshold": 1e-2, "default": np.array([0, 0, 0])},
     )
     magnetization: t.Optional[float] = Field(
-        default=None,
-        json_schema_extra={"threshold": 1e-2, "default": 0}
+        default=None, json_schema_extra={"threshold": 1e-2, "default": 0}
     )
     weight: t.Optional[t.Tuple[float, ...]] = Field(
-        default=None,
-        json_schema_extra={"threshold": 1e-2, "default": (1,)}
+        default=None, json_schema_extra={"threshold": 1e-2, "default": (1,)}
     )
-    kind_name: t.Optional[str] = Field(
-        default=None,
-        json_schema_extra={"default": ""}
-    )
+    kind_name: t.Optional[str] = Field(default=None, json_schema_extra={"default": ""})
 
-
-    @field_validator('position', 'magmom', mode='before') # maybe instead of the explicit list, I can use model_fields.keys()
+    @field_validator(
+        "position", "magmom", mode="before"
+    )  # maybe instead of the explicit list, I can use model_fields.keys()
     @classmethod
     def ensure_numpy_array(cls, v):
         """We want to ensure that the input is a numpy array."""
@@ -142,8 +150,7 @@ class Site(BaseModel):
         array_v.flags.writeable = False
         return array_v
 
-
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     def check_minimal_requirements(cls, data):
         from aiida_atomistic.data.structure.utils import check_is_alloy
 
@@ -152,12 +159,18 @@ class Site(BaseModel):
         alloy_detector = check_is_alloy(data)
         if alloy_detector:
             if "weight" not in data:
-                raise ValueError("For alloy sites, the 'weight' property must be specified.")
+                raise ValueError(
+                    "For alloy sites, the 'weight' property must be specified."
+                )
             data.update(alloy_detector)
 
-        #if more than one is specified, between magmoms, magnetizations and tot_magnetization, raise
-        if (data.get("magmom", None) is not None) + (data.get("magnetization", None) is not None) > 1:
-            raise ValueError(f"You can specify only one between magmom, magnetization: got {data.get('magmom', None)} and {data.get('magnetization', None)}")
+        # if more than one is specified, between magmoms, magnetizations and tot_magnetization, raise
+        if (data.get("magmom", None) is not None) + (
+            data.get("magnetization", None) is not None
+        ) > 1:
+            raise ValueError(
+                f"You can specify only one between magmom, magnetization: got {data.get('magmom', None)} and {data.get('magnetization', None)}"
+            )
 
         # we always define masses.
         # For alloy/vacancy sites, set_symbols_and_weights (called inside check_is_alloy)
@@ -178,9 +191,8 @@ class Site(BaseModel):
                 data["mass"] = _atomic_masses[sym]
 
         # we do not automatically set kind_name!
-        #if "kind_name" not in data:
+        # if "kind_name" not in data:
         #    data["kind_name"] = data["symbol"]
-
 
         if cls._mutable:
             for prop in data.keys():
@@ -190,21 +202,27 @@ class Site(BaseModel):
 
     def __repr__(self) -> str:
         """Return a string representation of the Site."""
-        symbol_str = self.symbol if isinstance(self.symbol, str) else '_'.join(self.symbol)
-        pos_str = f"[{self.position[0]:.3f}, {self.position[1]:.3f}, {self.position[2]:.3f}]"
+        symbol_str = (
+            self.symbol if isinstance(self.symbol, str) else "_".join(self.symbol)
+        )
+        pos_str = (
+            f"[{self.position[0]:.3f}, {self.position[1]:.3f}, {self.position[2]:.3f}]"
+        )
         parts = [f"{symbol_str} @ {pos_str}"]
 
         if self.kind_name and self.kind_name != self.symbol:
             parts.append(f"kind={self.kind_name}")
         if self.is_alloy and self.weight:
-            weight_str = '_'.join(f"{w:.2f}" for w in self.weight)
+            weight_str = "_".join(f"{w:.2f}" for w in self.weight)
             parts.append(f"weight={weight_str}")
         if self.charge is not None:
             parts.append(f"charge={self.charge:.2f}")
         if self.magnetization is not None:
             parts.append(f"magnetization={self.magnetization:.2f}")
         elif self.magmom is not None:
-            magmom_str = f"[{self.magmom[0]:.2f}, {self.magmom[1]:.2f}, {self.magmom[2]:.2f}]"
+            magmom_str = (
+                f"[{self.magmom[0]:.2f}, {self.magmom[1]:.2f}, {self.magmom[2]:.2f}]"
+            )
             parts.append(f"magmom={magmom_str}")
 
         return f"Site({', '.join(parts)})"
@@ -221,9 +239,8 @@ class Site(BaseModel):
 
     @property
     def alloy_list(self):
-        """Return the list of elements in the given site which is defined as an alloy
-        """
-        return re.sub( r"([A-Z])", r" \1", self.symbol).split()
+        """Return the list of elements in the given site which is defined as an alloy"""
+        return re.sub(r"([A-Z])", r" \1", self.symbol).split()
 
     @property
     def has_vacancies(self):
@@ -280,8 +297,8 @@ class Site(BaseModel):
         cls,
         aseatom: t.Optional[ase.Atom] = None,
         tag_to_kind_name: bool = True,
-        **kwargs
-        ) -> dict:
+        **kwargs,
+    ) -> dict:
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
 
         if aseatom is not None:
@@ -293,27 +310,25 @@ class Site(BaseModel):
                 )
             properties_from_Atom = {
                 "symbol": aseatom.symbol,
-                "kind_name": aseatom.symbol + str(aseatom.tag).replace('0', ''),
+                "kind_name": aseatom.symbol + str(aseatom.tag).replace("0", ""),
                 "position": aseatom.position.tolist(),
                 "mass": aseatom.mass,
             }
             if aseatom.charge != 0:
-                properties_from_Atom['charge'] = aseatom.charge
+                properties_from_Atom["charge"] = aseatom.charge
             if isinstance(aseatom.magmom, (int, float)):
                 if aseatom.magmom != 0:
-                    properties_from_Atom['magnetization'] = aseatom.magmom
+                    properties_from_Atom["magnetization"] = aseatom.magmom
             elif isinstance(aseatom.magmom, (list, np.ndarray)):
                 if np.linalg.norm(aseatom.magmom) > 0:
-                    properties_from_Atom['magmom'] = aseatom.magmom
+                    properties_from_Atom["magmom"] = aseatom.magmom
 
             if not tag_to_kind_name:
                 properties_from_Atom.pop("kind_name", None)
 
             new_site = cls(**properties_from_Atom)
         else:
-            new_site = cls(
-                **kwargs
-            )
+            new_site = cls(**kwargs)
 
         return new_site
 
@@ -332,10 +347,18 @@ class Site(BaseModel):
                 cartesian x y and z in unit ang
         """
         if self.magmom is None:
-            return {"starting_magnetization": 0, "angle1": 0, "angle2": 0} if coord == "spherical" else [0, 0, 0]
+            return (
+                {"starting_magnetization": 0, "angle1": 0, "angle2": 0}
+                if coord == "spherical"
+                else [0, 0, 0]
+            )
         elif self.magmom is not None and np.all(self.magmom == 0):
             # array is all zeros
-            return {"starting_magnetization": 0, "angle1": 0, "angle2": 0} if coord == "spherical" else [0, 0, 0]
+            return (
+                {"starting_magnetization": 0, "angle1": 0, "angle2": 0}
+                if coord == "spherical"
+                else [0, 0, 0]
+            )
 
         magmom = self.magmom
         if coord not in ["spherical", "cartesian"]:
@@ -347,13 +370,17 @@ class Site(BaseModel):
             if r < _MAGMOM_THRESHOLD:
                 magmom_coord = [0.0, 0.0, 0.0]
             else:
-                theta = np.arccos(magmom[2]/r) # arccos(z/r)
+                theta = np.arccos(magmom[2] / r)  # arccos(z/r)
                 theta = theta / np.pi * 180
-                phi = np.arctan2(magmom[1], magmom[0]) # atan2(y, x)
+                phi = np.arctan2(magmom[1], magmom[0])  # atan2(y, x)
                 phi = phi / np.pi * 180
                 magmom_coord = (r, theta, phi)
                 # unit always in degree to fit qe inputs.
-        return {"starting_magnetization": magmom_coord[0], "angle1": magmom_coord[1], "angle2": magmom_coord[2]}
+        return {
+            "starting_magnetization": magmom_coord[0],
+            "angle1": magmom_coord[1],
+            "angle2": magmom_coord[2],
+        }
 
     def set_automatic_kind_name(self, tag=None):
         """Set the type to a string obtained with the symbol appended one
@@ -363,27 +390,29 @@ class Site(BaseModel):
         :param tag: optional tag to be appended to the kind name
         """
         from aiida_atomistic.data.structure.utils import create_automatic_kind_name
+
         name_string = create_automatic_kind_name(self.symbol, self.weight)
         if tag is None:
             self.name = name_string
         else:
             self.name = f"{name_string}{tag}"
 
-    def to_ase(self,):
+    def to_ase(
+        self,
+    ):
         """Return a ase.Atom object for this site.
 
         :param kind_name: the list of kind_name from the StructureData object.
         :return: ase.Atom object representing this site
         :raises ValueError: if any site is an alloy or has vacancies
         """
-        from collections import defaultdict
         import ase
 
         # I create the list of tags
-        tag_list = []
-        used_tags = defaultdict(list)
+        # tag_list = []
+        # used_tags = defaultdict(list)
 
-        #required_properties = set(["symbol", "position", "mass", "charge", "magmom"])
+        # required_properties = set(["symbol", "position", "mass", "charge", "magmom"])
 
         # we should put a small routine to do tags. or instead of kind_name, provide the tag (or tag mapping).
         tag = None
@@ -391,7 +420,9 @@ class Site(BaseModel):
         atom_dict["symbol"] = atom_dict.pop("symbol", None)
         atom_dict["position"] = atom_dict.pop("position", None)
         magmom = atom_dict.pop("magmom", None)
-        atom_dict["magmom"] = atom_dict.pop("magnetization", None) if magmom is None else magmom
+        atom_dict["magmom"] = (
+            atom_dict.pop("magnetization", None) if magmom is None else magmom
+        )
         atom_dict["momentum"] = atom_dict.pop("momentum", None)
         atom_dict["charge"] = atom_dict.pop("charge", None)
         atom_dict["mass"] = atom_dict.pop("mass", None)
@@ -400,10 +431,8 @@ class Site(BaseModel):
         atom_dict_keys = list(atom_dict.keys())
         for prop in atom_dict_keys:
             if prop not in ["symbol", "position", "mass", "charge", "magmom", "tag"]:
-                atom_dict.pop(prop,None)
-        aseatom = ase.Atom(
-            **atom_dict
-        )
+                atom_dict.pop(prop, None)
+        aseatom = ase.Atom(**atom_dict)
 
         tag = self.kind_name.replace(self.symbol, "") if self.kind_name else None
         if tag is not None:
@@ -414,13 +443,13 @@ class Site(BaseModel):
             aseatom.tag = tag
         return aseatom
 
-class FrozenSite(Site):
 
+class FrozenSite(Site):
     _mutable: t.ClassVar[bool] = False
 
     model_config = ConfigDict(
-        from_attributes = True,
-        frozen = True,
-        arbitrary_types_allowed = True,
-        validate_assignment = True
-        )
+        from_attributes=True,
+        frozen=True,
+        arbitrary_types_allowed=True,
+        validate_assignment=True,
+    )

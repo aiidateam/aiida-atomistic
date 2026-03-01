@@ -1,4 +1,5 @@
 """Tests for property getter methods in StructureData and StructureBuilder."""
+
 import json
 import numpy as np
 import pytest
@@ -19,25 +20,29 @@ class TestBasicPropertyGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
-        assert np.allclose(structure.properties.cell, [[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]])
+        assert np.allclose(
+            structure.properties.cell, [[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]]
+        )
 
         # Test with StructureData
         structure_data = StructureData(
             cell=[[4.0, 0, 0], [0, 4.0, 0], [0, 0, 4.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Cu", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Cu", "position": [0, 0, 0]}],
         )
-        assert np.allclose(structure_data.properties.cell, [[4.0, 0, 0], [0, 4.0, 0], [0, 0, 4.0]])
+        assert np.allclose(
+            structure_data.properties.cell, [[4.0, 0, 0], [0, 4.0, 0], [0, 0, 4.0]]
+        )
 
     def test_get_pbc(self):
         """Test accessing pbc property."""
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, False, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         assert structure.properties.pbc == [True, False, True]
@@ -46,7 +51,7 @@ class TestBasicPropertyGetters:
         structure_3d = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         assert all(structure_3d.properties.pbc)
 
@@ -58,7 +63,7 @@ class TestBasicPropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         positions = structure.properties.positions
@@ -70,7 +75,7 @@ class TestBasicPropertyGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         assert structure.properties.charges is None
 
@@ -81,7 +86,7 @@ class TestBasicPropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
-            ]
+            ],
         )
         assert np.allclose(structure_charged.properties.charges, [2.0, -2.0])
 
@@ -91,7 +96,7 @@ class TestBasicPropertyGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         assert structure.properties.magmoms is None
 
@@ -102,9 +107,11 @@ class TestBasicPropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "magmom": [0, 0, 2.2]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "magmom": [0, 0, -2.2]},
-            ]
+            ],
         )
-        assert np.allclose(structure_magnetic.properties.magmoms, [[0, 0, 2.2], [0, 0, -2.2]])
+        assert np.allclose(
+            structure_magnetic.properties.magmoms, [[0, 0, 2.2], [0, 0, -2.2]]
+        )
 
     def test_get_magnetizations(self):
         """Test accessing magnetizations property."""
@@ -112,7 +119,7 @@ class TestBasicPropertyGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         assert structure.properties.magnetizations is None
 
@@ -123,7 +130,7 @@ class TestBasicPropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "magnetization": 2.5},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "magnetization": -2.5},
-            ]
+            ],
         )
         assert np.allclose(structure_magnetic.properties.magnetizations, [2.5, -2.5])
 
@@ -136,7 +143,7 @@ class TestBasicPropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
         masses = structure.properties.masses
         assert masses is not None
@@ -149,7 +156,7 @@ class TestBasicPropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "mass": 56.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "mass": 16.0},
-            ]
+            ],
         )
         assert np.allclose(structure_custom.properties.masses, [56.0, 16.0])
 
@@ -161,7 +168,7 @@ class TestBasicPropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         symbols = structure.properties.symbols
@@ -173,7 +180,7 @@ class TestBasicPropertyGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         weights = structure.properties.weights
         assert weights is None or all(w is None for w in weights)
@@ -185,7 +192,7 @@ class TestBasicPropertyGetters:
             sites=[
                 {"symbol": ["Fe", "Ni"], "position": [0, 0, 0], "weight": [0.7, 0.3]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
         weights = structure_alloy.properties.weights
         assert np.allclose(weights[0], [0.7, 0.3])
@@ -199,7 +206,7 @@ class TestRedundantPropertyAccessors:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         assert len(structure.sites) == 1
         assert structure.sites[0].symbol == "Fe"
@@ -209,7 +216,7 @@ class TestRedundantPropertyAccessors:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"}],
         )
         kinds = structure.to_kinds()
         assert len(kinds.properties.kinds) > 0
@@ -220,7 +227,7 @@ class TestRedundantPropertyAccessors:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         assert not structure.is_alloy
 
@@ -229,7 +236,7 @@ class TestRedundantPropertyAccessors:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         assert not structure.has_vacancies
 
@@ -241,7 +248,7 @@ class TestRedundantPropertyAccessors:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
         assert "Fe" in structure.formula
         assert "O" in structure.formula
@@ -260,7 +267,7 @@ class TestComputedPropertyGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         volume = structure.properties.cell_volume
@@ -272,20 +279,20 @@ class TestComputedPropertyGetters:
         structure_3d = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         dim = structure_3d.properties.dimensionality
-        assert dim['dim'] == 3
-        assert dim['label'] == 'volume'
+        assert dim["dim"] == 3
+        assert dim["label"] == "volume"
 
         # 2D structure
         structure_2d = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 20.0]],
             pbc=[True, True, False],
-            sites=[{"symbol": "C", "position": [0, 0, 0]}]
+            sites=[{"symbol": "C", "position": [0, 0, 0]}],
         )
         dim = structure_2d.properties.dimensionality
-        assert dim['dim'] == 2
+        assert dim["dim"] == 2
 
     def test_get_formula(self):
         """Test accessing formula computed property."""
@@ -295,7 +302,7 @@ class TestComputedPropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         formula = structure.properties.formula
@@ -319,19 +326,19 @@ class TestMethodGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
-            ]
+            ],
         )
 
         defined = structure.get_defined_properties()
 
         # Should include site arrays with singular_form
-        assert 'charges' in defined
-        assert 'positions' in defined
-        assert 'symbols' in defined
+        assert "charges" in defined
+        assert "positions" in defined
+        assert "symbols" in defined
 
         # Should exclude computed without singular_form (default behavior)
-        assert 'formula' not in defined
-        assert 'cell_volume' not in defined
+        assert "formula" not in defined
+        assert "cell_volume" not in defined
 
     def test_get_defined_properties_exclude_computed(self):
         """Test get_defined_properties() with exclude_computed=True."""
@@ -341,21 +348,21 @@ class TestMethodGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
-            ]
+            ],
         )
 
         defined = structure.get_defined_properties(exclude_computed=True)
 
         # Should exclude all computed fields
-        assert 'charges' not in defined
-        assert 'positions' not in defined
-        assert 'formula' not in defined
-        assert 'cell_volume' not in defined
+        assert "charges" not in defined
+        assert "positions" not in defined
+        assert "formula" not in defined
+        assert "cell_volume" not in defined
 
         # Should include only base fields
-        assert 'cell' in defined
-        assert 'pbc' in defined
-        assert 'sites' in defined
+        assert "cell" in defined
+        assert "pbc" in defined
+        assert "sites" in defined
 
     def test_get_defined_properties_include_computed_without_singular(self):
         """Test get_defined_properties() with exclude_computed_without_singular=False."""
@@ -365,32 +372,34 @@ class TestMethodGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
-            ]
+            ],
         )
 
-        defined = structure.get_defined_properties(exclude_computed_without_singular=False)
+        defined = structure.get_defined_properties(
+            exclude_computed_without_singular=False
+        )
 
         # Should include all computed fields
-        assert 'charges' in defined
-        assert 'positions' in defined
-        assert 'composition' in defined
-        assert 'cell_volume' in defined
+        assert "charges" in defined
+        assert "positions" in defined
+        assert "composition" in defined
+        assert "cell_volume" in defined
 
     def test_get_defined_properties_no_charges(self):
         """Test get_defined_properties() when charges are not set."""
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         defined = structure.get_defined_properties()
 
         # Charges should not be in defined properties
-        assert 'charges' not in defined
+        assert "charges" not in defined
 
         # But positions should be
-        assert 'positions' in defined
+        assert "positions" in defined
 
     def test_get_defined_properties_with_magmoms(self):
         """Test get_defined_properties() with magnetic moments."""
@@ -400,11 +409,11 @@ class TestMethodGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "magmom": [0, 0, 2.2]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "magmom": [0, 0, -2.2]},
-            ]
+            ],
         )
 
         defined = structure.get_defined_properties()
-        assert 'magmoms' in defined
+        assert "magmoms" in defined
 
     def test_get_defined_properties_immutable(self):
         """Test get_defined_properties() with StructureData (immutable)."""
@@ -414,14 +423,14 @@ class TestMethodGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         defined = structure.get_defined_properties()
 
         # Should include charges (only first site has it, but property is defined)
-        assert 'charges' in defined
-        assert 'positions' in defined
+        assert "charges" in defined
+        assert "positions" in defined
 
     def test_get_supported_properties(self):
         """Test get_supported_properties() class method."""
@@ -431,19 +440,19 @@ class TestMethodGetters:
         # Should return dict with 'global' and 'site' keys
         assert isinstance(supported_builder, dict)
         assert isinstance(supported_data, dict)
-        assert 'global' in supported_builder
-        assert 'site' in supported_builder
-        assert 'global' in supported_data
-        assert 'site' in supported_data
+        assert "global" in supported_builder
+        assert "site" in supported_builder
+        assert "global" in supported_data
+        assert "site" in supported_data
 
         # Should include common properties
-        for prop in ['cell', 'pbc', 'sites']:
-            assert prop in supported_builder['global']
-            assert prop in supported_data['global']
+        for prop in ["cell", "pbc", "sites"]:
+            assert prop in supported_builder["global"]
+            assert prop in supported_data["global"]
 
-        for prop in ['charge', 'magmom', 'mass', 'position', 'symbol']:
-            assert prop in supported_builder['site']
-            assert prop in supported_data['site']
+        for prop in ["charge", "magmom", "mass", "position", "symbol"]:
+            assert prop in supported_builder["site"]
+            assert prop in supported_data["site"]
 
     def test_get_computed_properties(self):
         """Test get_computed_properties() class method."""
@@ -455,7 +464,14 @@ class TestMethodGetters:
         assert isinstance(computed_data, set)
 
         # Should include computed properties
-        for prop in ['composition', 'cell_volume', 'dimensionality', 'positions', 'charges', 'magmoms']:
+        for prop in [
+            "composition",
+            "cell_volume",
+            "dimensionality",
+            "positions",
+            "charges",
+            "magmoms",
+        ]:
             assert prop in computed_builder
             assert prop in computed_data
 
@@ -468,7 +484,7 @@ class TestMethodGetters:
                 {"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "kind_name": "Fe2"},
                 {"symbol": "O", "position": [1.5, 0, 0], "kind_name": "O1"},
-            ]
+            ],
         )
 
         kind_names = structure.get_kind_names()
@@ -484,9 +500,19 @@ class TestMethodGetters:
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
             sites=[
-                {"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1", "charge": 2.0},
-                {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "kind_name": "Fe2", "charge": 3.0},
-            ]
+                {
+                    "symbol": "Fe",
+                    "position": [0, 0, 0],
+                    "kind_name": "Fe1",
+                    "charge": 2.0,
+                },
+                {
+                    "symbol": "Fe",
+                    "position": [1.5, 1.5, 1.5],
+                    "kind_name": "Fe2",
+                    "charge": 3.0,
+                },
+            ],
         )
 
         kind_fe1 = structure.get_kind("Fe1")
@@ -505,7 +531,7 @@ class TestMethodGetters:
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
                 {"symbol": "O", "position": [0, 1.5, 1.5]},
-            ]
+            ],
         )
 
         composition = structure.get_composition()
@@ -518,7 +544,7 @@ class TestMethodGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         description = structure.get_description()
@@ -534,7 +560,7 @@ class TestMethodGetters:
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
                 {"symbol": "Fe", "position": [0, 1.5, 1.5]},
-            ]
+            ],
         )
 
         symbols_set = structure.get_symbols_set()
@@ -551,12 +577,13 @@ class TestMethodGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         pmg_structure = structure.get_pymatgen_structure()
         assert pmg_structure is not None
         from pymatgen.core import Structure
+
         assert isinstance(pmg_structure, Structure)
         assert len(pmg_structure) == 2
 
@@ -569,12 +596,13 @@ class TestMethodGetters:
                 {"symbol": "H", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.0, 0, 0]},
                 {"symbol": "H", "position": [1.5, 0.5, 0]},
-            ]
+            ],
         )
 
         pmg_molecule = structure.get_pymatgen_molecule()
         assert pmg_molecule is not None
         from pymatgen.core import Molecule
+
         assert isinstance(pmg_molecule, Molecule)
         assert len(pmg_molecule) == 3
 
@@ -587,7 +615,7 @@ class TestKindRelatedGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"}],
         )
         kinds_structure = structure.to_kinds()
         kind = kinds_structure.get_kind("Fe1")
@@ -599,7 +627,7 @@ class TestKindRelatedGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         kinds_structure = structure.to_kinds()
         kind = kinds_structure.get_kind("NonExistent")
@@ -610,7 +638,7 @@ class TestKindRelatedGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         assert not structure.is_collinear
 
@@ -622,7 +650,7 @@ class TestKindRelatedGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "magnetization": 2.0},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "magnetization": -2.0},
-            ]
+            ],
         )
         assert structure.is_collinear
 
@@ -634,7 +662,7 @@ class TestKindRelatedGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "magmom": [0, 0, 2.0]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "magmom": [0, 0, -1.0]},
-            ]
+            ],
         )
         # Should be collinear since all magmoms are parallel (along z-axis)
         assert structure.is_collinear
@@ -647,14 +675,19 @@ class TestFromASE:
         """Test from_ase with a basic ASE Atoms object."""
         try:
             from ase import Atoms
-            ase_atoms = Atoms('H2O',
-                            positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]],
-                            cell=[5, 5, 5],
-                            pbc=True)
+
+            ase_atoms = Atoms(
+                "H2O",
+                positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]],
+                cell=[5, 5, 5],
+                pbc=True,
+            )
 
             structure = StructureBuilder.from_ase(ase_atoms)
             assert len(structure.properties.sites) == 3
-            assert np.allclose(structure.properties.cell, [[5, 0, 0], [0, 5, 0], [0, 0, 5]])
+            assert np.allclose(
+                structure.properties.cell, [[5, 0, 0], [0, 5, 0], [0, 0, 5]]
+            )
         except ImportError:
             pytest.skip("ASE not available")
 
@@ -662,10 +695,10 @@ class TestFromASE:
         """Test from_ase with tags (creates kind names from tags)."""
         try:
             from ase import Atoms
-            ase_atoms = Atoms('Fe2',
-                            positions=[[0, 0, 0], [1.5, 1.5, 1.5]],
-                            cell=[3, 3, 3],
-                            pbc=True)
+
+            ase_atoms = Atoms(
+                "Fe2", positions=[[0, 0, 0], [1.5, 1.5, 1.5]], cell=[3, 3, 3], pbc=True
+            )
             ase_atoms.set_tags([1, 2])
 
             structure = StructureBuilder.from_ase(ase_atoms)
@@ -685,10 +718,10 @@ class TestFromFile:
 
             # Create a test XYZ file
             xyz_file = tmp_path / "test.xyz"
-            atoms = Atoms('H2', positions=[[0, 0, 0], [0, 0, 1]], cell=[5, 5, 5])
-            ase_io.write(str(xyz_file), atoms, format='xyz')
+            atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1]], cell=[5, 5, 5])
+            ase_io.write(str(xyz_file), atoms, format="xyz")
 
-            structure = StructureBuilder.from_file(str(xyz_file), format='xyz')
+            structure = StructureBuilder.from_file(str(xyz_file), format="xyz")
             assert len(structure.properties.sites) == 2
         except ImportError:
             pytest.skip("ASE not available")
@@ -701,6 +734,7 @@ class TestFromPymatgen:
         """Test from_pymatgen with a Molecule object."""
         try:
             from pymatgen.core import Molecule
+
             mol = Molecule(["H", "H"], [[0, 0, 0], [0, 0, 1]])
 
             structure = StructureBuilder.from_pymatgen(mol)
@@ -713,8 +747,11 @@ class TestFromPymatgen:
         """Test from_pymatgen with a Structure object."""
         try:
             from pymatgen.core import Structure, Lattice
+
             lattice = Lattice([[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]])
-            structure_pmg = Structure(lattice, ["Fe", "O"], [[0, 0, 0], [0.5, 0.5, 0.5]])
+            structure_pmg = Structure(
+                lattice, ["Fe", "O"], [[0, 0, 0], [0.5, 0.5, 0.5]]
+            )
 
             structure = StructureBuilder.from_pymatgen(structure_pmg)
             assert len(structure.properties.sites) == 2
@@ -731,7 +768,7 @@ class TestValidateKinds:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         with pytest.raises(ValueError, match="No kinds defined"):
             structure.validate_kinds()
@@ -741,7 +778,7 @@ class TestValidateKinds:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         kinds_structure = structure.to_kinds()
         # Should not raise
@@ -759,7 +796,7 @@ class TestToKinds:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
         kinds_structure = structure.to_kinds()
         assert len(kinds_structure.properties.kinds) > 0
@@ -772,7 +809,7 @@ class TestToKinds:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "charge": 2.01},
-            ]
+            ],
         )
         kinds_structure = structure.to_kinds(threshold={"charge": 0.1})
         # With large threshold, should group both Fe atoms
@@ -787,7 +824,7 @@ class TestToDict:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         dict_repr = structure.to_dict()
         assert "cell" in dict_repr
@@ -799,7 +836,7 @@ class TestToDict:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         dict_repr = structure.to_dict()
         # Computed fields like formula should not be in dict
@@ -814,7 +851,7 @@ class TestToCIF:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         with pytest.raises(ValueError, match="No such converter"):
             structure.to_cif(converter="invalid_converter")
@@ -832,7 +869,7 @@ class TestGetCompositionModes:
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "Fe", "position": [1.5, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
         comp = structure.get_composition(mode="reduced")
         assert comp["Fe"] == 2
@@ -846,7 +883,7 @@ class TestGetCompositionModes:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
         comp = structure.get_composition(mode="fractional")
         assert comp["Fe"] == 0.5
@@ -857,7 +894,7 @@ class TestGetCompositionModes:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         with pytest.raises(ValueError, match="mode .* is invalid"):
             structure.get_composition(mode="invalid")
@@ -872,7 +909,7 @@ class TestToASE:
             structure = StructureBuilder(
                 cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
                 pbc=[True, True, True],
-                sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+                sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
             )
             ase_atoms = structure.to_ase()
             assert len(ase_atoms) == 1
@@ -890,7 +927,7 @@ class TestToPymatgen:
             structure = StructureBuilder(
                 cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
                 pbc=[True, True, True],
-                sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+                sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
             )
             pmg_structure = structure.to_pymatgen()
             assert len(pmg_structure) == 1
@@ -906,7 +943,7 @@ class TestToPymatgen:
                 sites=[
                     {"symbol": "H", "position": [5, 5, 5]},
                     {"symbol": "H", "position": [5, 5, 6]},
-                ]
+                ],
             )
             pmg_mol = structure.to_pymatgen()
             assert len(pmg_mol) == 2
@@ -922,7 +959,7 @@ class TestToFile:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         with pytest.raises(ValueError, match="provide a valid filename"):
             structure.to_file(filename=None)
@@ -933,7 +970,7 @@ class TestToFile:
             structure = StructureBuilder(
                 cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
                 pbc=[True, True, True],
-                sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+                sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
             )
             output_file = tmp_path / "test.cif"
             structure.to_file(filename=str(output_file), format="cif")
@@ -955,10 +992,10 @@ class TestPrepareXSF:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         xsf_bytes, metadata = structure._prepare_xsf()
-        xsf_str = xsf_bytes.decode('utf-8')
+        xsf_str = xsf_bytes.decode("utf-8")
         assert "CRYSTAL" in xsf_str
         assert "PRIMVEC" in xsf_str
         assert "PRIMCOORD" in xsf_str
@@ -973,7 +1010,7 @@ class TestPrepareCIF:
             structure = StructureBuilder(
                 cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
                 pbc=[True, True, True],
-                sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+                sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
             )
             cif_bytes, metadata = structure._prepare_cif()
             assert isinstance(cif_bytes, bytes)
@@ -989,10 +1026,10 @@ class TestPrepareChemDoodle:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         json_bytes, metadata = structure._prepare_chemdoodle()
-        json_str = json_bytes.decode('utf-8')
+        json_str = json_bytes.decode("utf-8")
         data = json.loads(json_str)
         assert "m" in data
         assert "s" in data
@@ -1010,10 +1047,10 @@ class TestPrepareXYZ:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
         xyz_bytes, metadata = structure._prepare_xyz()
-        xyz_str = xyz_bytes.decode('utf-8')
+        xyz_str = xyz_bytes.decode("utf-8")
         assert "2" in xyz_str  # Number of atoms
         assert "Lattice=" in xyz_str
         assert "pbc=" in xyz_str
@@ -1024,24 +1061,6 @@ class TestPrepareXYZ:
 # ============================================================================
 # INTERNAL CONVERSION METHODS
 # ============================================================================
-
-
-class TestGetObjectPhonopyAtoms:
-    """Test _get_object_phonopyatoms method (lines 838-849)."""
-
-    def test_get_object_phonopyatoms(self):
-        """Test conversion to PhonopyAtoms."""
-        try:
-            from phonopy.structure.atoms import PhonopyAtoms
-            structure = StructureBuilder(
-                cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
-                pbc=[True, True, True],
-                sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
-            )
-            phonopy_atoms = structure._get_object_phonopyatoms()
-            assert len(phonopy_atoms) == 1
-        except ImportError:
-            pytest.skip("Phonopy not available")
 
 
 class TestGetObjectASE:
@@ -1056,11 +1075,13 @@ class TestGetObjectASE:
                 sites=[
                     {"symbol": "Fe", "position": [0, 0, 0]},
                     {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-                ]
+                ],
             )
             ase_atoms = structure._get_object_ase()
             assert len(ase_atoms) == 2
-            assert np.allclose(ase_atoms.get_cell(), [[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]])
+            assert np.allclose(
+                ase_atoms.get_cell(), [[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]]
+            )
         except ImportError:
             pytest.skip("ASE not available")
 
@@ -1074,11 +1095,12 @@ class TestGetObjectPymatgenRouting:
             structure = StructureBuilder(
                 cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
                 pbc=[True, True, True],
-                sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+                sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
             )
             result = structure._get_object_pymatgen()
             # Should be Structure, not Molecule
             from pymatgen.core import Structure
+
             assert isinstance(result, Structure)
         except ImportError:
             pytest.skip("Pymatgen not available")
@@ -1092,11 +1114,12 @@ class TestGetObjectPymatgenRouting:
                 sites=[
                     {"symbol": "H", "position": [5, 5, 5]},
                     {"symbol": "H", "position": [5, 5, 6]},
-                ]
+                ],
             )
             result = structure._get_object_pymatgen()
             # Should be Molecule, not Structure
             from pymatgen.core import Molecule
+
             assert isinstance(result, Molecule)
         except ImportError:
             pytest.skip("Pymatgen not available")
@@ -1115,7 +1138,7 @@ class TestGetDimensionality:
         structure = StructureBuilder(
             cell=[[10.0, 0, 0], [0, 10.0, 0], [0, 0, 10.0]],
             pbc=[False, False, False],
-            sites=[{"symbol": "H", "position": [5, 5, 5]}]
+            sites=[{"symbol": "H", "position": [5, 5, 5]}],
         )
         dim = structure._get_dimensionality()
         assert dim["dim"] == 0
@@ -1126,7 +1149,7 @@ class TestGetDimensionality:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 10.0, 0], [0, 0, 10.0]],
             pbc=[True, False, False],
-            sites=[{"symbol": "C", "position": [0, 5, 5]}]
+            sites=[{"symbol": "C", "position": [0, 5, 5]}],
         )
         dim = structure._get_dimensionality()
         assert dim["dim"] == 1
@@ -1137,7 +1160,7 @@ class TestGetDimensionality:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 10.0]],
             pbc=[True, True, False],
-            sites=[{"symbol": "C", "position": [0, 0, 5]}]
+            sites=[{"symbol": "C", "position": [0, 0, 5]}],
         )
         dim = structure._get_dimensionality()
         assert dim["dim"] == 2
@@ -1148,7 +1171,7 @@ class TestGetDimensionality:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         dim = structure._get_dimensionality()
         assert dim["dim"] == 3
@@ -1163,7 +1186,7 @@ class TestValidateDimensionality:
         structure = StructureBuilder(
             cell=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
             pbc=[False, False, False],
-            sites=[{"symbol": "H", "position": [0, 0, 0]}]
+            sites=[{"symbol": "H", "position": [0, 0, 0]}],
         )
         # Should not raise
         structure._validate_dimensionality()
@@ -1173,7 +1196,7 @@ class TestValidateDimensionality:
         structure = StructureBuilder(
             cell=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         with pytest.raises(ValueError, match="but.*-d volume 0"):
             structure._validate_dimensionality()
@@ -1187,7 +1210,7 @@ class TestGetSymbolsSetMethod:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         symbols = structure.get_symbols_set()
         assert symbols == {"Fe"}
@@ -1201,7 +1224,7 @@ class TestGetSymbolsSetMethod:
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
                 {"symbol": "Fe", "position": [1.5, 0, 0]},
-            ]
+            ],
         )
         symbols = structure.get_symbols_set()
         assert isinstance(symbols, set)
@@ -1224,7 +1247,7 @@ class TestSitePropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
-            ]
+            ],
         )
 
         assert structure.properties.sites[0].charge == 2.0
@@ -1238,7 +1261,7 @@ class TestSitePropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "magmom": [0, 0, 2.2]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "magmom": [0, 0, -2.2]},
-            ]
+            ],
         )
 
         assert np.allclose(structure.properties.sites[0].magmom, [0, 0, 2.2])
@@ -1252,7 +1275,7 @@ class TestSitePropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "mass": 56.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "mass": 16.0},
-            ]
+            ],
         )
 
         assert structure.properties.sites[0].mass == 56.0
@@ -1266,7 +1289,7 @@ class TestSitePropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         assert np.allclose(structure.properties.sites[0].position, [0, 0, 0])
@@ -1280,7 +1303,7 @@ class TestSitePropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         assert structure.properties.sites[0].symbol == "Fe"
@@ -1294,7 +1317,7 @@ class TestSitePropertyGetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "kind_name": "Fe2"},
-            ]
+            ],
         )
 
         assert structure.properties.sites[0].kind_name == "Fe1"
@@ -1308,7 +1331,7 @@ class TestSitePropertyGetters:
             sites=[
                 {"symbol": ["Fe", "Ni"], "position": [0, 0, 0], "weight": [0.7, 0.3]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         assert np.allclose(structure.properties.sites[0].weight, [0.7, 0.3])
@@ -1329,21 +1352,21 @@ class TestCustomPropertyGetters:
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
             sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
-            custom={'temperature': 300.0, 'pressure': 1.0}
+            custom={"temperature": 300.0, "pressure": 1.0},
         )
 
         assert structure.properties.custom is not None
-        assert 'temperature' in structure.properties.custom
-        assert structure.properties.custom['temperature'] == 300.0
-        assert 'pressure' in structure.properties.custom
-        assert structure.properties.custom['pressure'] == 1.0
+        assert "temperature" in structure.properties.custom
+        assert structure.properties.custom["temperature"] == 300.0
+        assert "pressure" in structure.properties.custom
+        assert structure.properties.custom["pressure"] == 1.0
 
     def test_get_custom_properties_none(self):
         """Test that custom is None when not set."""
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         # Custom should be None if not provided
@@ -1364,7 +1387,7 @@ class TestGlobalPropertyGetters:
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
             sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
-            tot_charge=2.0
+            tot_charge=2.0,
         )
 
         assert structure.properties.tot_charge == 2.0
@@ -1374,7 +1397,7 @@ class TestGlobalPropertyGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         assert structure.properties.tot_charge is None
@@ -1385,7 +1408,7 @@ class TestGlobalPropertyGetters:
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
             sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
-            tot_magnetization=2.5
+            tot_magnetization=2.5,
         )
 
         assert structure.properties.tot_magnetization == 2.5
@@ -1395,13 +1418,14 @@ class TestGlobalPropertyGetters:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         assert structure.properties.tot_magnetization is None
 
 
 # === 11. ADDITIONAL EDGE CASES FOR COVERAGE ===
+
 
 class TestLenMethod:
     """Test __len__ method."""
@@ -1414,7 +1438,7 @@ class TestLenMethod:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
         assert len(structure) == 2
 
@@ -1427,6 +1451,7 @@ class TestFromFileMCIF:
         try:
             import tempfile
             import os
+
             # Create a simple mcif content
             mcif_content = """data_test
 _cell_length_a 5.0
@@ -1444,7 +1469,9 @@ _atom_site_fract_y
 _atom_site_fract_z
 Fe1 Fe 0.0 0.0 0.0
 """
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.mcif', delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".mcif", delete=False
+            ) as f:
                 f.write(mcif_content)
                 temp_path = f.name
 
@@ -1465,7 +1492,7 @@ class TestToCIFConverter:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
         with pytest.raises(ValueError, match="No such converter.*available"):
             structure.to_cif(converter="invalid_converter")
@@ -1482,7 +1509,7 @@ class TestGetCompositionInvalidMode:
             sites=[
                 {"symbol": "Ba", "position": [0, 0, 0]},
                 {"symbol": "Ti", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
         with pytest.raises(ValueError, match="mode.*invalid"):
             structure.get_composition(mode="invalid_mode")
@@ -1499,7 +1526,7 @@ class TestPrepareXSFWithAlloy:
             pbc=[True, True, True],
             sites=[
                 {"symbol": ["Fe", "Co"], "position": [0, 0, 0], "weight": [0.5, 0.5]},
-            ]
+            ],
         )
         # Verify it's recognized as an alloy
         assert structure.is_alloy
@@ -1520,7 +1547,7 @@ class TestGetObjectPhonopyAtoms:
                 pbc=[True, True, True],
                 sites=[
                     {"symbol": "Fe", "position": [0, 0, 0], "mass": 55.845},
-                ]
+                ],
             )
 
             phonopy_atoms = structure._get_object_phonopyatoms()
@@ -1538,7 +1565,7 @@ class TestDimensionalityValidationError:
         structure = StructureBuilder(
             cell=[[5.0, 0, 0], [0, 0, 0], [0, 0, 0]],  # Singular in 2 dimensions
             pbc=[True, True, True],  # But claiming 3D periodicity
-            sites=[{"symbol": "H", "position": [0, 0, 0]}]
+            sites=[{"symbol": "H", "position": [0, 0, 0]}],
         )
         with pytest.raises(ValueError, match="but.*-d volume 0"):
             structure._validate_dimensionality()
