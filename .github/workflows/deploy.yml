@@ -34,11 +34,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[docs]
       - name: Build MkDocs documentation
-        run: mkdocs build --strict --site-dir ./docs/build/html
+        run: mkdocs build --strict --site-dir ./build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './docs/build/html'
+          path: './build'
 
   deploy:
     environment:
