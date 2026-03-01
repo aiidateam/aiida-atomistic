@@ -1,8 +1,9 @@
 """Tests for utility functions."""
+
 import numpy as np
 import pytest
 
-from aiida_atomistic.data.structure import StructureData, StructureBuilder
+from aiida_atomistic.data.structure import StructureData
 from aiida_atomistic.data.structure.utils import (
     _check_valid_sites,
     _create_symbols_tuple,
@@ -28,6 +29,7 @@ from aiida_atomistic.data.structure.utils_kinds import (
     rebuild_site_lists_from_kind_lists,
     sites_from_kinds,
 )
+
 
 class TestCellValidation:
     """Test cell validation utilities."""
@@ -340,6 +342,7 @@ class TestFormula:
 
         # group_symbols returns list of lists
         from aiida_atomistic.data.structure.utils import group_symbols
+
         symbols = [s.symbol for s in structure.sites]
         grouped = group_symbols(symbols)
         assert grouped == [[1, "Ba"], [1, "Ti"], [3, "O"]]

@@ -67,7 +67,7 @@ Each `Site` object can have the following properties:
 
     - Type: `str` for pure elements, `list[str]` for alloys
     - Example: `'Cu'` or `['Cu', 'Zn']`
-  
+
 - **`position`**: Atomic coordinates in Cartesian space
 
     - Type: `np.ndarray` (shape: `(3,)`)
@@ -381,7 +381,7 @@ print(field_info.json_schema_extra)  # {'store_in': 'db'}
 
 # Properties with 'singular_form' are site properties
 field_info = StructureBaseModel.model_computed_fields['charges']
-print(field_info.json_schema_extra)  
+print(field_info.json_schema_extra)
 # {'store_in': 'repository', 'singular_form': 'charge'}
 ```
 
@@ -390,10 +390,10 @@ print(field_info.json_schema_extra)
 - **`store_in`**: Where to store the property
   - `'db'`: Database attributes (fast queries, size-limited)
   - `'repository'`: File repository (large arrays, slower queries)
-  
+
 - **`singular_form`**: Links plural computed property to singular site property
   - Example: `charges` (plural) ↔ `charge` (singular)
-  
+
 - **`statistic`**: Statistical aggregation for querying
   - `'max'`: Maximum value across all sites
   - `'min'`: Minimum value across all sites

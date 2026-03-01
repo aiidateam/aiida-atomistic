@@ -668,4 +668,3 @@ Final structure ready for calculations!
 Is alloy: False
 Total charge: -1.0
 ```
-

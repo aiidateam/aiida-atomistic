@@ -6,6 +6,7 @@ This module contains comprehensive tests organized into logical sections:
 3. SITE MANIPULATION TESTS - Testing site manipulation methods (update, append, pop, clear) and edge cases
 4. INTEGRATION AND WORKFLOW TESTS - Testing combined workflows and real-world usage patterns
 """
+
 import numpy as np
 import pytest
 
@@ -15,6 +16,7 @@ from aiida_atomistic.data.structure import StructureBuilder, StructureData
 # ============================================================================
 # BASIC PROPERTY SETTERS
 # ============================================================================
+
 
 class TestPropertySetters:
     """Test setter methods for structure properties."""
@@ -27,7 +29,7 @@ class TestPropertySetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Set charges
@@ -45,7 +47,7 @@ class TestPropertySetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         with pytest.raises(ValueError):
@@ -59,7 +61,7 @@ class TestPropertySetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Set magmoms
@@ -77,7 +79,7 @@ class TestPropertySetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Set magnetizations
@@ -95,7 +97,7 @@ class TestPropertySetters:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Set custom masses
@@ -113,7 +115,7 @@ class TestPropertySetters:
             sites=[
                 {"symbol": ["Fe", "Ni"], "position": [0, 0, 0], "weight": [0.5, 0.5]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Set weights
@@ -127,6 +129,7 @@ class TestPropertySetters:
 # PROPERTY REMOVERS
 # ============================================================================
 
+
 class TestPropertyRemovers:
     """Test remover methods for structure properties."""
 
@@ -138,7 +141,7 @@ class TestPropertyRemovers:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
-            ]
+            ],
         )
 
         # Verify charges are set
@@ -161,7 +164,7 @@ class TestPropertyRemovers:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "magmom": [0, 0, 2.2]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "magmom": [0, 0, -2.2]},
-            ]
+            ],
         )
 
         # Verify magmoms are set
@@ -183,7 +186,7 @@ class TestPropertyRemovers:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "magnetization": 2.5},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "magnetization": -2.5},
-            ]
+            ],
         )
 
         # Verify magnetizations are set
@@ -205,7 +208,7 @@ class TestPropertyRemovers:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "mass": 56.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "mass": 16.0},
-            ]
+            ],
         )
 
         # Verify masses are set
@@ -227,7 +230,7 @@ class TestPropertyRemovers:
             sites=[
                 {"symbol": ["Fe", "Ni"], "position": [0, 0, 0], "weight": [0.7, 0.3]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Verify weights are set
@@ -246,7 +249,7 @@ class TestPropertyRemovers:
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
             sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
-            tot_charge=2.0
+            tot_charge=2.0,
         )
 
         # Verify tot_charge is set
@@ -266,7 +269,7 @@ class TestPropertyRemovers:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
-            ]
+            ],
         )
 
         # Verify charges are set
@@ -285,6 +288,7 @@ class TestPropertyRemovers:
 # SITE MANIPULATION TESTS
 # ============================================================================
 
+
 class TestSetterEdgeCases:
     """Test edge cases and error handling in setter methods."""
 
@@ -296,7 +300,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Initially no charges
@@ -318,7 +322,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Set multiple properties
@@ -349,7 +353,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
-            ]
+            ],
         )
 
         # Remove charges
@@ -360,12 +364,13 @@ class TestSetterEdgeCases:
 
         # Verify charges are not present
         assert immutable.properties.charges is None
-        assert 'charges' not in immutable.get_defined_properties()
+        assert "charges" not in immutable.get_defined_properties()
 
 
 # ============================================================================
 # INTEGRATION AND WORKFLOW TESTS
 # ============================================================================
+
 
 class TestSetterRemoverWorkflow:
     """Test combined workflows of setting and removing properties."""
@@ -379,29 +384,31 @@ class TestSetterRemoverWorkflow:
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
             ],
-            custom = {'first_custom_property': 'Hello'}
+            custom={"first_custom_property": "Hello"},
         )
 
-
         # Initially only one custom property
-        assert structure.properties.custom == {'first_custom_property': 'Hello'}
+        assert structure.properties.custom == {"first_custom_property": "Hello"}
         ## testing also for StructureData
         structuredata = structure.to_aiida()
-        assert structuredata.properties.custom == {'first_custom_property': 'Hello'}
+        assert structuredata.properties.custom == {"first_custom_property": "Hello"}
 
         # Set another property
-        structure.set_custom({'second_custom_property': "World"})
-        assert structure.properties.custom == {'first_custom_property': 'Hello', 'second_custom_property': 'World'}
+        structure.set_custom({"second_custom_property": "World"})
+        assert structure.properties.custom == {
+            "first_custom_property": "Hello",
+            "second_custom_property": "World",
+        }
 
         # Remove custom properties: first only one, then the whole dictionary
-        structure.remove_custom(['first_custom_property'])
-        assert structure.properties.custom == {'second_custom_property': 'World'}
+        structure.remove_custom(["first_custom_property"])
+        assert structure.properties.custom == {"second_custom_property": "World"}
 
         structure.remove_custom()
         assert structure.properties.custom is None
 
 
-class TestSetterEdgeCases:
+class TestSetterEdgeCases2:
     """Test edge cases and error handling in setter methods."""
 
     def test_set_cell_lengths_not_implemented(self):
@@ -409,7 +416,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         with pytest.raises(NotImplementedError):
@@ -420,7 +427,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         with pytest.raises(NotImplementedError):
@@ -434,7 +441,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Update single site
@@ -453,7 +460,7 @@ class TestSetterEdgeCases:
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "Fe", "position": [1.5, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         # Update multiple sites
@@ -472,7 +479,7 @@ class TestSetterEdgeCases:
                 {"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"},
                 {"symbol": "Fe", "position": [1.5, 0, 0], "kind_name": "Fe1"},
                 {"symbol": "Fe", "position": [0, 1.5, 0], "kind_name": "Fe2"},
-            ]
+            ],
         )
 
         # Update all Fe1 sites
@@ -490,10 +497,13 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
-        with pytest.raises(ValueError, match="You cannot update a kind if the structure has no kinds defined"):
+        with pytest.raises(
+            ValueError,
+            match="You cannot update a kind if the structure has no kinds defined",
+        ):
             structure.update_kind("Fe1", charge=2.0)
 
     def test_append_atom_with_kwargs(self):
@@ -501,7 +511,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         structure.append_atom(symbol="O", position=[1.5, 1.5, 1.5], charge=-2.0)
@@ -515,10 +525,13 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
-        with pytest.raises(ValueError, match="Must provide either 'atom' parameter or keyword arguments"):
+        with pytest.raises(
+            ValueError,
+            match="Must provide either 'atom' parameter or keyword arguments",
+        ):
             structure.append_atom()
 
     def test_append_atom_dict_with_kwargs_raises_error(self):
@@ -526,11 +539,15 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
-        with pytest.raises(ValueError, match="Cannot provide both 'atom' as dict and keyword arguments"):
-            structure.append_atom({"symbol": "O", "position": [1.5, 1.5, 1.5]}, charge=-2.0)
+        with pytest.raises(
+            ValueError, match="Cannot provide both 'atom' as dict and keyword arguments"
+        ):
+            structure.append_atom(
+                {"symbol": "O", "position": [1.5, 1.5, 1.5]}, charge=-2.0
+            )
 
     def test_append_atom_site_with_kwargs_raises_error(self):
         """Test that providing both Site and kwargs raises error."""
@@ -539,12 +556,14 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         site = Site(symbol="O", position=[1.5, 1.5, 1.5])
 
-        with pytest.raises(ValueError, match="Cannot provide both 'atom' as Site and keyword arguments"):
+        with pytest.raises(
+            ValueError, match="Cannot provide both 'atom' as Site and keyword arguments"
+        ):
             structure.append_atom(site, charge=-2.0)
 
     def test_append_atom_invalid_type_raises_error(self):
@@ -552,7 +571,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         with pytest.raises(TypeError, match="atom must be Site, dict, or None"):
@@ -563,10 +582,13 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
-        with pytest.raises(ValueError, match="You cannot define two different sites to be in the same position"):
+        with pytest.raises(
+            ValueError,
+            match="You cannot define two different sites to be in the same position",
+        ):
             structure.append_atom(symbol="O", position=[0, 0, 0])
 
     def test_append_atom_at_specific_index(self):
@@ -577,7 +599,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         structure.append_atom(symbol="Cu", position=[0.5, 0.5, 0.5], index=1)
@@ -591,7 +613,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         with pytest.raises(IndexError, match="index .* out of range"):
@@ -602,7 +624,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[]
+            sites=[],
         )
 
         structure.append_atom(symbol="Fe", position=[0, 0, 0])
@@ -618,7 +640,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         structure.pop_atom()
@@ -635,7 +657,7 @@ class TestSetterEdgeCases:
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
                 {"symbol": "Cu", "position": [2.5, 2.5, 2.5]},
-            ]
+            ],
         )
 
         structure.pop_atom(1)
@@ -652,7 +674,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "charge": 2.0},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5], "charge": -2.0},
-            ]
+            ],
         )
 
         structure.clear_sites()
@@ -669,7 +691,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         with pytest.raises(ValueError, match="The length of the magmoms list"):
@@ -683,7 +705,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         with pytest.raises(ValueError, match="The length of the magnetizations array"):
@@ -697,7 +719,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         with pytest.raises(ValueError, match="The length of the masses list"):
@@ -711,7 +733,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": ["Fe", "Ni"], "position": [0, 0, 0], "weight": [0.5, 0.5]},
                 {"symbol": "O", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         with pytest.raises(ValueError, match="The length of the weights array"):
@@ -722,7 +744,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         structure.set_tot_charge(2.5)
@@ -734,7 +756,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         structure.set_tot_magnetization(4.5)
@@ -746,7 +768,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         # Set hubbard to some value
@@ -765,7 +787,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         structure.set_kind_names(["Fe1", "Fe2"])
@@ -781,7 +803,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0]},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5]},
-            ]
+            ],
         )
 
         with pytest.raises(ValueError, match="The length of the kind_names list"):
@@ -795,7 +817,7 @@ class TestSetterEdgeCases:
             sites=[
                 {"symbol": "Fe", "position": [0, 0, 0], "kind_name": "Fe1"},
                 {"symbol": "Fe", "position": [1.5, 1.5, 1.5], "kind_name": "Fe2"},
-            ]
+            ],
         )
 
         structure.remove_kind_names()
@@ -808,21 +830,21 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         assert structure.properties.custom is None
 
-        structure.set_custom({'my_property': 'value'})
+        structure.set_custom({"my_property": "value"})
 
-        assert structure.properties.custom == {'my_property': 'value'}
+        assert structure.properties.custom == {"my_property": "value"}
 
     def test_remove_custom_no_dict(self):
         """Test removing custom properties when none exist."""
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         # Should not raise error
@@ -835,19 +857,19 @@ class TestSetterEdgeCases:
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
             sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
-            custom={'prop1': 'value1'}
+            custom={"prop1": "value1"},
         )
 
         # Should not raise error for non-existent keys
-        structure.remove_custom(['prop2', 'prop3'])
-        assert structure.properties.custom == {'prop1': 'value1'}
+        structure.remove_custom(["prop2", "prop3"])
+        assert structure.properties.custom == {"prop1": "value1"}
 
     def test_set_pbc(self):
         """Test setting PBC."""
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         structure.set_pbc([False, False, True])
@@ -859,7 +881,7 @@ class TestSetterEdgeCases:
         structure = StructureBuilder(
             cell=[[3.0, 0, 0], [0, 3.0, 0], [0, 0, 3.0]],
             pbc=[True, True, True],
-            sites=[{"symbol": "Fe", "position": [0, 0, 0]}]
+            sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
         )
 
         new_cell = [[4.0, 0, 0], [0, 4.0, 0], [0, 0, 4.0]]

@@ -3,7 +3,6 @@ import functools
 import re
 import numpy as np
 
-import typing as t
 
 from scipy.spatial import cKDTree
 
@@ -22,8 +21,6 @@ try:
 except ImportError:
     pass
 
-from aiida.engine import calcfunction
-from aiida.orm import List
 
 # Threshold used to check if the mass of two different Site objects is the same.
 _MASS_THRESHOLD = 1.0e-3
@@ -33,9 +30,9 @@ _SUM_THRESHOLD = 1.0e-6
 _DEFAULT_CELL = ((0, 0, 0), (0, 0, 0), (0, 0, 0))
 
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
-_atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
+_atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}  # noqa: F811
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
-_dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
+_dimensionality_label = {0: "", 1: "length", 2: "surface", 3: "volume"}
 
 
 def _get_global_properties_from_model(model_class):
@@ -50,7 +47,7 @@ def _get_global_properties_from_model(model_class):
 
     # Check computed fields
     for field_name, computed_field_info in model_class.model_computed_fields.items():
-        extra = getattr(computed_field_info, 'json_schema_extra', None) or {}
+        extra = getattr(computed_field_info, "json_schema_extra", None) or {}
         if extra.get("property_type", "") == "global":
             global_props.append(field_name)
 
@@ -115,6 +112,7 @@ class ObservedArray(np.ndarray):
         if obj is None:
             return
 
+
 def efficient_copy(obj):
     """
     Efficiently copy an object, only deep-copying mutable parts.
@@ -127,13 +125,17 @@ def efficient_copy(obj):
     elif isinstance(obj, dict):
         # For dictionaries, only deep-copy mutable values
         return {
-            k: v if isinstance(v, (str, int, float, tuple, type(None))) else copy.deepcopy(v)
+            k: v
+            if isinstance(v, (str, int, float, tuple, type(None)))
+            else copy.deepcopy(v)
             for k, v in obj.items()
         }
     elif isinstance(obj, list):
         # For lists, only deep-copy mutable elements
         return [
-            item if isinstance(item, (str, int, float, tuple, type(None))) else copy.deepcopy(item)
+            item
+            if isinstance(item, (str, int, float, tuple, type(None)))
+            else copy.deepcopy(item)
             for item in obj
         ]
     elif isinstance(obj, (str, int, float, tuple, type(None))):
@@ -142,6 +144,7 @@ def efficient_copy(obj):
     else:
         # For other types, use deep copy
         return copy.deepcopy(obj)
+
 
 def _get_valid_cell(inputcell):
     """Return the cell in a valid format from a generic input.
@@ -191,15 +194,17 @@ def _get_valid_pbc(inputpbc):
 
     return the_pbc
 
+
 def any_close_pairs(points, eps):
     tree = cKDTree(points)
     pairs = tree.query_pairs(r=eps)
-    return len(pairs) > 0,pairs
+    return len(pairs) > 0, pairs
+
 
 def _check_valid_sites(sites):
     """Check that no two sites have positions that are too close to each other."""
 
-    positions = np.array([site['position'] for site in sites])
+    positions = np.array([site["position"] for site in sites])
 
     n_sites = len(positions)
 
@@ -211,7 +216,9 @@ def _check_valid_sites(sites):
     close_pairs = any_close_pairs(positions, eps=min_distance)
 
     if close_pairs[0]:
-        raise ValueError(f"The following sites have positions that are too close (less than {min_distance}): {close_pairs[1]}.")
+        raise ValueError(
+            f"The following sites have positions that are too close (less than {min_distance}): {close_pairs[1]}."
+        )
     return
 
 
@@ -253,6 +260,7 @@ def has_spglib():
         return False
     return True
 
+
 def get_dimensionality(
     pbc,
     cell,
@@ -292,6 +300,7 @@ def get_dimensionality(
 
     return retdict
 
+
 def calc_cell_volume(cell):
     """Compute the three-dimensional cell volume in Angstrom^3.
 
@@ -306,13 +315,15 @@ def _create_symbols_tuple(symbols):
     this is converted to a tuple with one single element.
     """
     if isinstance(symbols, str):
-        symbols_list = re.sub( r"([A-Z])", r" \1", symbols).split()
+        symbols_list = re.sub(r"([A-Z])", r" \1", symbols).split()
     else:
         symbols_list = tuple(symbols)
 
     for symbol in symbols_list:
         if symbol not in _valid_symbols:
-            raise ValueError(f"Some or all of the symbols provided are not correct: {symbols_list}")
+            raise ValueError(
+                f"Some or all of the symbols provided are not correct: {symbols_list}"
+            )
     return symbols_list
 
 
@@ -632,7 +643,7 @@ def get_formula(sites, mode="hill", separator=""):
     for site in sites:
         if isinstance(site.symbol, list):
             # For alloys, join the symbols into a single string
-            symbol_list.append(''.join(site.symbol))
+            symbol_list.append("".join(site.symbol))
         else:
             symbol_list.append(site.symbol)
 
@@ -856,29 +867,39 @@ def atom_kinds_to_html(atom_kind):
 
     return html_formula
 
+
 def set_symbols_and_weights(new_data):
-        """Set the chemical symbols and the weights for the site.
+    """Set the chemical symbols and the weights for the site.
 
-        .. note:: Note that the kind name remains unchanged.
-        """
-        symbols_tuple = _create_symbols_tuple(new_data["symbol"]) if isinstance(new_data["symbol"], str) else new_data["symbol"]
-        for symbol in symbols_tuple:
-            if symbol not in _valid_symbols:
-                raise ValueError(f'This is not a valid element: {symbol}')
-        weights_tuple = _create_weights_tuple(new_data["weight"])
-        if len(symbols_tuple) != len(weights_tuple):
-            raise ValueError('The number of symbols and weights must coincide.')
-        validate_symbols_tuple(symbols_tuple)
+    .. note:: Note that the kind name remains unchanged.
+    """
+    symbols_tuple = (
+        _create_symbols_tuple(new_data["symbol"])
+        if isinstance(new_data["symbol"], str)
+        else new_data["symbol"]
+    )
+    for symbol in symbols_tuple:
+        if symbol not in _valid_symbols:
+            raise ValueError(f"This is not a valid element: {symbol}")
+    weights_tuple = _create_weights_tuple(new_data["weight"])
+    if len(symbols_tuple) != len(weights_tuple):
+        raise ValueError("The number of symbols and weights must coincide.")
+    validate_symbols_tuple(symbols_tuple)
 
-        validate_weights_tuple(weights_tuple, _SUM_THRESHOLD)
-        new_data["alloy"] = symbols_tuple
-        new_data["weight"] = weights_tuple
+    validate_weights_tuple(weights_tuple, _SUM_THRESHOLD)
+    new_data["alloy"] = symbols_tuple
+    new_data["weight"] = weights_tuple
 
-        if "mass" not in new_data.keys() or np.isnan(new_data.get("mass", None)) or new_data.get("mass", None) == 0:
-            # Weighted mass: use raw weights (not normalized) so that vacancy sites
-            # (w_sum < 1) correctly get a fractional mass, e.g. 0.7 * m(Fe).
-            element_masses = (_atomic_masses[sym] for sym in symbols_tuple)
-            new_data["mass"] = sum(w * m for w, m in zip(weights_tuple, element_masses))
+    if (
+        "mass" not in new_data.keys()
+        or np.isnan(new_data.get("mass", None))
+        or new_data.get("mass", None) == 0
+    ):
+        # Weighted mass: use raw weights (not normalized) so that vacancy sites
+        # (w_sum < 1) correctly get a fractional mass, e.g. 0.7 * m(Fe).
+        element_masses = (_atomic_masses[sym] for sym in symbols_tuple)
+        new_data["mass"] = sum(w * m for w, m in zip(weights_tuple, element_masses))
+
 
 def check_is_alloy(data):
     """Check if the data is an alloy or not.
@@ -894,13 +915,28 @@ def check_is_alloy(data):
         return None
 
     if "weight" not in new_data.keys() or new_data.get("weight", None) is None:
-        if isinstance(new_data["symbol"], list) or re.search(r'[A-Z][a-z]*[A-Z]', new_data["symbol"]):
+        if isinstance(new_data["symbol"], list) or re.search(
+            r"[A-Z][a-z]*[A-Z]", new_data["symbol"]
+        ):
             return new_data
         else:
             return None
-    if len(new_data.get("weight", [1,])) == 1:
-        if isinstance(new_data["symbol"], str) and new_data["symbol"] not in _valid_symbols:
-            raise ValueError(f'This is not a valid element: {new_data["symbol"]}')
+    if (
+        len(
+            new_data.get(
+                "weight",
+                [
+                    1,
+                ],
+            )
+        )
+        == 1
+    ):
+        if (
+            isinstance(new_data["symbol"], str)
+            and new_data["symbol"] not in _valid_symbols
+        ):
+            raise ValueError(f"This is not a valid element: {new_data['symbol']}")
         if new_data.get("weight", (1,))[0] == 1:
             # weight == 1 and single element: plain site, neither alloy nor vacancy
             return None
@@ -908,6 +944,7 @@ def check_is_alloy(data):
         # set_symbols_and_weights so the weighted mass is computed correctly
     set_symbols_and_weights(new_data)
     return new_data
+
 
 def check_plugin_unsupported_props(structure, plugin_properties: set) -> set:
     """
@@ -917,7 +954,9 @@ def check_plugin_unsupported_props(structure, plugin_properties: set) -> set:
     :rtype: set
     """
 
-    defined_properties = structure.get_defined_properties(exclude_computed_without_singular=True)
+    defined_properties = structure.get_defined_properties(
+        exclude_computed_without_singular=True
+    )
     return defined_properties.difference(plugin_properties)
 
 
@@ -937,10 +976,11 @@ def order_k(k):
     """
     if min(k) == 0:
         k = k + 1
-    for i in range(max(k),min(1,min(k)),-1):
-        if  i-1 not in k:
-            k[np.where(k >=i )] -= 1
+    for i in range(max(k), min(1, min(k)), -1):
+        if i - 1 not in k:
+            k[np.where(k >= i)] -= 1
     return k
+
 
 def build_sites_from_expanded_properties(expanded, model_class=None):
     """
@@ -957,6 +997,7 @@ def build_sites_from_expanded_properties(expanded, model_class=None):
     # Get model class if not provided
     if model_class is None:
         from aiida_atomistic.data.structure.models import StructureProperties
+
         model_class = StructureProperties
 
     # Get computed properties and global properties dynamically from model class
@@ -967,16 +1008,20 @@ def build_sites_from_expanded_properties(expanded, model_class=None):
     conversion_mapping = {}
     site_array_props = []  # Properties with singular_form that need to be converted to sites
     for field_name, field_info in model_class.model_computed_fields.items():
-        metadata = getattr(field_info, 'json_schema_extra', {})
-        if 'singular_form' in metadata:
-            conversion_mapping[field_name] = metadata['singular_form']
+        metadata = getattr(field_info, "json_schema_extra", {})
+        if "singular_form" in metadata:
+            conversion_mapping[field_name] = metadata["singular_form"]
             site_array_props.append(field_name)  # Track these for inclusion
 
     # Exclude computed properties EXCEPT those with singular_form (they need to be converted to sites)
-    computed_to_exclude = [prop for prop in computed_props if prop not in site_array_props]
+    computed_to_exclude = [
+        prop for prop in computed_props if prop not in site_array_props
+    ]
 
     # Use all keys except global properties and non-site computed properties
-    site_props = set(expanded.keys()).difference(global_props + computed_to_exclude + ["sites", "site_indices"])
+    site_props = set(expanded.keys()).difference(
+        global_props + computed_to_exclude + ["sites", "site_indices"]
+    )
 
     # Pre-compute the conversion mapping to avoid repeated dict lookups
     # Only include properties that have a known singular form
@@ -990,7 +1035,10 @@ def build_sites_from_expanded_properties(expanded, model_class=None):
     n_sites = len(positions)
 
     sites = [
-        {"position": positions[i], **{singular: values[i] for _, singular, values in prop_conversions}}
+        {
+            "position": positions[i],
+            **{singular: values[i] for _, singular, values in prop_conversions},
+        }
         for i in range(n_sites)
     ]
 
@@ -1002,6 +1050,7 @@ def build_sites_from_expanded_properties(expanded, model_class=None):
     structure_dict["sites"] = sites
 
     return structure_dict
+
 
 def get_structure_repr(structure):
     """Return a concise string representation of the structure."""
@@ -1028,13 +1077,16 @@ def get_structure_repr(structure):
         f"formula: {formula}",
         f"sites: {nsites}",
         f"dimensionality: {pbc_str}",
-        f"V={volume:.2f} A^3"
+        f"V={volume:.2f} A^3",
     ]
 
     # Add magnetic info if present
     if structure.properties.tot_magnetization is not None:
         parts.append(f"tot_mag={structure.properties.tot_magnetization:.2f}")
-    elif any(s.magnetization is not None or s.magmom is not None for s in structure.properties.sites):
+    elif any(
+        s.magnetization is not None or s.magmom is not None
+        for s in structure.properties.sites
+    ):
         parts.append("magnetic")
 
     # Add charge info if present

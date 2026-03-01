@@ -10,7 +10,10 @@ from aiida_atomistic.data.structure.site import Site, FrozenSite
 from aiida_atomistic.data.structure.hubbard_mixin import (
     HubbardGetterMixin,
 )
-from aiida_atomistic.data.structure.utils import _get_computed_properties_from_model, _dimensionality_label
+from aiida_atomistic.data.structure.utils import (
+    _get_computed_properties_from_model,
+    _dimensionality_label,
+)
 
 try:
     import ase  # noqa: F401
@@ -47,7 +50,6 @@ _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
 
 class GetterMixin(HubbardGetterMixin):
-
     # Start redundant properties: This is mainly for make easier migration of plugins.
     @property
     def cell(self):
@@ -76,6 +78,7 @@ class GetterMixin(HubbardGetterMixin):
     @property
     def formula(self):
         return self.properties.formula
+
     # End redundant properties
 
     @classmethod
@@ -87,10 +90,7 @@ class GetterMixin(HubbardGetterMixin):
         structure_fields = set(cls._model.model_fields.keys())
         site_fields = set(Site.model_fields.keys())
 
-        return {
-            'global': structure_fields,
-            'site': site_fields
-        }
+        return {"global": structure_fields, "site": site_fields}
 
     @classmethod
     def get_computed_properties(cls):
@@ -100,7 +100,11 @@ class GetterMixin(HubbardGetterMixin):
         """
         return set(_get_computed_properties_from_model(cls._model))
 
-    def get_defined_properties(self, exclude_computed: bool = False, exclude_computed_without_singular: bool = True):
+    def get_defined_properties(
+        self,
+        exclude_computed: bool = False,
+        exclude_computed_without_singular: bool = True,
+    ):
         """
         Retrieve the defined properties of the structure.
 
@@ -130,7 +134,11 @@ class GetterMixin(HubbardGetterMixin):
             # Returns: only base properties (no computed fields at all)
         """
         # Get all properties that are set (not None)
-        defined = set(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False).keys())
+        defined = set(
+            self.properties.model_dump(
+                exclude_unset=True, exclude_none=True, warnings=False
+            ).keys()
+        )
 
         if exclude_computed:
             # Exclude ALL computed fields
@@ -140,19 +148,21 @@ class GetterMixin(HubbardGetterMixin):
             # (Keep computed fields WITH singular_form, like charges, masses, etc.)
             computed_without_singular = set()
             for field_name, field_info in self._model.model_computed_fields.items():
-                extra = getattr(field_info, 'json_schema_extra', None) or {}
-                if 'singular_form' not in extra:
+                extra = getattr(field_info, "json_schema_extra", None) or {}
+                if "singular_form" not in extra:
                     computed_without_singular.add(field_name)
             defined = defined.difference(computed_without_singular)
         # else: include all computed fields (no filtering)
 
         return defined
 
-
-
     def get_kind_names(self):
         """Return a list of the kind names defined in this structure."""
-        return None if self.properties.kind_names is None else list(set(self.properties.kind_names))
+        return (
+            None
+            if self.properties.kind_names is None
+            else list(set(self.properties.kind_names))
+        )
 
     def get_kind(self, kind_name: str = None):
         """Return a given kind."""
@@ -178,7 +188,6 @@ class GetterMixin(HubbardGetterMixin):
         rank = np.sum(s > tol * s[0])
         return rank == 1
 
-
     # initialization methods
     @classmethod
     def from_ase(
@@ -203,33 +212,30 @@ class GetterMixin(HubbardGetterMixin):
         data["sites"] = []
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
-            tag_to_kind_name=len(set(aseatoms.get_tags())) > 1
+            tag_to_kind_name = len(set(aseatoms.get_tags())) > 1
 
-            new_site = SiteClass.from_ase_atom(aseatom=atom, tag_to_kind_name=tag_to_kind_name)
+            new_site = SiteClass.from_ase_atom(
+                aseatom=atom, tag_to_kind_name=tag_to_kind_name
+            )
             data["sites"].append(new_site.model_dump())
-
 
         structure = cls(**data)
 
         return structure
 
     @classmethod
-    def from_file(
-        cls,
-        filename,
-        format="cif",
-        parser:str="ase",
-        **kwargs):
+    def from_file(cls, filename, format="cif", parser: str = "ase", **kwargs):
         """Load the structure from a file.
 
         It is possible to specify the parser between ase or pymatgen, default is ase.
         """
 
-        if format == 'mcif' or '.mcif' in filename or parser == "pymatgen":
+        if format == "mcif" or ".mcif" in filename or parser == "pymatgen":
             # in this case, we use pymatgen parser, because the ase one does not work properly for now.
             from pymatgen.io.cif import CifParser
-            parser  = CifParser(filename)
-            mcif_structure   = parser.parse_structures(**kwargs)[0]
+
+            parser = CifParser(filename)
+            mcif_structure = parser.parse_structures(**kwargs)[0]
             return cls.from_pymatgen(pymatgen_obj=mcif_structure)
         else:
             ase_read = ase_io.read(filename, format=format, **kwargs)
@@ -261,7 +267,7 @@ class GetterMixin(HubbardGetterMixin):
         cls,
         mol: PYMATGEN_MOLECULE,
         margin=5,
-        ):
+    ):
         """Load the structure from a pymatgen Molecule object.
 
         :param margin: the margin to be added in all directions of the
@@ -290,7 +296,7 @@ class GetterMixin(HubbardGetterMixin):
     def _from_pymatgen_structure(
         cls,
         struct: PYMATGEN_STRUCTURE,
-        ):
+    ):
         """Load the structure from a pymatgen Structure object.
 
         .. note:: periodic boundary conditions are set to True in all
@@ -334,7 +340,10 @@ class GetterMixin(HubbardGetterMixin):
                 )
 
             if has_spin:
-                from aiida_atomistic.data.structure.utils import create_automatic_kind_name
+                from aiida_atomistic.data.structure.utils import (
+                    create_automatic_kind_name,
+                )
+
                 symbols = [specie.symbol for specie in species]
                 kind_name = create_automatic_kind_name(symbols, occupations)
 
@@ -360,31 +369,37 @@ class GetterMixin(HubbardGetterMixin):
         # self.clear_kinds()
 
         inputs["sites"] = []
-        sites_collection = struct.properties["sites"] if "sites" in struct.properties.keys() else struct.sites
+        sites_collection = (
+            struct.properties["sites"]
+            if "sites" in struct.properties.keys()
+            else struct.sites
+        )
         for site in sites_collection:
-
             site_info = {
                 "symbol": site.specie.symbol,
                 "mass": site.species.weight,
                 "position": site.coords.tolist(),
-                'magmom': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else None
+                "magmom": site.properties.get("magmom").moment
+                if "magmom" in site.properties.keys()
+                else None,
             }
 
+            if site.properties.get("kinds", None) is not None:
+                site_info["kind_name"] = (
+                    site.properties.get("kinds").replace("+", "").replace("-", "")
+                )
 
-            if site.properties.get('kinds', None) is not None:
-                site_info["kind_name"] = site.properties.get('kinds').replace("+", "").replace("-", "")
-
-            if bool(site.properties.get('charge', None)):
+            if bool(site.properties.get("charge", None)):
                 site_info["charge"] = site.properties.get("charge")
 
-            if site.properties.get('magmom', None) is not None:
+            if site.properties.get("magmom", None) is not None:
                 magmom = site.properties.get("magmom").moment
                 if isinstance(magmom, (int, float)):
                     if magmom != 0:
-                        site_info['magnetization'] = magmom
+                        site_info["magnetization"] = magmom
                 elif isinstance(magmom, (list, np.ndarray)):
                     if np.linalg.norm(magmom) > 0:
-                        site_info['magmom'] = magmom
+                        site_info["magmom"] = magmom
 
             inputs["sites"].append(site_info)
 
@@ -400,7 +415,10 @@ class GetterMixin(HubbardGetterMixin):
         :raises ValueError: if the kinds defined in the structure do not match the ones generated from the sites.
         """
 
-        from aiida_atomistic.data.structure.utils_kinds import generate_kinds, check_kinds_match
+        from aiida_atomistic.data.structure.utils_kinds import (
+            generate_kinds,
+            check_kinds_match,
+        )
 
         if not self.kinds:
             raise ValueError("No kinds defined in the structure.")
@@ -415,12 +433,14 @@ class GetterMixin(HubbardGetterMixin):
         check_kinds = check_kinds_match(self, kinds)
 
         if not check_kinds:
-            raise ValueError("The kinds defined in the structure do not match the generated kinds from the sites. Please run the 'to_kinds' method to see the expected kinds.")
+            raise ValueError(
+                "The kinds defined in the structure do not match the generated kinds from the sites. Please run the 'to_kinds' method to see the expected kinds."
+            )
 
         return True
 
     # TO methods:
-    def to_kinds(self, threshold: dict = {}, store_provenance: bool=True):
+    def to_kinds(self, threshold: dict = {}, store_provenance: bool = True):
         """
         Convert the structure to a kinds-based representation.
 
@@ -431,8 +451,13 @@ class GetterMixin(HubbardGetterMixin):
         :rtype: dict
         """
 
-        from aiida_atomistic.data.structure.utils_kinds import to_kinds as to_kinds_function
-        from aiida_atomistic.data.structure.structure import StructureBuilder, StructureData
+        from aiida_atomistic.data.structure.utils_kinds import (
+            to_kinds as to_kinds_function,
+        )
+        from aiida_atomistic.data.structure.structure import (
+            StructureBuilder,
+            StructureData,
+        )
 
         # defaul thresholds
         all_thresholds = Site.get_default_thresholds()
@@ -444,21 +469,29 @@ class GetterMixin(HubbardGetterMixin):
             return to_kinds_function(self, threshold=all_thresholds)
         elif isinstance(self, StructureData):
             from aiida.engine import calcfunction
-            return calcfunction(to_kinds_function)(self, threshold=orm.Dict(all_thresholds), metadata={'store_provenance': store_provenance})
 
+            return calcfunction(to_kinds_function)(
+                self,
+                threshold=orm.Dict(all_thresholds),
+                metadata={"store_provenance": store_provenance},
+            )
 
     def to_dict(self):
-            """
-            Convert the structure to a dictionary representation, ready to be used as input for the StructureBuilder or for serialization.
-            This is why it excludes computed fields, unsets and None: to avoid including properties that are not user-defined.
+        """
+        Convert the structure to a dictionary representation, ready to be used as input for the StructureBuilder or for serialization.
+        This is why it excludes computed fields, unsets and None: to avoid including properties that are not user-defined.
 
-            :return: The structure as a dictionary.
-            :rtype: dict
-            """
-            exclude = set(self.properties.model_computed_fields.keys())
-            dict_repr = copy.deepcopy(self.properties.model_dump(exclude_unset=True, exclude_none=True, warnings=False, exclude=exclude))
+        :return: The structure as a dictionary.
+        :rtype: dict
+        """
+        exclude = set(self.properties.model_computed_fields.keys())
+        dict_repr = copy.deepcopy(
+            self.properties.model_dump(
+                exclude_unset=True, exclude_none=True, warnings=False, exclude=exclude
+            )
+        )
 
-            return dict_repr
+        return dict_repr
 
     def to_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.
@@ -564,7 +597,6 @@ class GetterMixin(HubbardGetterMixin):
         return self._get_object_pymatgen(**kwargs)
 
     def to_file(self, filename=None, format="cif"):
-
         """Writes the structure to a file.
 
         Args:
@@ -650,9 +682,7 @@ class GetterMixin(HubbardGetterMixin):
         for site in sites:
             # I checked above that it is not an alloy, therefore I take the
             # first symbol
-            return_string += (
-                f"{_atomic_numbers[site.symbol]} "
-            )
+            return_string += f"{_atomic_numbers[site.symbol]} "
             return_string += "%18.10f %18.10f %18.10f\n" % tuple(site.position)
         return return_string.encode("utf-8"), {}
 
@@ -702,7 +732,7 @@ class GetterMixin(HubbardGetterMixin):
                     - center
                 ).tolist()
 
-                kind_name = base_site.kind_name
+                # kind_name = base_site.kind_name
                 kind_string = base_site.symbol
 
                 atoms_json.append(
@@ -788,11 +818,11 @@ class GetterMixin(HubbardGetterMixin):
         if atoms is None:
             raise TypeError("The data does not contain any XYZ data")
 
-        #self.clear_kinds()
+        # self.clear_kinds()
         self.properties.pbc = (False, False, False)
 
         for sym, position in atoms:
-            self.append_atom(atom={'symbol':sym, 'position':position})
+            self.append_atom(atom={"symbol": sym, "position": position})
 
     def _adjust_default_cell(
         self, vacuum_factor=1.0, vacuum_addition=10.0, pbc=(False, False, False)
@@ -845,12 +875,12 @@ class GetterMixin(HubbardGetterMixin):
         from phonopy.structure.atoms import PhonopyAtoms
 
         atoms = PhonopyAtoms(
-            symbols = self.properties.symbols,
-            masses = self.properties.masses,
-            magnetic_moments = self.properties.magmoms,
-            positions = self.properties.positions,
-            cell = self.cell,
-            pbc = self.pbc,
+            symbols=self.properties.symbols,
+            masses=self.properties.masses,
+            magnetic_moments=self.properties.magmoms,
+            positions=self.properties.positions,
+            cell=self.cell,
+            pbc=self.pbc,
         )
 
         return atoms
@@ -867,7 +897,7 @@ class GetterMixin(HubbardGetterMixin):
         asecell = ase.Atoms(
             cell=self.properties.cell,
             pbc=self.properties.pbc,
-            )
+        )
 
         for site in self.properties.sites:
             asecell.append(site.to_ase())
@@ -974,7 +1004,7 @@ class GetterMixin(HubbardGetterMixin):
             additional_kwargs["site_properties"] = {
                 "kinds": self.properties.kind_names,
                 "charge": self.properties.charges,
-                "magmom": self.properties.magmoms
+                "magmom": self.properties.magmoms,
             }
 
         if kwargs:
@@ -1017,7 +1047,7 @@ class GetterMixin(HubbardGetterMixin):
             )
 
         species = []
-        additional_kwargs = {}
+        # additional_kwargs = {}
 
         for site in self.properties.sites:
             if hasattr(site, "weight") and site.weight is not None:
@@ -1027,7 +1057,7 @@ class GetterMixin(HubbardGetterMixin):
             species.append({site.symbol: weight})
 
         positions = [list(site.position) for site in self.properties.sites]
-        mol =  Molecule(species, positions)
+        mol = Molecule(species, positions)
 
         # Build site properties as lists (required by pymatgen)
         site_properties = {}
@@ -1037,7 +1067,6 @@ class GetterMixin(HubbardGetterMixin):
             site_properties["charge"] = self.properties.charges
         if self.properties.magmoms is not None:
             site_properties["magmom"] = self.properties.magmoms
-
 
         # Add each property separately (each must be a list of length = number of sites)
         for prop, value in site_properties.items():
@@ -1081,6 +1110,7 @@ class GetterMixin(HubbardGetterMixin):
             retdict["value"] = np.linalg.norm(np.cross(vectors[0], vectors[1]))
         elif dim == 3:
             from aiida_atomistic.data.structure.utils import calc_cell_volume
+
             retdict["value"] = calc_cell_volume(cell)
 
         return retdict
@@ -1098,7 +1128,7 @@ class GetterMixin(HubbardGetterMixin):
         # finite-d structures should have a cell with finite volume
         if dim["value"] == 0:
             raise ValueError(
-                f'Structure has periodicity {self.properties.pbc} but {dim["dim"]}-d volume 0.'
+                f"Structure has periodicity {self.properties.pbc} but {dim['dim']}-d volume 0."
             )
 
         return

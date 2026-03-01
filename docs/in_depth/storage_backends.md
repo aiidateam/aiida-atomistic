@@ -27,7 +27,7 @@ class StructureBaseModel(BaseModel):
     cell: ArrayLike3x3 = Field(
         json_schema_extra={"store_in": "db"}
     )
-    
+
     # This array goes to repository
     @computed_field(json_schema_extra={"store_in": "repository", "singular_form": "position"})
     @property
@@ -176,7 +176,7 @@ def my_properties(self) -> np.ndarray:
     if all(site.my_property is None for site in self.sites):
         return None
     return np.array([
-        site.my_property if site.my_property is not None 
+        site.my_property if site.my_property is not None
         else Site.get_default_values()['my_property']
         for site in self.sites
     ])

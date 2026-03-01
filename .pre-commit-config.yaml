@@ -6,7 +6,6 @@ repos:
   - id: check-added-large-files
     exclude: uv.lock
   - id: check-yaml
-  - id: double-quote-string-fixer
   - id: end-of-file-fixer
     exclude: &exclude_pre_commit_hooks >
       (?x)^(

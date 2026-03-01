@@ -5,10 +5,11 @@ This module contains comprehensive tests for the structure model classes:
 - MutableStructureModel: Mutable structure that allows modifications
 - ImmutableStructureModel: Immutable structure with frozen state
 """
+
 import numpy as np
 import pytest
 
-from aiida_atomistic.data.structure import StructureData, StructureBuilder
+from aiida_atomistic.data.structure import StructureData
 from aiida_atomistic.data.structure.models import (
     ImmutableStructureModel,
     MutableStructureModel,
@@ -21,6 +22,7 @@ from aiida_atomistic.data.structure.site import freeze_nested
 # =============================================================================
 # StructureBaseModel Tests
 # =============================================================================
+
 
 class TestStructureBaseModelCreation:
     """Test creation and initialization of StructureBaseModel."""
@@ -41,7 +43,7 @@ class TestStructureBaseModelCreation:
         model = StructureBaseModel(
             pbc=[True, True, True],
             cell=[[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]],
-            sites=None
+            sites=None,
         )
         assert model.sites == []
         assert len(model.sites) == 0
@@ -139,6 +141,7 @@ class TestStructureBaseModelValidation:
 # =============================================================================
 # Computed Fields Tests
 # =============================================================================
+
 
 class TestComputedFieldsCell:
     """Test cell-related computed fields."""
@@ -427,6 +430,7 @@ class TestStatisticalComputedFields:
 # MutableStructureModel Tests
 # =============================================================================
 
+
 class TestMutableStructureModel:
     """Test mutable structure model functionality."""
 
@@ -462,6 +466,7 @@ class TestMutableStructureModel:
         original_count = len(model.sites)
 
         from aiida_atomistic.data.structure.site import Site
+
         new_site = Site(symbol="C", position=[2.0, 2.0, 2.0])
         model.sites.append(new_site)
 
@@ -492,6 +497,7 @@ class TestMutableStructureModel:
 # ImmutableStructureModel Tests
 # =============================================================================
 
+
 class TestImmutableStructureModel:
     """Test immutable structure model functionality."""
 
@@ -514,6 +520,7 @@ class TestImmutableStructureModel:
         model = ImmutableStructureModel(**example_structure_dict)
 
         from aiida_atomistic.data.structure.site import FrozenSite
+
         assert all(isinstance(s, FrozenSite) for s in model.sites)
 
     def test_site_modification_prevented(self, example_structure_dict):
@@ -537,7 +544,7 @@ class TestImmutableStructureModel:
             pbc=[True, True, True],
             cell=[[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]],
             sites=[{"symbol": "Fe", "position": [0, 0, 0]}],
-            custom={"key": "value", "nested": {"data": 123}}
+            custom={"key": "value", "nested": {"data": 123}},
         )
         assert model.custom is not None
         assert model.custom["key"] == "value"
@@ -560,6 +567,7 @@ class TestImmutableStructureModel:
 # Model Conversion Tests
 # =============================================================================
 
+
 class TestModelConversion:
     """Test conversion between model types."""
 
@@ -568,7 +576,9 @@ class TestModelConversion:
         mutable = MutableStructureModel(**example_structure_dict)
 
         exclude = set(mutable.model_computed_fields.keys())
-        immutable = ImmutableStructureModel(**mutable.model_dump(exclude_none=True, mode='python', exclude=exclude))
+        immutable = ImmutableStructureModel(
+            **mutable.model_dump(exclude_none=True, mode="python", exclude=exclude)
+        )
 
         assert len(immutable.sites) == len(mutable.sites)
         assert np.allclose(immutable.cell, mutable.cell)
@@ -578,7 +588,9 @@ class TestModelConversion:
         immutable = ImmutableStructureModel(**example_structure_dict)
 
         exclude = set(immutable.model_computed_fields.keys())
-        mutable = MutableStructureModel(**immutable.model_dump(exclude_none=True, mode='python', exclude=exclude))
+        mutable = MutableStructureModel(
+            **immutable.model_dump(exclude_none=True, mode="python", exclude=exclude)
+        )
 
         assert len(mutable.sites) == len(immutable.sites)
         assert np.allclose(mutable.cell, immutable.cell)
@@ -587,7 +599,9 @@ class TestModelConversion:
         """Test that conversion preserves all data including magnetic properties."""
         immutable = ImmutableStructureModel(**magnetic_structure_collinear)
         exclude = set(immutable.model_computed_fields.keys())
-        mutable = MutableStructureModel(**immutable.model_dump(exclude_none=True, mode='python', exclude=exclude))
+        mutable = MutableStructureModel(
+            **immutable.model_dump(exclude_none=True, mode="python", exclude=exclude)
+        )
 
         assert all(
             np.allclose(im.magmom, mu.magmom)
@@ -598,6 +612,7 @@ class TestModelConversion:
 # =============================================================================
 # Serialization Tests
 # =============================================================================
+
 
 class TestModelSerialization:
     """Test model serialization and deserialization."""
@@ -622,7 +637,7 @@ class TestModelSerialization:
         original = StructureBaseModel(**magnetic_structure_collinear)
 
         exclude = set(original.model_computed_fields.keys())
-        dumped = original.model_dump(exclude_none=True, mode='python', exclude=exclude)
+        dumped = original.model_dump(exclude_none=True, mode="python", exclude=exclude)
         restored = StructureBaseModel(**dumped)
 
         assert len(restored.sites) == len(original.sites)
@@ -640,6 +655,7 @@ class TestModelSerialization:
 # =============================================================================
 # get_defined_properties Tests
 # =============================================================================
+
 
 class TestGetDefinedProperties:
     """Test get_defined_properties method with filtering options."""
@@ -753,8 +769,7 @@ class TestGetDefinedProperties:
         )
 
         defined = model.get_defined_properties(
-            exclude_computed=True,
-            exclude_computed_without_singular=False
+            exclude_computed=True, exclude_computed_without_singular=False
         )
 
         # exclude_computed=True should override

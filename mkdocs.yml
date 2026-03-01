@@ -8,81 +8,81 @@ theme:
   icon:
     repo: fontawesome/brands/github
   features:
-    - navigation.top
-    - navigation.tabs
-    - navigation.tabs.sticky
-    - navigation.sections
-    - navigation.expand
-    - navigation.indexes
-    - navigation.footer
-    - toc.follow
-    - toc.integrate
-    - content.code.copy
-    - content.code.select
-    - content.code.annotate
+  - navigation.top
+  - navigation.tabs
+  - navigation.tabs.sticky
+  - navigation.sections
+  - navigation.expand
+  - navigation.indexes
+  - navigation.footer
+  - toc.follow
+  - toc.integrate
+  - content.code.copy
+  - content.code.select
+  - content.code.annotate
   palette:
 
     # Palette toggle for automatic mode
-    - media: "(prefers-color-scheme)"
-      toggle:
-        icon: material/brightness-auto
-        name: Switch to light mode
+  - media: (prefers-color-scheme)
+    toggle:
+      icon: material/brightness-auto
+      name: Switch to light mode
 
     # Palette toggle for light mode
-    - media: "(prefers-color-scheme: light)"
-      scheme: default 
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
+  - media: '(prefers-color-scheme: light)'
+    scheme: default
+    toggle:
+      icon: material/brightness-7
+      name: Switch to dark mode
 
     # Palette toggle for dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      toggle:
-        icon: material/brightness-4
-        name: Switch to system preference
+  - media: '(prefers-color-scheme: dark)'
+    scheme: slate
+    toggle:
+      icon: material/brightness-4
+      name: Switch to system preference
 extra_css:
-  - stylesheets/extra.css
+- stylesheets/extra.css
 markdown_extensions:
-  - attr_list
-  - md_in_html
-  - def_list
-  - pymdownx.tasklist:
-      custom_checkbox: true
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
-  - pymdownx.superfences
-  - admonition
-  - pymdownx.details
+- attr_list
+- md_in_html
+- def_list
+- pymdownx.tasklist:
+    custom_checkbox: true
+- pymdownx.highlight:
+    anchor_linenums: true
+    line_spans: __span
+    pygments_lang_class: true
+- pymdownx.inlinehilite
+- pymdownx.snippets
+- pymdownx.superfences
+- admonition
+- pymdownx.details
 plugins:
-  - search
-  - git-revision-date-localized:
-      enable_creation_date: true
+- search
+- git-revision-date-localized:
+    enable_creation_date: true
 nav:
-  - Home: index.md
-  - Getting Started: installation_quickstart/quickstart.md
-  - Tutorials:
-    - Introduction: tutorials/index.md
-    - Creating Your First Structure: tutorials/1_first_structure.md
-    - Running Your First QE Calculation: tutorials/2_first_qe_calculation.md
-  - How-To Guides:
-    - Introduction: how_to/index.md
-    - Creation & Mutation: how_to/creation_mutation.md
-    - Magnetic Structures: how_to/magnetic_structures.md
-    - Hubbard Properties: how_to/hubbard_properties.md
-    - Kinds: how_to/kinds.md
-    - Define Custom Properties: how_to/define_custom.md
-    - Querying Structures: how_to/query.md
-  - In-Depth Guides:
-    - Introduction: in_depth/index.md
-    - Properties: in_depth/properties.md
-    - Storage Backends: in_depth/storage_backends.md
-  - Developer Guides:
-    - Introduction: dev_guides/index.md
-    - Adding Properties: dev_guides/dev_adding_properties.md
-    - Plugin Migration: dev_guides/dev_plugin_migration.md
-    - Repository Storage: dev_guides/dev_repository_storage.md
+- Home: index.md
+- Getting Started: installation_quickstart/quickstart.md
+- Tutorials:
+  - Introduction: tutorials/index.md
+  - Creating Your First Structure: tutorials/1_first_structure.md
+  - Running Your First QE Calculation: tutorials/2_first_qe_calculation.md
+- How-To Guides:
+  - Introduction: how_to/index.md
+  - Creation & Mutation: how_to/creation_mutation.md
+  - Magnetic Structures: how_to/magnetic_structures.md
+  - Hubbard Properties: how_to/hubbard_properties.md
+  - Kinds: how_to/kinds.md
+  - Define Custom Properties: how_to/define_custom.md
+  - Querying Structures: how_to/query.md
+- In-Depth Guides:
+  - Introduction: in_depth/index.md
+  - Properties: in_depth/properties.md
+  - Storage Backends: in_depth/storage_backends.md
+- Developer Guides:
+  - Introduction: dev_guides/index.md
+  - Adding Properties: dev_guides/dev_adding_properties.md
+  - Plugin Migration: dev_guides/dev_plugin_migration.md
+  - Repository Storage: dev_guides/dev_repository_storage.md

@@ -1,10 +1,10 @@
-name: Publish on PyPI
+name: pypi-publish
 
 on:
   push:
     tags:
       # After vMajor.Minor.Patch _anything_ is allowed (without "/") !
-      - v[0-9]+.[0-9]+.[0-9]+*
+    - v[0-9]+.[0-9]+.[0-9]+*
 
 jobs:
   publish:
@@ -30,4 +30,4 @@ jobs:
         flit publish
       env:
         FLIT_USERNAME: __token__
-        FLIT_PASSWORD:  ${{ secrets.pypi_token }}
+        FLIT_PASSWORD: ${{ secrets.pypi_token }}
