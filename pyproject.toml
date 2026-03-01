@@ -47,15 +47,10 @@ pre-commit = [
     "pylint~=2.15.10"
 ]
 docs = [
-    'sphinx>=6.2.1',
-    'sphinx_copybutton~=0.5.2',
-    'sphinx-book-theme~=1.0.1',
-    'sphinx_click~=4.4.0',
-    'sphinx-design~=0.4.1',
-    'sphinxcontrib-details-directive~=0.1.0',
-    'sphinx-autoapi~=3.0.0',
-    'myst_parser~=1.0.0',
-    'packaging~=24.2',
+    'mkdocs<2',
+    'mkdocs-material<10',
+    'mkdocs-git-revision-date-localized-plugin',
+    'mkdocstrings[python]',
 ]
 
 [project.entry-points."aiida.data"]
@@ -117,6 +112,6 @@ commands = pre-commit run {posargs}
 [testenv:docs]
 description = Build the documentation
 extras = docs
-commands = sphinx-build -nW --keep-going -b html {posargs} docs/source docs/build/html
+commands = mkdocs build --strict
 commands_post = echo "open file://{toxinidir}/docs/build/html/index.html"
 """
