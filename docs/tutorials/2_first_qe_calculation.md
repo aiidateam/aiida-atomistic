@@ -21,7 +21,7 @@ Ensure you have the necessary packages and codes installed, which you can verify
 
 If not already done, remember to install the `sssp` pseudopotentials:
 
-```bash
+```text
 aiida-pseudo install sssp # install the default SSSP/1.3/PBE/efficiency family
 ```
 
@@ -98,10 +98,10 @@ builder = PwBaseWorkChain.get_builder_from_protocol(
 )
 
 run = run_get_node(builder)
-````
+```
 
 **Output:**
-```
+```text
 11/04/2025 05:48:46 PM <42782> aiida.orm.nodes.process.workflow.workchain.WorkChainNode: [REPORT] [13784|PwBaseWorkChain|run_process]: launching PwCalculation<13789> iteration #1
 11/04/2025 05:49:09 PM <42782> aiida.orm.nodes.process.workflow.workchain.WorkChainNode: [REPORT] [13784|PwBaseWorkChain|results]: work chain completed after 1 iterations
 11/04/2025 05:49:10 PM <42782> aiida.orm.nodes.process.workflow.workchain.WorkChainNode: [REPORT] [13784|PwBaseWorkChain|on_terminated]: remote folders will not be cleaned
@@ -109,12 +109,12 @@ run = run_get_node(builder)
 
 You can verify that the `tot_charge` was indeed set in the input file of the `pw.x` calculation:
 
-```shell
+```text
 verdi calcjob inputcat 13789 | grep tot_charge
 ```
 
 **Output:**
-```
+```text
 tot_charge =   1.0000000000d+00
 ```
 
