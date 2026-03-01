@@ -1,0 +1,4 @@
+# Install docs dependencies from pyproject.toml [docs] extras.
+# This file exists only to satisfy tooling that expects a requirements file
+# (e.g. GitHub Actions `pip install -r docs/requirements.txt`).
+-e ../[docs]
