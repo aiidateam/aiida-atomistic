@@ -1,0 +1,23 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install python dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -e .[pre-commit]
+    - name: Run pre-commit
+      run: |
+        pre-commit install
+        pre-commit run --all-files || ( git status --short ; git diff ; exit 1 )
