@@ -316,7 +316,7 @@ Key differences from site properties:
 
 As example, let's add a `temperature` property that applies to the entire structure. The steps are:
 
-1. Edit `src/aiida_atomistic/data/structure/models.py`:
+(1) Edit `src/aiida_atomistic/data/structure/models.py`:
 
 ```python
 class StructureBaseModel(BaseModel):
@@ -333,7 +333,7 @@ class StructureBaseModel(BaseModel):
     )
 ```
 
-2. Add a setter in `src/aiida_atomistic/data/structure/setter_mixin.py`:
+(2) Add a setter in `src/aiida_atomistic/data/structure/setter_mixin.py`:
 
 ```python
 def set_temperature(self, temperature: float):
@@ -356,7 +356,7 @@ def set_temperature(self, temperature: float):
     self.properties.temperature = float(temperature)
 ```
 
-3. Add a getter in `src/aiida_atomistic/data/structure/getter_mixin.py`:
+(3) Add a getter in `src/aiida_atomistic/data/structure/getter_mixin.py`:
 
 ```python
 def get_temperature(self) -> t.Optional[float]:
@@ -369,7 +369,7 @@ def get_temperature(self) -> t.Optional[float]:
     return self.properties.temperature
 ```
 
-4. Add a remove method in `src/aiida_atomistic/data/structure/setter_mixin.py`:
+(4) Add a remove method in `src/aiida_atomistic/data/structure/setter_mixin.py`:
 
 ```python
 def remove_temperature(self):
